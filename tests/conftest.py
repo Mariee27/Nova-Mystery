@@ -1,0 +1,130 @@
+"""Shared helpers for the Murder at NOVA test suite.
+
+All tests are written against docs/CONTRACT.md only.
+"""
+import json
+import os
+import sys
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+import pytest  # noqa: E402
+
+import content  # noqa: E402
+import logic  # noqa: E402
+
+LOC = content.LOCATIONS
+
+# Long, distinctive tokens for the security tests (so substring checks cannot
+# produce false positives such as "t1" inside ordinary words).
+SECURE_TOKENS = ["tok%d_" % i + "QzXw" * 4 for i in range(1, 7)]
+
+
+# --------------------------------------------------------------------------
+# building games
+# --------------------------------------------------------------------------
+def make_lobby(n, tokens=None):
+    """new_game("ABCD", 0) plus n players P1..Pn with tokens t1..tn at now=0."""
+    game = logic.new_game("ABCD", 0)
+    for i in range(1, n + 1):
+        token = tokens[i - 1] if tokens else "t%d" % i
+        game = logic.join(game, "P%d" % i, token, 0)
+    return game
+
+
+def online_all(game):
+    return {p["pid"] for p in game["players"]}
+
+
+def make_started(n=5, seed=1, tokens=None):
+    """Lobby with n players, started by the host at now=0 with all online."""
+    game = make_lobby(n, tokens)
+    host_token = tokens[0] if tokens else "t1"
+    return logic.start(game, host_token, set(range(1, n + 1)), 0, seed=seed)
+
+
+def token_of(game, pid):
+    for p in game["players"]:
+        if p["pid"] == pid:
+            return p["token"]
+    raise KeyError(pid)
+
+
+def host_token(game):
+    return token_of(game, game["host"])
+
+
+def pids_of(game):
+    return [p["pid"] for p in game["players"]]
+
+
+def murderer_pid(game):
+    return game["case"]["murderer"]
+
+
+def murderer_token(game):
+    return token_of(game, murderer_pid(game))
+
+
+def innocent_pids(game):
+    m = murderer_pid(game)
+    return [p for p in pids_of(game) if p != m]
+
+
+def innocent_token(game, k=0):
+    return token_of(game, innocent_pids(game)[k])
+
+
+def character(game, pid):
+    for c in game["case"]["characters"]:
+        if c["pid"] == pid:
+            return c
+    raise KeyError(pid)
+
+
+def own_clue_ids(game, pid):
+    return [c["id"] for c in character(game, pid)["clues"]]
+
+
+def last_log_id(game):
+    return game["log"][-1]["id"]
+
+
+def advance_to(game, phase, online=None, now=0):
+    """Call logic.end_phase with the host token until `phase` is reached."""
+    if online is None:
+        online = online_all(game)
+    for _ in range(10):
+        if game["phase"] == phase:
+            return game
+        assert game["phase"] in ("REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE"), (
+            "cannot advance from %s to %s" % (game["phase"], phase)
+        )
+        game = logic.end_phase(game, host_token(game), online, now)
+    raise AssertionError("phase %s not reached" % phase)
+
+
+def started_in(phase, n=5, seed=1, tokens=None):
+    """A started game advanced (via end_phase) to `phase`."""
+    return advance_to(make_started(n, seed, tokens), phase)
+
+
+def cast_votes(game, votes, now=0):
+    """votes: {voter_pid: target_pid}"""
+    for voter, target in votes.items():
+        game = logic.vote(game, token_of(game, voter), target, now)
+    return game
+
+
+# --------------------------------------------------------------------------
+# rejected == unchanged
+# --------------------------------------------------------------------------
+def assert_rejected_unchanged(fn, game):
+    """fn(game) must raise logic.Rejected and must not mutate the input dict."""
+    before = json.dumps(game, sort_keys=True)
+    with pytest.raises(logic.Rejected):
+        fn(game)
+    after = json.dumps(game, sort_keys=True)
+    assert after == before, "a rejected call mutated the game"
