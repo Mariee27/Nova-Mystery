@@ -135,6 +135,11 @@ def show_phase(public):
         st.progress(min(1.0, left / total), text=f"{left} s left")
 
 
+def show_rules(expanded=False):
+    with st.expander("How to play", expanded=expanded):
+        st.markdown(content.HOW_TO_PLAY)
+
+
 def show_players(public):
     lines = []
     for player in public["players"]:
@@ -204,6 +209,7 @@ def show_result(public):
 def home_screen():
     st.title("Murder at NOVA")
     st.write("A five-minute murder mystery for 4 to 6 players.")
+    show_rules()
     if st.button("Create room", type="primary"):
         try:
             with open_db() as conn:
@@ -241,6 +247,7 @@ def join_screen(code):
     with st.form("join"):
         name = st.text_input("Your name", max_chars=logic.MAX_NAME)
         submitted = st.form_submit_button("Join", type="primary")
+    show_rules()
     if submitted:
         token = logic.new_token()
         now = time.time()
@@ -289,6 +296,10 @@ def board_live(code):
             st.error(public["abort_reason"])
         if public["phase"] == "RESULT":
             show_result(public)
+        if public["phase"] == "LOBBY":
+            # The projector has room for the rules while everybody joins.
+            st.markdown("**How to play**")
+            st.markdown(content.HOW_TO_PLAY)
         st.markdown("**Public log**")
         show_log(public)
 
@@ -451,6 +462,7 @@ def player_screen(code, token):
 
     if phase == "LOBBY":
         st.info("Keep this page open. The host starts the game.")
+        show_rules(expanded=True)
     elif phase == "ABORTED":
         st.error(public["abort_reason"])
     elif phase == "RESULT":

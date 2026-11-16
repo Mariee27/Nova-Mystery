@@ -79,3 +79,12 @@ TEMPLATES = {
     # Also used for the murderer's planted clue, so that it looks like a real one.
     "herring": "A note found at the {location}: {rumor}",
 }
+
+# Short rules, shown on the start page, the join form and in the lobby.
+HOW_TO_PLAY = """One player is secretly the murderer. Everyone else tries to find them.
+
+1. **Read your card:** your role, alibi and clues.
+2. **Investigate:** take **one** action: search, ask, or share a clue.
+3. **Discuss:** answer questions and talk. Lying is allowed.
+4. **Vote:** the murderer is caught only with the most votes.
+"""

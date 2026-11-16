@@ -133,11 +133,14 @@ def game_db(tmp_path, monkeypatch):
 
 
 def test_full_game_through_the_screens(game_db):
+    assert "How to play" in Browser().run()      # the rules are on the start page
     board = Browser()
     board.run(press=["Create room"])
     code = board.st.query_params["room"]
     assert board.st.query_params["view"] == "board"
-    assert code in board.run()
+    page = board.run()
+    assert code in page
+    assert "secretly the murderer" in page                # the rules are on the board in the lobby
 
     phones = []
     for name in ["Ana", "Ben", "Caro", "Dev", "Eli"]:
