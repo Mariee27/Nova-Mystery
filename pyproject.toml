@@ -4,12 +4,12 @@ version = "1.0.0"
 description = "A five-minute multiplayer murder mystery (Introduction to Programming, Nova SBE)"
 requires-python = ">=3.11"
 dependencies = [
-    "streamlit>=1.37",
-    "qrcode[pil]>=7.4",
+    "streamlit==1.67.0",
+    "qrcode[pil]==8.2",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest==9.2.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

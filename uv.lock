@@ -444,12 +444,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "qrcode", extras = ["pil"], specifier = ">=7.4" },
-    { name = "streamlit", specifier = ">=1.37" },
+    { name = "qrcode", extras = ["pil"], specifier = "==8.2" },
+    { name = "streamlit", specifier = "==1.67.0" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8" }]
+dev = [{ name = "pytest", specifier = "==9.2.0" }]
 
 [[package]]
 name = "narwhals"
