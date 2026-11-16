@@ -75,6 +75,7 @@ new_token() -> str                                  # secrets.token_urlsafe(16),
 new_game(code, now) -> game
 online_ids(presence: dict[int, float], now) -> set[int]
 join(game, name, token, now) -> game                # new pid = game["next_pid"]; first player becomes host
+kick(game, token, target_pid, now) -> game          # host only, only in LOBBY
 start(game, token, online, now, seed=None) -> game  # host only
 end_phase(game, token, online, now) -> game         # host only, only in REVEAL/INVESTIGATION/DISCUSSION/VOTE
 tick(game, online, now) -> game                     # timers, early end, host handover, abort
@@ -83,6 +84,7 @@ question(game, token, target_pid, text, now) -> game
 answer(game, token, question_id, text, now) -> game # question_id = log entry id of the question
 share(game, token, clue_id, now) -> game
 plant(game, token, target_pid, location, now) -> game
+plant_locations(game) -> list[str]                  # where the murderer may plant right now
 vote(game, token, target_pid, now) -> game
 public_view(game, online) -> dict
 private_view(game, token) -> dict | None
@@ -90,6 +92,7 @@ private_view(game, token) -> dict | None
 
 ### Behaviour
 - **join**: only in LOBBY (else Rejected). Name is stripped; 1..20 characters; unique in the room ignoring case. A 7th player is rejected. Token must not already be used in the room.
+- **kick**: only in LOBBY; only the host; the target must be another player of the room. The player is removed from `players`.
 - **start**: only the host; only in LOBBY; the number of *online* players must be 4..6. Offline lobby players are removed from `players`. Builds the case (seed=None → random seed). Phase becomes REVEAL, `phase_started = now`, `deadline = now + 30`.
 - **end_phase**: moves to the next phase immediately (same as a timer running out).
 - **tick** (in this order):
@@ -105,7 +108,7 @@ private_view(game, token) -> dict | None
   - `question`: target must be another player of the game; text is cleaned (control characters removed, stripped) and must have 1..140 characters. Appends a log entry kind "question" with `answered: False`.
   - `share`: `clue_id` must be one of the player's own private clues and not shared before.
 - **answer**: allowed in INVESTIGATION and DISCUSSION; only the target of that question; only once per question; text 1..140 characters. Does not use up the action.
-- **plant**: only in INVESTIGATION; only the murderer; only once per game (`planted`); target must be another player (an innocent); location in `content.LOCATIONS`. Does **not** use up the normal action. Appends a log entry kind "search" with `planted: True`, `implicates: target`, `clue_kind: "suspicious"`.
+- **plant**: only in INVESTIGATION; only the murderer; only once per game (`planted`); target must be another player (an innocent); location must be in `plant_locations(game)`: not yet in `searched`, and not a location whose real clue implicates the murderer with a strong kind. Does **not** use up the normal action. The location is appended to `searched` (its real clue is covered up). Appends a log entry kind "search" with `planted: True`, `implicates: target`, `clue_kind: "suspicious"`; its text uses `content.TEMPLATES["herring"]` with the target's rumor, exactly like a real red herring.
 - **vote**: only in VOTE; target must be another player of the game (not self); one vote per player.
 - **Result**: detectives win only if the murderer has strictly more votes than every other player. A tie at the top or zero votes → the murderer wins. `secrets_kept` lists the innocents for whom no log entry has `implicates == pid` and `clue_kind == "suspicious"`.
 - Any call with an unknown token → Rejected.
@@ -114,12 +117,13 @@ private_view(game, token) -> dict | None
 - `public_view(game, online)` → `{"code","phase","deadline","players":[{"pid","name","role","online","is_host","acted","voted"}],"log":[...],"searched":[...],"result":None|result,"abort_reason", "characters": None | [...]}`.
   `role` is None in LOBBY and the player's role name from REVEAL on. **Roles are public** (clues talk about roles, so everybody must know who plays whom); who the murderer is stays secret.
   Before RESULT: log entries contain **no** `implicates`, `clue_kind`, `planted` keys; `result` is None; `characters` is None; and nowhere in the view is there a token, the murderer, a secret, an intro, an alibi or a private clue. In RESULT: full log, result, and `characters` (the case's characters with names).
-- `private_view(game, token)` → None for an unknown token. Otherwise `{"pid","name","is_host","phase","acted","voted","role","intro","alibi","secret","is_murderer","clues":[{"id","text","shared"}],"can_plant","open_questions":[log entries the player still has to answer]}`. Before the game starts, the case fields are None / empty. It never contains another player's card or token.
+- `private_view(game, token)` → None for an unknown token. Otherwise `{"pid","name","is_host","phase","acted","voted","role","intro","alibi","secret","is_murderer","clues":[{"id","text","shared"}],"can_plant","plant_locations","open_questions":[log entries the player still has to answer]}`. Before the game starts, the case fields are None / empty. `plant_locations` is empty unless `can_plant`; `can_plant` is False when there is no location left to plant at. It never contains another player's card or token.
 
 ## `db` functions (SQLite)
 ```
 connect(path) -> sqlite3.Connection        # creates tables if needed
 create_room(conn, now) -> code             # 4 letters from "ABCDEFGHJKLMNPQRSTUVWXYZ", unused
+                                           # logic.Rejected if 200 rooms were created in the last hour
 load(conn, code) -> game | None
 apply(conn, code, fn) -> game              # runs game = fn(game) inside ONE write transaction and saves it.
                                            # If fn raises logic.Rejected: rollback, nothing saved, exception re-raised.

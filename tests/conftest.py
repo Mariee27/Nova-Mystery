@@ -88,6 +88,11 @@ def own_clue_ids(game, pid):
     return [c["id"] for c in character(game, pid)["clues"]]
 
 
+def plant_spot(game):
+    """A location where the murderer may plant a clue in this game."""
+    return logic.plant_locations(game)[0]
+
+
 def last_log_id(game):
     return game["log"][-1]["id"]
 

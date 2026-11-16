@@ -76,6 +76,6 @@ TEMPLATES = {
     "witness": "At 21:25 you saw {role} hurrying toward the {location}.",
     "confirms": "At 21:30 you saw {role} at the {location}.",
     "knows_secret": "You heard a rumor: {rumor}",
+    # Also used for the murderer's planted clue, so that it looks like a real one.
     "herring": "A note found at the {location}: {rumor}",
-    "plant": "A crumpled note at the {location} says {role} argued with the victim at 21:20.",
 }

@@ -15,6 +15,7 @@ import logic
 CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"   # no I and no O: easy to read from a projector
 CODE_LENGTH = 4
 ROOM_LIFETIME = 24 * 60 * 60                 # rooms older than one day are deleted
+MAX_NEW_ROOMS_PER_HOUR = 200                 # stops anyone from filling the database
 
 
 def connect(path):
@@ -46,6 +47,10 @@ def create_room(conn, now):
         for code in old:
             conn.execute("DELETE FROM presence WHERE code = ?", (code,))
             conn.execute("DELETE FROM rooms WHERE code = ?", (code,))
+        recent = conn.execute(
+            "SELECT COUNT(*) FROM rooms WHERE created_at > ?", (now - 60 * 60,)).fetchone()[0]
+        if recent >= MAX_NEW_ROOMS_PER_HOUR:
+            raise logic.Rejected("Too many new rooms right now. Please try again later.")
         while True:
             code = "".join(secrets.choice(CODE_LETTERS) for _ in range(CODE_LENGTH))
             if conn.execute("SELECT 1 FROM rooms WHERE code = ?", (code,)).fetchone() is None:

@@ -136,6 +136,21 @@ def join(game, name, token, now):
     return game
 
 
+def kick(game, token, target_pid, now):
+    """The host removes a player from the lobby (for strangers who guessed the code)."""
+    _require_phase(game, "LOBBY")
+    player = _player_by_token(game, token)
+    if player["pid"] != game["host"]:
+        raise Rejected("Only the host can remove players.")
+    if target_pid == player["pid"]:
+        raise Rejected("You cannot remove yourself.")
+    if target_pid not in _player_ids(game):
+        raise Rejected("Unknown player.")
+    game = copy.deepcopy(game)
+    game["players"] = [p for p in game["players"] if p["pid"] != target_pid]
+    return game
+
+
 def start(game, token, online, now, seed=None):
     _require_phase(game, "LOBBY")
     player = _player_by_token(game, token)
@@ -301,6 +316,23 @@ def share(game, token, clue_id, now):
     return game
 
 
+def plant_locations(game):
+    """Locations where the murderer may plant a clue.
+
+    Only locations nobody has searched yet (the planted clue takes the place of
+    the real one, so a location never shows two results), and never a location
+    whose real clue points strongly to the murderer (the case stays solvable).
+    """
+    if game["case"] is None:
+        return []
+    murderer = game["case"]["murderer"]
+    return [
+        clue["location"] for clue in game["case"]["location_clues"]
+        if clue["location"] not in game["searched"]
+        and not (clue["implicates"] == murderer and clue["kind"] in STRONG_KINDS)
+    ]
+
+
 def plant(game, token, target_pid, location, now):
     """The murderer's extra move: one fake clue per game. Looks like a search result."""
     _require_phase(game, "INVESTIGATION")
@@ -313,10 +345,16 @@ def plant(game, token, target_pid, location, now):
         raise Rejected("Pick another player.")
     if location not in content.LOCATIONS:
         raise Rejected("Unknown location.")
-    text = content.TEMPLATES["plant"].format(
-        location=location, role=_character(game, target_pid)["role"])
+    if location not in plant_locations(game):
+        raise Rejected("You cannot plant a clue there. Pick another location.")
+    # Same wording as a real red herring, so the fake clue does not stand out.
+    role = _character(game, target_pid)["role"]
+    text = content.TEMPLATES["herring"].format(
+        location=location, rumor=content.ROLES[role]["rumor"])
     game = copy.deepcopy(game)
     game["planted"] = True
+    # The location now counts as searched: its real clue is covered up.
+    game["searched"].append(location)
     # "by" stays empty so that the log does not show who planted the clue.
     _add_log(game, "search", None, text, location=location, clue_id=None,
              implicates=target_pid, clue_kind="suspicious", planted=True)
@@ -429,6 +467,7 @@ def private_view(game, token):
         "is_murderer": False,
         "clues": [],
         "can_plant": False,
+        "plant_locations": [],
         "open_questions": [],
     }
     if game["case"] is None:
@@ -436,6 +475,8 @@ def private_view(game, token):
     character = _character(game, pid)
     public_clue_ids = {e.get("clue_id") for e in game["log"]}
     is_murderer = pid == game["case"]["murderer"]
+    can_plant = (is_murderer and not game["planted"] and game["phase"] == "INVESTIGATION"
+                 and bool(plant_locations(game)))
     view.update({
         "role": character["role"],
         "intro": character["intro"],
@@ -446,7 +487,8 @@ def private_view(game, token):
             {"id": c["id"], "text": c["text"], "shared": c["id"] in public_clue_ids}
             for c in character["clues"]
         ],
-        "can_plant": is_murderer and not game["planted"] and game["phase"] == "INVESTIGATION",
+        "can_plant": can_plant,
+        "plant_locations": plant_locations(game) if can_plant else [],
         "open_questions": [
             {"id": e["id"], "by": e["by"], "text": e["text"]}
             for e in game["log"]

@@ -8,14 +8,15 @@ import logic
 from conftest import (
     LOC, SECURE_TOKENS, advance_to, character, innocent_pids, innocent_token,
     last_log_id, make_lobby, make_started, murderer_pid, murderer_token,
-    online_all, own_clue_ids, pids_of, started_in, token_of, cast_votes,
+    online_all, own_clue_ids, pids_of, plant_spot, started_in, token_of, cast_votes,
 )
 
 PUBLIC_KEYS = {"code", "phase", "deadline", "players", "log", "searched",
                "result", "abort_reason", "characters"}
 PUBLIC_PLAYER_KEYS = {"pid", "name", "role", "online", "is_host", "acted", "voted"}
 PRIVATE_KEYS = {"pid", "name", "is_host", "phase", "acted", "voted", "role", "intro",
-                "alibi", "secret", "is_murderer", "clues", "can_plant", "open_questions"}
+                "alibi", "secret", "is_murderer", "clues", "can_plant", "plant_locations",
+                "open_questions"}
 # "role" is intentionally NOT forbidden: roles are public from REVEAL on.
 FORBIDDEN_KEYS = {"token", "murderer", "is_murderer", "secret", "intro", "alibi",
                   "clues", "implicates", "clue_kind", "planted", "case",
@@ -100,8 +101,9 @@ def test_dw17_public_log_has_no_hidden_keys_also_after_plant():
     g = started_in("INVESTIGATION", tokens=SECURE_TOKENS)
     m = murderer_pid(g)
     inn = innocent_pids(g)
-    g = logic.plant(g, murderer_token(g), inn[0], LOC[0], 5)
-    g = logic.search(g, innocent_token(g, 1), LOC[1], 6)
+    g = logic.plant(g, murderer_token(g), inn[0], plant_spot(g), 5)
+    free = next(loc for loc in LOC if loc not in g["searched"])
+    g = logic.search(g, innocent_token(g, 1), free, 6)
     g = logic.share(g, innocent_token(g, 2), own_clue_ids(g, inn[2])[0], 7)
     g = logic.question(g, innocent_token(g, 3), inn[0], "Where were you?", 8)
     view = logic.public_view(g, online_all(g))
@@ -120,7 +122,7 @@ def test_dw17_public_log_has_no_hidden_keys_also_after_plant():
 def test_dw17_public_view_result_phase_has_result_and_characters():
     g = started_in("INVESTIGATION", tokens=SECURE_TOKENS)
     inn = innocent_pids(g)
-    g = logic.plant(g, murderer_token(g), inn[0], LOC[0], 5)
+    g = logic.plant(g, murderer_token(g), inn[0], plant_spot(g), 5)
     g = advance_to(g, "RESULT")
     view = logic.public_view(g, online_all(g))
     assert view["phase"] == "RESULT"

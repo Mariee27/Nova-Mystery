@@ -191,6 +191,7 @@ def test_full_game_through_the_screens(game_db):
         assert "&lt;b&gt;x&lt;/b&gt;" in page      # shown as text, not as HTML
         assert "<b>x</b>" not in page
         assert "planted" not in page                 # the fake clue does not stand out
+        assert "acted" not in page                   # no "acted" marks that give it away
 
         host.run(press=["End phase (host)"])
         assert phase() == "DISCUSSION"
@@ -211,6 +212,9 @@ def test_full_game_through_the_screens(game_db):
 
 def test_unknown_room_and_unknown_token(game_db):
     assert "does not exist" in Browser(room="ZZZZ").run()
+    page = Browser(room="[CLICK](https://evil.example)").run()
+    assert "not a valid room code" in page
+    assert "evil" not in page.lower()
     board = Browser()
     board.run(press=["Create room"])
     code = board.st.query_params["room"]

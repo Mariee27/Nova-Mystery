@@ -6,9 +6,9 @@ import pytest
 import content
 import logic
 from conftest import (
-    LOC, advance_to, assert_rejected_unchanged, cast_votes, host_token,
+    LOC, advance_to, assert_rejected_unchanged, cast_votes, character, host_token,
     innocent_pids, innocent_token, last_log_id, make_lobby, make_started,
-    murderer_pid, murderer_token, online_all, own_clue_ids, pids_of,
+    murderer_pid, murderer_token, online_all, own_clue_ids, pids_of, plant_spot,
     started_in, token_of,
 )
 
@@ -305,7 +305,7 @@ def test_dw09_plant_by_innocent_rejected():
 def test_dw09_second_plant_by_murderer_rejected():
     g = _inv()
     inn = innocent_pids(g)
-    g = logic.plant(g, murderer_token(g), inn[0], LOC[0], 5)
+    g = logic.plant(g, murderer_token(g), inn[0], plant_spot(g), 5)
     assert_rejected_unchanged(
         lambda x: logic.plant(x, murderer_token(x), inn[1], LOC[1], 6), g)
 
@@ -335,13 +335,14 @@ def test_dw09_successful_plant_does_not_use_up_murderers_action():
     g = _inv()
     m = murderer_pid(g)
     inn = innocent_pids(g)
-    g2 = logic.plant(g, murderer_token(g), inn[0], LOC[0], 5)
+    g2 = logic.plant(g, murderer_token(g), inn[0], plant_spot(g), 5)
     assert g2["planted"] is True
     assert m not in g2["acted"]
     e = g2["log"][-1]
     assert e["kind"] == "search" and e["planted"] is True
     assert e["implicates"] == inn[0] and e["clue_kind"] == "suspicious"
-    g3 = logic.search(g2, murderer_token(g2), LOC[1], 6)
+    free = next(loc for loc in LOC if loc not in g2["searched"])
+    g3 = logic.search(g2, murderer_token(g2), free, 6)
     assert m in g3["acted"]
 
 
@@ -419,7 +420,7 @@ def test_dw11_secrets_kept_lists_innocents_without_suspicious_entry():
     inn = innocent_pids(g)
     r = advance_to(g, "RESULT")["result"]
     assert sorted(r["secrets_kept"]) == sorted(inn)
-    g = logic.plant(g, murderer_token(g), inn[0], LOC[0], 5)
+    g = logic.plant(g, murderer_token(g), inn[0], plant_spot(g), 5)
     r = advance_to(g, "RESULT")["result"]
     assert sorted(r["secrets_kept"]) == sorted(inn[1:])
 
@@ -532,7 +533,7 @@ def _inv_searched():
 
 def _inv_planted():
     g = _inv()
-    return logic.plant(g, murderer_token(g), innocent_pids(g)[0], LOC[0], 5)
+    return logic.plant(g, murderer_token(g), innocent_pids(g)[0], plant_spot(g), 5)
 
 
 def _answered():
@@ -581,3 +582,62 @@ def test_dw16_successful_calls_return_new_dict_and_do_not_mutate_input():
     assert g2 is not g
     assert json.dumps(g, sort_keys=True) == before
     assert g2["acted"] == [1] and g["acted"] == []
+
+
+# ================================================================ planted clue does not stand out
+def test_plant_uses_real_herring_wording():
+    g = started_in("INVESTIGATION")
+    inn = innocent_pids(g)
+    spot = plant_spot(g)
+    g = logic.plant(g, murderer_token(g), inn[0], spot, 5)
+    role = character(g, inn[0])["role"]
+    expected = content.TEMPLATES["herring"].format(
+        location=spot, rumor=content.ROLES[role]["rumor"])
+    assert g["log"][-1]["text"] == expected
+
+
+def test_plant_marks_location_as_searched():
+    g = started_in("INVESTIGATION")
+    spot = plant_spot(g)
+    g = logic.plant(g, murderer_token(g), innocent_pids(g)[0], spot, 5)
+    assert spot in g["searched"]
+    assert_rejected_unchanged(lambda x: logic.search(x, innocent_token(x, 0), spot, 6), g)
+
+
+def test_plant_at_already_searched_location_rejected():
+    g = started_in("INVESTIGATION")
+    spot = plant_spot(g)
+    g = logic.search(g, innocent_token(g, 0), spot, 5)
+    assert spot not in logic.plant_locations(g)
+    assert_rejected_unchanged(
+        lambda x: logic.plant(x, murderer_token(x), innocent_pids(x)[1], spot, 6), g)
+
+
+def test_plant_cannot_cover_strong_clue_against_murderer():
+    g = started_in("INVESTIGATION")
+    m = murderer_pid(g)
+    strong = [c["location"] for c in g["case"]["location_clues"]
+              if c["implicates"] == m and c["kind"] in logic.STRONG_KINDS]
+    assert strong
+    for loc in strong:
+        assert loc not in logic.plant_locations(g)
+        assert_rejected_unchanged(
+            lambda x: logic.plant(x, murderer_token(x), innocent_pids(x)[0], loc, 5), g)
+
+
+# ================================================================ host removes a player
+def test_host_can_remove_player_in_lobby():
+    g = make_lobby(4)
+    g2 = logic.kick(g, host_token(g), 3, 0)
+    assert pids_of(g2) == [1, 2, 4]
+    assert logic.private_view(g2, token_of(g, 3)) is None
+
+
+@pytest.mark.parametrize("token,target", [("t2", 3), ("t1", 1), ("t1", 99)])
+def test_kick_by_non_host_self_or_unknown_rejected(token, target):
+    assert_rejected_unchanged(lambda g: logic.kick(g, token, target, 0), make_lobby(4))
+
+
+def test_kick_after_start_rejected():
+    g = started_in("INVESTIGATION")
+    assert_rejected_unchanged(lambda x: logic.kick(x, host_token(x), innocent_pids(x)[0], 5), g)

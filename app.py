@@ -82,6 +82,11 @@ def esc(text):
     return text
 
 
+def valid_code(code):
+    """A room code is exactly 4 letters from the room-code alphabet."""
+    return len(code) == db.CODE_LENGTH and all(ch in db.CODE_LETTERS for ch in code)
+
+
 def seconds_left(public):
     if public["deadline"] is None:
         return None
@@ -137,8 +142,8 @@ def show_players(public):
         marks = ""
         if player["is_host"]:
             marks += " · host"
-        if public["phase"] == "INVESTIGATION" and player["acted"]:
-            marks += " · acted"
+        # No "acted" mark during the investigation: a new search result that
+        # appears without a new mark would show that the murderer planted it.
         if public["phase"] == "VOTE" and player["voted"]:
             marks += " · voted"
         role = f" – {esc(player['role'])}" if player["role"] else ""
@@ -171,7 +176,7 @@ def show_log(public):
 
 def show_result(public):
     result = public["result"]
-    murderer_name = name_of(public, result["murderer"])
+    murderer_name = esc(name_of(public, result["murderer"]))
     role = next(c["role"] for c in public["characters"] if c["pid"] == result["murderer"])
     if result["winner"] == "detectives":
         st.success(f"The detectives win! It was {murderer_name} ({role}).")
@@ -183,7 +188,7 @@ def show_result(public):
         st.markdown(f"- {esc(player['name'])}: {result['tally'].get(str(player['pid']), 0)}")
     st.markdown("**All cards**")
     for character in public["characters"]:
-        with st.expander(f"{character['name']} – {character['role']}"):
+        with st.expander(f"{esc(character['name'])} – {esc(character['role'])}"):
             st.write(f"Said: {character['alibi']}")
             st.write(f"Really was at: {character['true_location']}")
             if character["secret"]:
@@ -200,8 +205,12 @@ def home_screen():
     st.title("Murder at NOVA")
     st.write("A five-minute murder mystery for 4 to 6 players.")
     if st.button("Create room", type="primary"):
-        with open_db() as conn:
-            code = db.create_room(conn, time.time())
+        try:
+            with open_db() as conn:
+                code = db.create_room(conn, time.time())
+        except logic.Rejected as problem:
+            st.error(str(problem))
+            return
         st.query_params["room"] = code
         st.query_params["view"] = "board"
         st.rerun()
@@ -344,6 +353,13 @@ def host_controls(code, token, public, me):
         if st.button("Start game", type="primary", disabled=not ready):
             seed = logic.DEMO_SEED if demo else None
             act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed))
+        others = [p["pid"] for p in public["players"] if p["pid"] != me["pid"]]
+        if others:
+            with st.expander("Remove a player"):
+                victim = st.selectbox("Player", others, key="kick_target",
+                                      format_func=lambda pid: name_of(public, pid))
+                if st.button("Remove from room"):
+                    act(code, lambda g, on, now: logic.kick(g, token, victim, now))
     elif public["phase"] in logic.DURATIONS:
         if st.button("End phase (host)"):
             act(code, lambda g, on, now: logic.end_phase(g, token, on, now))
@@ -392,7 +408,7 @@ def investigation_actions(code, token, public, me):
     if me["can_plant"]:
         with st.expander("Plant a false clue (once per game, does not use your action)"):
             victim = st.selectbox("Blame", others, format_func=label, key="plant_target")
-            place = st.selectbox("Where", content.LOCATIONS, key="plant_place")
+            place = st.selectbox("Where", me["plant_locations"], key="plant_place")
             if st.button("Plant it"):
                 act(code, lambda g, on, now: logic.plant(g, token, victim, place, now))
 
@@ -424,7 +440,7 @@ def player_screen(code, token):
     st.session_state["signature"] = signature(public, me)
     phase = public["phase"]
 
-    st.caption(f"Room {code} · you are {me['name']}")
+    st.caption(f"Room {code} · you are {esc(me['name'])}")
     player_status(code, token)
 
     flash = st.session_state.pop("flash", None)
@@ -465,6 +481,13 @@ def main():
     view = st.query_params.get("view", "")
     if not code:
         home_screen()
+    elif not valid_code(code):
+        # Never echo an unchecked code: it could carry links or other Markdown.
+        st.title("Murder at NOVA")
+        st.error("This is not a valid room code.")
+        if st.button("Back"):
+            st.query_params.clear()
+            st.rerun()
     elif view == "board":
         board_screen(code)
     elif token:

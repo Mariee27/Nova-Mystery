@@ -209,3 +209,11 @@ def test_dw19_two_concurrent_searches_of_same_location_exactly_one_succeeds(path
             assert len([e for e in game["log"] if e["kind"] == "search"]) == 1
     finally:
         main.close()
+
+
+def test_create_room_refuses_when_too_many_new_rooms(conn):
+    for i in range(db.MAX_NEW_ROOMS_PER_HOUR):
+        db.create_room(conn, i)
+    with pytest.raises(logic.Rejected):
+        db.create_room(conn, 100)
+    db.create_room(conn, db.MAX_NEW_ROOMS_PER_HOUR + 60 * 60)  # an hour later it works again
