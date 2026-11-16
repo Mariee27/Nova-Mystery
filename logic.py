@@ -113,6 +113,7 @@ def new_game(code, now):
         "log": [],
         "next_log_id": 1,
         "votes": {},
+        "scene_votes": {},   # str(pid of voter) -> location where they think Vale died
         "result": None,
         "abort_reason": None,
     }
@@ -215,10 +216,12 @@ def tick(game, online, now):
     online_players = [pid for pid in pids if pid in online]
     new = None  # copy only if something really changes
 
-    # 1. Host handover: the first online player in join order takes over.
-    if game["host"] not in online and online_players:
+    # 1. Host handover: the first online human in join order takes over (never a demo bot).
+    bots = set(bot_ids(game))
+    online_humans = [pid for pid in online_players if pid not in bots]
+    if game["host"] not in online and online_humans:
         new = copy.deepcopy(game)
-        new["host"] = online_players[0]
+        new["host"] = online_humans[0]
 
     if game["phase"] in NEXT_PHASE:
         # 2. Abort when fewer than 3 players are left online.
@@ -271,16 +274,25 @@ def search(game, token, location, now):
     return game
 
 
-def question(game, token, target_pid, text, now):
+EVIDENCE_KINDS = ("search", "share")   # log entries a player may confront someone with
+
+
+def question(game, token, target_pid, text, now, evidence_id=None):
+    """Interrogate another player in public. Optionally confront them with a piece of
+    evidence that is already public (the log id of a search result or a shared clue)."""
     player = _begin_action(game, token)
     if target_pid == player["pid"]:
         raise Rejected("You cannot question yourself.")
     if target_pid not in _player_ids(game):
         raise Rejected("Unknown player.")
     text = clean_text(text, MAX_TEXT)
+    if evidence_id is not None and not any(
+            e["id"] == evidence_id and e["kind"] in EVIDENCE_KINDS for e in game["log"]):
+        raise Rejected("You can only confront someone with evidence that is already public.")
     game = copy.deepcopy(game)
     game["acted"].append(player["pid"])
-    _add_log(game, "question", player["pid"], text, target=target_pid, answered=False)
+    extra = {} if evidence_id is None else {"evidence": evidence_id}
+    _add_log(game, "question", player["pid"], text, target=target_pid, answered=False, **extra)
     return game
 
 
@@ -361,7 +373,8 @@ def plant(game, token, target_pid, location, now):
     return game
 
 
-def vote(game, token, target_pid, now):
+def vote(game, token, target_pid, now, scene=None):
+    """The final accusation: who did it, and (optionally) where Vale really died."""
     _require_phase(game, "VOTE")
     player = _player_by_token(game, token)
     if str(player["pid"]) in game["votes"]:
@@ -370,9 +383,22 @@ def vote(game, token, target_pid, now):
         raise Rejected("You cannot vote for yourself.")
     if target_pid not in _player_ids(game):
         raise Rejected("Unknown player.")
+    if scene is not None and scene not in content.LOCATIONS:
+        raise Rejected("Unknown location.")
     game = copy.deepcopy(game)
     game["votes"][str(player["pid"])] = target_pid
+    if scene is not None:
+        game.setdefault("scene_votes", {})[str(player["pid"])] = scene
     return game
+
+
+def _clear_winner(tally):
+    """The key with strictly the most votes, or None on a tie or without votes."""
+    if not tally:
+        return None
+    best = max(tally.values())
+    leaders = [key for key, count in tally.items() if count == best]
+    return leaders[0] if len(leaders) == 1 else None
 
 
 def _compute_result(game):
@@ -380,19 +406,136 @@ def _compute_result(game):
     tally = {}   # only players who received at least one vote appear here
     for target in game["votes"].values():
         tally[str(target)] = tally.get(str(target), 0) + 1
-    murderer_votes = tally.get(str(murderer), 0)
-    best_other = max([count for pid, count in tally.items() if pid != str(murderer)], default=0)
+    scene_tally = {}
+    for scene in game.get("scene_votes", {}).values():
+        scene_tally[scene] = scene_tally.get(scene, 0) + 1
+    accused = _clear_winner(tally)
     # Detectives only win with a clear majority against the murderer. A tie is not enough.
-    winner = "detectives" if murderer_votes > best_other else "murderer"
+    winner = "detectives" if accused == str(murderer) else "murderer"
+    if winner == "detectives":
+        solved_scene = _clear_winner(scene_tally) == game["case"]["murder_location"]
+        ending = "truth" if solved_scene else "incomplete"
+    else:
+        ending = "wrong" if accused is not None else "escaped"
     exposed = {e.get("implicates") for e in game["log"] if e.get("clue_kind") == "suspicious"}
     secrets_kept = [pid for pid in _player_ids(game) if pid != murderer and pid not in exposed]
     return {
         "winner": winner,
+        "ending": ending,
         "murderer": murderer,
         "murder_location": game["case"]["murder_location"],
         "tally": tally,
+        "scene_tally": scene_tally,
         "secrets_kept": secrets_kept,
     }
+
+
+# ---------------------------------------------------------------- demo suspects (bots)
+#
+# For presentations with fewer than 4 people. A bot is an ordinary player with
+# "bot": True. It is always online, never becomes host, and plays by the same rules
+# through the same functions as everybody else. It only "knows" what a player in
+# its seat would know: its own card and the public log. It never reads the solution.
+
+BOT_FIRST_MOVE = 6    # seconds after a phase starts before the first bot moves
+BOT_STEP = 4          # every further bot waits this much longer, so moves arrive one by one
+
+
+def bot_ids(game):
+    return [p["pid"] for p in game["players"] if p.get("bot")]
+
+
+def with_bots(game, online):
+    """Bots have no screen that sends heartbeats, so they always count as online."""
+    return set(online) | set(bot_ids(game))
+
+
+def add_bot(game, token, now):
+    """The host adds one demo suspect to the lobby."""
+    _require_phase(game, "LOBBY")
+    player = _player_by_token(game, token)
+    if player["pid"] != game["host"]:
+        raise Rejected("Only the host can add demo suspects.")
+    taken = {p["name"].casefold() for p in game["players"]}
+    name = next((f"{first} (demo)" for first in content.DEMO_NAMES
+                 if f"{first} (demo)".casefold() not in taken), None)
+    if name is None or len(game["players"]) >= MAX_PLAYERS:
+        raise Rejected(f"The room is full ({MAX_PLAYERS} players).")
+    game = join(game, name, new_token(), now)
+    game["players"][-1]["bot"] = True   # join returned a fresh copy, so this is safe
+    return game
+
+
+def _bot_reading(game, pid):
+    """Texts a bot may use: the public evidence and its own private clues."""
+    texts = [e["text"] for e in game["log"] if e["kind"] in EVIDENCE_KINDS]
+    texts += [c["text"] for c in _character(game, pid)["clues"]]
+    return texts
+
+
+def _bot_suspect(game, pid):
+    """Whom the bot accuses: the role that the evidence it can read points at most."""
+    scores = {other: 0 for other in _player_ids(game) if other != pid}
+    role_of = {c["pid"]: c["role"] for c in game["case"]["characters"]}
+    for text in _bot_reading(game, pid):
+        if any(word in text for word in ("belongs to", "no entry by", "hurrying")):
+            weight = 3          # physical evidence, a broken alibi, a witness
+        elif "was seen" in text:
+            weight = 1          # a rumor
+        else:
+            continue
+        for other in scores:
+            if role_of[other] in text:
+                scores[other] += weight
+    best = max(scores.values())
+    return min(other for other, score in scores.items() if score == best)
+
+
+def _bot_scene(game, pid):
+    for text in _bot_reading(game, pid):
+        if "belongs to" in text or "hurrying" in text:
+            for location in content.LOCATIONS:
+                if location in text:
+                    return location
+    return None
+
+
+def _bot_investigate(game, bot, index, now):
+    pid = bot["pid"]
+    free = [loc for loc in content.LOCATIONS if loc not in game["searched"]]
+    if pid == game["case"]["murderer"]:
+        # A guilty bot does not search where its own traces are.
+        mine = {c["location"] for c in game["case"]["location_clues"]
+                if c["implicates"] == pid and c["kind"] in STRONG_KINDS}
+        free = [loc for loc in free if loc not in mine]
+    if free:
+        return search(game, bot["token"], free[index % len(free)], now)
+    public = {e.get("clue_id") for e in game["log"]}
+    clue = next((c for c in _character(game, pid)["clues"] if c["id"] not in public), None)
+    if clue is None:
+        return game
+    return share(game, bot["token"], clue["id"], now)
+
+
+def bot_moves(game, now):
+    """Let every bot make the moves that are due. Returns the same game if nothing happens."""
+    bots = [p for p in game["players"] if p.get("bot")]
+    if not bots or game["phase"] not in ("INVESTIGATION", "DISCUSSION", "VOTE"):
+        return game
+    elapsed = now - game["phase_started"]
+    for index, bot in enumerate(bots):
+        pid = bot["pid"]
+        due = elapsed >= BOT_FIRST_MOVE + BOT_STEP * index
+        if game["phase"] in ("INVESTIGATION", "DISCUSSION"):
+            for asked in [e for e in game["log"] if e["kind"] == "question"
+                          and e["target"] == pid and not e["answered"]]:
+                game = answer(game, bot["token"], asked["id"], _character(game, pid)["alibi"], now)
+        if game["phase"] == "INVESTIGATION" and due and pid not in game["acted"]:
+            game = _bot_investigate(game, bot, index, now)
+        if game["phase"] == "VOTE" and due and str(pid) not in game["votes"]:
+            game = vote(game, bot["token"], _bot_suspect(game, pid), now,
+                        scene=_bot_scene(game, pid))
+    return game
 
 
 # ---------------------------------------------------------------- views

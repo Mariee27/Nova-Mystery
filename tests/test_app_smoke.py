@@ -140,7 +140,7 @@ def test_full_game_through_the_screens(game_db):
     assert board.st.query_params["view"] == "board"
     page = board.run()
     assert code in page
-    assert "secretly the murderer" in page                # the rules are on the board in the lobby
+    assert "only that player knows" in page               # the rules are on the board in the lobby
 
     phones = []
     for name in ["Ana", "Ben", "Caro", "Dev", "Eli"]:
@@ -223,3 +223,21 @@ def test_unknown_room_and_unknown_token(game_db):
     code = board.st.query_params["room"]
     stranger = Browser(room=code, t="not-a-real-token")
     assert "not a player" in stranger.run()
+
+
+def test_play_a_demo_seats_you_with_four_demo_suspects(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code, token = phone.st.query_params["room"], phone.st.query_params.get("t")
+    assert token, "the demo gave no seat"
+    conn = db.connect(game_db)
+    try:
+        game = db.load(conn, code)
+        assert len(game["players"]) == 5
+        assert sum(1 for p in game["players"] if p.get("bot")) == 4
+        assert game["host"] == 1 and not game["players"][0].get("bot")
+        assert "Board for the projector" in phone.run()     # the host is told where the board is
+        phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+        assert db.load(conn, code)["phase"] == "REVEAL"      # bots count as online
+    finally:
+        conn.close()

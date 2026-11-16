@@ -1,0 +1,277 @@
+"""Features of NOVA MYSTERY: the scene accusation and its endings, confronting a
+suspect with evidence, the demo suspects (bots), and the HTML building blocks."""
+import pytest
+
+import content
+import logic
+import ui
+from conftest import (
+    assert_rejected_unchanged, innocent_pids, last_log_id, make_lobby, make_started,
+    murderer_pid, started_in, token_of,
+)
+
+
+# ---------------------------------------------------------------- accusation and endings
+
+def vote_all(game, target_of, scene_of=lambda pid: None):
+    for p in game["players"]:
+        game = logic.vote(game, p["token"], target_of(p["pid"]), 0, scene=scene_of(p["pid"]))
+    return game
+
+
+def finish(game):
+    return logic.end_phase(game, token_of(game, game["host"]), {1, 2, 3, 4, 5}, 0)
+
+
+def accuse_murderer(game):
+    m = murderer_pid(game)
+    return lambda pid: m if pid != m else innocent_pids(game)[0]
+
+
+def test_right_suspect_and_right_scene_is_the_truth():
+    g = started_in("VOTE")
+    scene = g["case"]["murder_location"]
+    r = finish(vote_all(g, accuse_murderer(g), lambda pid: scene))["result"]
+    assert r["winner"] == "detectives" and r["ending"] == "truth"
+    assert r["scene_tally"] == {scene: 5}
+
+
+def test_right_suspect_wrong_scene_is_incomplete():
+    g = started_in("VOTE")
+    wrong = next(loc for loc in content.LOCATIONS if loc != g["case"]["murder_location"])
+    r = finish(vote_all(g, accuse_murderer(g), lambda pid: wrong))["result"]
+    assert r["winner"] == "detectives" and r["ending"] == "incomplete"
+
+
+def test_right_suspect_but_no_scene_is_incomplete():
+    g = started_in("VOTE")
+    r = finish(vote_all(g, accuse_murderer(g)))["result"]
+    assert r["ending"] == "incomplete" and r["scene_tally"] == {}
+
+
+def test_scene_tie_is_not_the_truth():
+    g = started_in("VOTE")
+    scene = g["case"]["murder_location"]
+    other = next(loc for loc in content.LOCATIONS if loc != scene)
+    places = {1: scene, 2: scene, 3: other, 4: other}
+    r = finish(vote_all(g, accuse_murderer(g), places.get))["result"]
+    assert r["ending"] == "incomplete"
+
+
+def test_innocent_with_most_votes_is_the_wrong_accusation():
+    g = started_in("VOTE")
+    victim = innocent_pids(g)[0]
+    r = finish(vote_all(g, lambda pid: victim if pid != victim else innocent_pids(g)[1]))["result"]
+    assert r["winner"] == "murderer" and r["ending"] == "wrong"
+
+
+def test_no_votes_means_the_case_goes_cold():
+    r = finish(started_in("VOTE"))["result"]
+    assert r["winner"] == "murderer" and r["ending"] == "escaped"
+
+
+def test_unknown_scene_is_rejected():
+    g = started_in("VOTE")
+    assert_rejected_unchanged(lambda x: logic.vote(x, "t1", 2, 0, scene="Mars"), g)
+
+
+def test_scene_is_secret_until_the_result():
+    g = started_in("VOTE")
+    g = logic.vote(g, "t1", 2, 0, scene=content.LOCATIONS[0])
+    view = logic.public_view(g, {1, 2, 3, 4, 5})
+    assert "scene_votes" not in view and view["result"] is None
+
+
+def test_old_games_without_scene_votes_still_finish():
+    g = started_in("VOTE")
+    del g["scene_votes"]
+    assert finish(g)["result"]["scene_tally"] == {}
+
+
+# ---------------------------------------------------------------- confronting with evidence
+
+def test_question_can_confront_with_a_public_exhibit():
+    g = started_in("INVESTIGATION")
+    g = logic.search(g, "t1", content.LOCATIONS[0], 0)
+    exhibit = last_log_id(g)
+    g = logic.question(g, "t2", 3, "Explain this.", 0, evidence_id=exhibit)
+    assert g["log"][-1]["evidence"] == exhibit
+    shown = logic.public_view(g, {1, 2, 3, 4, 5})["log"][-1]
+    assert shown["evidence"] == exhibit
+
+
+def test_question_without_evidence_has_no_evidence_key():
+    g = logic.question(started_in("INVESTIGATION"), "t2", 3, "Where were you?", 0)
+    assert "evidence" not in g["log"][-1]
+
+
+@pytest.mark.parametrize("bad", [999, 0])
+def test_confronting_with_unknown_evidence_is_rejected(bad):
+    g = started_in("INVESTIGATION")
+    assert_rejected_unchanged(lambda x: logic.question(x, "t2", 3, "Hm?", 0, evidence_id=bad), g)
+
+
+def test_a_question_is_not_evidence():
+    g = started_in("INVESTIGATION")
+    g = logic.question(g, "t1", 2, "First?", 0)
+    q = last_log_id(g)
+    assert_rejected_unchanged(lambda x: logic.question(x, "t3", 2, "Again?", 0, evidence_id=q), g)
+
+
+# ---------------------------------------------------------------- demo suspects
+
+def demo_lobby(humans=1, bots=4):
+    g = make_lobby(humans)
+    for _ in range(bots):
+        g = logic.add_bot(g, "t1", 0)
+    return g
+
+
+def test_host_adds_demo_suspects_with_unique_names():
+    g = demo_lobby(1, 5)
+    bots = [p for p in g["players"] if p.get("bot")]
+    assert len(bots) == 5 and len(g["players"]) == logic.MAX_PLAYERS
+    assert len({p["name"] for p in bots}) == 5
+    assert all(p["name"].endswith("(demo)") for p in bots)
+    assert g["host"] == 1
+
+
+def test_only_the_host_adds_demo_suspects():
+    assert_rejected_unchanged(lambda x: logic.add_bot(x, "t2", 0), make_lobby(2))
+
+
+def test_no_demo_suspects_in_a_full_room_or_after_the_start():
+    assert_rejected_unchanged(lambda x: logic.add_bot(x, "t1", 0), demo_lobby(1, 5))
+    assert_rejected_unchanged(lambda x: logic.add_bot(x, "t1", 0), make_started(4))
+
+
+def test_bots_count_as_online_and_never_become_host():
+    g = demo_lobby(1, 3)
+    assert logic.with_bots(g, set()) == {2, 3, 4}
+    g = logic.start(g, "t1", logic.with_bots(g, {1}), 0, seed=1)
+    # The only human leaves: the game goes on, but no bot takes the host role.
+    later = logic.tick(g, logic.with_bots(g, set()), 1)
+    assert later["host"] == 1 and later["phase"] == "REVEAL"
+
+
+def test_bots_wait_before_they_move():
+    g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=1)
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+    assert logic.bot_moves(g, logic.BOT_FIRST_MOVE - 1) is g        # nothing due yet
+    g = logic.bot_moves(g, logic.BOT_FIRST_MOVE)
+    assert len(g["acted"]) == 1                                       # one bot at a time
+    g = logic.bot_moves(g, logic.BOT_FIRST_MOVE + 3 * logic.BOT_STEP)
+    assert sorted(g["acted"]) == [2, 3, 4, 5]
+
+
+def test_bot_moves_do_nothing_without_bots_or_outside_play():
+    g = started_in("INVESTIGATION")
+    assert logic.bot_moves(g, 1000) is g
+    lobby = demo_lobby(1, 4)
+    assert logic.bot_moves(lobby, 1000) is lobby
+
+
+def test_bots_answer_questions_with_their_alibi():
+    g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=1)
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+    g = logic.question(g, "t1", 2, "Where were you at 23:30?", 0)
+    g = logic.bot_moves(g, 0)
+    reply = g["log"][-1]
+    assert reply["kind"] == "answer" and reply["by"] == 2
+    assert reply["text"] == next(c for c in g["case"]["characters"] if c["pid"] == 2)["alibi"]
+
+
+def test_a_guilty_bot_does_not_search_its_own_traces():
+    for seed in range(40):
+        g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=seed)
+        m = g["case"]["murderer"]
+        if m == 1:
+            continue
+        g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+        g = logic.bot_moves(g, 1000)
+        searched_by_m = [e for e in g["log"] if e["kind"] == "search" and e["by"] == m]
+        for entry in searched_by_m:
+            assert not (entry["implicates"] == m and entry["clue_kind"] in logic.STRONG_KINDS)
+
+
+def test_bots_vote_by_the_evidence_they_can_read():
+    g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=1)
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+    # The human searches the crime scene: the trace there names the culprit's role.
+    g = logic.search(g, "t1", g["case"]["murder_location"], 0)
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+    assert g["phase"] == "VOTE"
+    g = logic.bot_moves(g, g["phase_started"] + 1000)
+    m = g["case"]["murderer"]
+    for voter, target in g["votes"].items():
+        if int(voter) != m:
+            assert target == m
+            assert g["scene_votes"][voter] == g["case"]["murder_location"]
+
+
+def test_a_demo_game_with_one_human_plays_to_the_end_by_itself():
+    g = demo_lobby(1, 3)
+    g = logic.start(g, "t1", logic.with_bots(g, {1}), 0, seed=logic.DEMO_SEED)
+    now = 0
+    for _ in range(400):            # only timers and bots, the human does nothing
+        if g["phase"] == "RESULT":
+            break
+        now += 2
+        g = logic.bot_moves(logic.tick(g, logic.with_bots(g, {1}), now), now)
+    assert g["phase"] == "RESULT"
+    assert len(g["votes"]) == 3     # every bot voted
+    assert g["result"]["ending"] in content.ENDINGS
+
+
+def test_bots_do_not_show_up_in_the_public_view_as_special():
+    g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=1)
+    view = logic.public_view(g, logic.with_bots(g, {1}))
+    assert all("bot" not in p for p in view["players"])
+    assert all(p["online"] for p in view["players"])
+
+
+# ---------------------------------------------------------------- HTML building blocks
+
+EVIL = '<script>alert(1)</script> $x$ "q"'
+
+
+def test_h_escapes_html_quotes_and_math():
+    out = ui.h(EVIL)
+    assert "<script>" not in out and "$" not in out and '"' not in out
+
+
+def test_log_cards_escape_player_text():
+    entries = {1: {"id": 1, "kind": "search", "by": None, "text": EVIL, "location": content.LOCATIONS[0]}}
+    question = {"id": 2, "kind": "question", "by": 1, "target": 2, "text": EVIL, "evidence": 1}
+    html = ui.log_entry(question, lambda pid: EVIL, entries)
+    assert "<script>" not in html and "Confronted with Exhibit 1" in html
+
+
+def test_no_card_leaks_a_forgery_before_the_result():
+    hidden = {"id": 1, "kind": "search", "by": None, "text": "A note.", "location": content.LOCATIONS[0]}
+    html = ui.log_entry(hidden, str, {})
+    assert "planted" not in html.lower() and "Forged" not in html and "Unverified" in html
+    revealed = dict(hidden, planted=True, clue_kind="suspicious", implicates=2)
+    assert "planted by the murderer" in ui.log_entry(revealed, str, {})
+
+
+def test_suspect_cards_and_dossier_escape_names():
+    players = [{"pid": 1, "name": EVIL, "role": None, "online": True, "is_host": True,
+                "acted": False, "voted": False}]
+    assert "<script>" not in ui.suspects(players, "LOBBY")
+    me = {"is_murderer": False, "intro": EVIL, "alibi": EVIL, "secret": EVIL, "role": EVIL,
+          "clues": [{"id": "a", "text": EVIL, "shared": False}]}
+    assert "<script>" not in ui.dossier(me)
+
+
+def test_html_blocks_have_no_blank_lines():
+    """A blank line would end the HTML block and let Markdown change the rest."""
+    for block in (ui.intro(), ui.case_file(), ui.banner("a", "b"), ui.timer(5, 30),
+                  ui.campus_map([content.LOCATIONS[0]])):
+        assert "\n\n" not in block
+
+
+def test_timer_marks_the_last_ten_seconds():
+    assert "low" in ui.timer(10, 90) and "low" not in ui.timer(11, 90)
+    assert "width:0.0%" in ui.timer(0, 0)

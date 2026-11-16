@@ -123,7 +123,7 @@ def build_case(pids, seed):
         "seed": seed,
         "murderer": murderer,
         "murder_location": murder_location,
-        "murder_time": "21:30",
+        "murder_time": content.MURDER_TIME,
         "characters": characters,
         "location_clues": location_clues,
     }

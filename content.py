@@ -1,90 +1,169 @@
-VICTIM = "Dr. Marta Quintela"
-LOCATIONS = ["Library", "Grand Auditorium", "Mon Café & Açaí", "Rooftop Terrace", "Beach Access"]
+"""All story texts of NOVA MYSTERY – Case #001: The Last Lecture.
+
+Only words live here. Who did it, where, and which clue points to whom is decided
+in generator.py. See docs/NARRATIVE.md for the story behind these texts.
+"""
+
+GAME_TITLE = "NOVA MYSTERY"
+TAGLINE = "Everyone has a secret. Only one knows the truth."
+CASE_NUMBER = "001"
+CASE_TITLE = "The Last Lecture"
+VICTIM = "Professor Adrian Vale"
+MURDER_TIME = "23:30"
+FOUND_TIME = "23:47"
+
+# The cinematic opening, one line at a time.
+INTRO_LINES = [
+    "Lisbon, Portugal.",
+    "23:47.",
+    "NOVA University.",
+    "A professor is dead.",
+    "Six suspects.",
+    "One impossible crime.",
+]
+
+BRIEFING = (
+    "At 23:47 the night guard found Professor Adrian Vale slumped over the desk of his "
+    "locked research office. The police called it an accident. The coroner disagrees: "
+    "Vale died around 23:30, and he did not die in that office. Someone moved him, "
+    "locked the door, and walked away. Six people were still on campus that night. "
+    "Every one of them had a reason to hate him. Only one of them knows where it really happened."
+)
+
+LOCATIONS = ["Research Laboratory", "Main Library", "Server Room", "Underground Archive", "Security Office"]
 
 LOCATION_FLAVOR = {
-    "Library": "Reading lamps hum over case studies, and the silence is thick enough to cut with a highlighter.",
-    "Grand Auditorium": "Velvet seats wait in the dark, and the stage still smells of last week's keynote and espresso.",
-    "Mon Café & Açaí": "Espresso machines hiss, the açaí bowls are sold out, and everyone is pretending not to talk about the exam.",
-    "Rooftop Terrace": "City lights shimmer over the river, and the wind carries the faint sound of a distant student party.",
-    "Beach Access": "Sand, sea breeze and a weathered wooden boardwalk, where the only sounds are waves and a bicycle bell.",
+    "Research Laboratory": "Centrifuges tick as they cool down. A whiteboard still shows Vale's handwriting, half wiped away.",
+    "Main Library": "Green reading lamps glow over empty desks. Somewhere between the shelves, a radiator knocks like a slow heartbeat.",
+    "Server Room": "Cold air, blinking lights and the hum of forty machines. One rack door is open that should be locked.",
+    "Underground Archive": "Concrete stairs lead down to rows of grey boxes. The air smells of dust, paper and old secrets.",
+    "Security Office": "Twelve camera screens, two of them black. A cold coffee sits next to tonight's patrol log.",
 }
 
+LOCATION_ICONS = {
+    "Research Laboratory": "🧪",
+    "Main Library": "📚",
+    "Server Room": "🖥️",
+    "Underground Archive": "🗄️",
+    "Security Office": "📹",
+}
+
+# Every role: a public dossier (everybody may read it), and private texts only the player sees.
 ROLES = {
-    "The TA": {
-        "intro": "You are The TA. Dr. Quintela rejected your grading proposal three times this week.",
-        "trace": "a red grading pen with a chewed cap",
-        "secret": "You changed one grade in exchange for concert tickets.",
-        "rumor": "The TA was seen slipping an envelope into the exam office mailbox.",
+    "The Research Assistant": {
+        "dossier": "Vale's PhD researcher for three years. Ran every experiment in his last study.",
+        "intro": "You are The Research Assistant. You ran Vale's experiments for three years. "
+                 "Last week he submitted the paper under his name alone.",
+        "trace": "a lab badge on a frayed blue lanyard",
+        "secret": "You quietly changed two data points in the study to make the results look cleaner.",
+        "rumor": "The Research Assistant was seen deleting rows from the lab spreadsheets at three in the morning.",
     },
-    "The Professor": {
-        "intro": "You are The Professor. Dr. Quintela chairs the committee that decides whether your exam questions survive another year.",
-        "trace": "a fountain pen with a cracked gold nib",
-        "secret": "You still have not read the group projects you were supposed to grade.",
-        "rumor": "The Professor was seen hiding a stack of unread group projects under a coat.",
+    "The Rival Professor": {
+        "dossier": "Senior lecturer in the same department. Applied for tenure twice. Vale sat on both committees.",
+        "intro": "You are The Rival Professor. Vale sat on the committee that rejected your tenure – twice – "
+                 "and smiled while doing it.",
+        "trace": "a silver fountain pen with a chipped cap",
+        "secret": "Half of your last grant proposal was copied from a former student's thesis.",
+        "rumor": "The Rival Professor was seen feeding the pages of an old student thesis into a shredder.",
     },
-    "The Librarian": {
-        "intro": "You are The Librarian. Dr. Quintela has returned your overdue-fines memo unopened four times.",
-        "trace": "a library card with a faded photo",
-        "secret": "You have been reading the upcoming exam questions on the staff computer for weeks.",
-        "rumor": "The Librarian was spotted at the staff computer long after closing time.",
+    "The IT Technician": {
+        "dossier": "Runs the campus servers and the camera system. Works nights, rarely seen in daylight.",
+        "intro": "You are The IT Technician. Vale reported you for reading faculty mailboxes. "
+                 "Your disciplinary hearing is on Monday.",
+        "trace": "a USB stick labelled BACKUP-7 in black marker",
+        "secret": "On night shifts you switch off two hallway cameras so you can sleep in the server room.",
+        "rumor": "The IT Technician was seen pulling a camera cable out of the wall, then plugging it back in.",
     },
-    "The Barista": {
-        "intro": "You are The Barista. Dr. Quintela orders a flat white every evening and never once tips.",
-        "trace": "a napkin with a half-drawn latte heart",
-        "secret": "You have been selling extra coffee on the side and keeping the cash for yourself.",
-        "rumor": "The Barista was seen counting a thick roll of cash that never reached the till.",
+    "The Night Librarian": {
+        "dossier": "Keeps the Main Library and the Underground Archive open after midnight.",
+        "intro": "You are The Night Librarian. Vale wanted the archive closed and your night shifts cut. "
+                 "Without them you cannot pay your rent.",
+        "trace": "a brass archive key on a red thread",
+        "secret": "Every night you let a homeless student sleep in the reading room after closing.",
+        "rumor": "The Night Librarian was seen carrying a blanket and a pillow into the reading room after closing.",
     },
-    "The Exchange Student": {
-        "intro": "You are The Exchange Student. Dr. Quintela still calls you by the wrong name at every committee meeting.",
-        "trace": "a battered Lisbon metro ticket",
-        "secret": "You have been pretending to follow the lectures and copying your friend's notes.",
-        "rumor": "The Exchange Student was seen photocopying a stranger's lecture notes in a hurry.",
+    "The Security Guard": {
+        "dossier": "Night guard of the research building. Found the body at 23:47 and raised the alarm.",
+        "intro": "You are The Security Guard. Vale complained that you sleep on duty. "
+                 "One more complaint and you lose the job.",
+        "trace": "a torch with a cracked lens",
+        "secret": "Three patrols in tonight's log never happened: you were on the phone with your sick mother.",
+        "rumor": "The Security Guard was seen writing a whole night of patrol times into the logbook at once.",
     },
     "The Students' Union President": {
-        "intro": "You are The Students' Union President. Dr. Quintela has blocked the party budget you promised the whole campus.",
-        "trace": "a gold lanyard with a broken clasp",
-        "secret": "You have been padding the party budget with receipts from a karaoke bar.",
-        "rumor": "The Students' Union President was seen shredding a suspicious stack of karaoke receipts.",
+        "dossier": "Elected head of the students' union. Had a public argument with Vale last Friday.",
+        "intro": "You are The Students' Union President. Vale was about to publish proof that "
+                 "the votes in your election were counted twice.",
+        "trace": "a gold union lanyard with a broken clasp",
+        "secret": "You moved union money into your own campaign fund and called it 'event costs'.",
+        "rumor": "The Students' Union President was seen shredding union receipts in the print room.",
     },
 }
 
 NEUTRAL_LOCATION_CLUES = {
-    "Library": "A cold cup of tea sits on a reading table, its milk skin untouched by any sip.",
-    "Grand Auditorium": "A dropped microphone lies under row nine, its cable neatly coiled as if it were never used.",
-    "Mon Café & Açaí": "A receipt for two sparkling waters and a granola bowl is stuck under the sugar dispenser.",
-    "Rooftop Terrace": "Three chairs face the skyline, and one of them has a warm blanket folded over its back.",
-    "Beach Access": "A sandcastle with a flag made from a candy wrapper stands at the gate, slightly lopsided.",
+    "Research Laboratory": "A rack of test tubes stands in perfect order. The fridge log shows nothing unusual tonight.",
+    "Main Library": "A returned book about Lisbon trams lies on the counter. Its due date was three weeks ago.",
+    "Server Room": "A backup job finished at 22:00 as planned. The status lights are all green.",
+    "Underground Archive": "Dust lies evenly on the boxes of row C. Nobody has touched them for months.",
+    "Security Office": "The lost-and-found box holds two umbrellas, one glove and a forgotten student card.",
 }
 
 NEUTRAL_PRIVATE_CLUES = [
-    "You noticed the campus fountain was switched off for the evening, which nobody seemed to mind.",
-    "You noticed a delivery of sparkling water had gone to the wrong building and was being sorted by the porter.",
-    "You noticed the sunset over the river was early and orange, and everyone stopped to take a photo.",
-    "You noticed a group of students practising a dance routine in the courtyard, with laughter and no music.",
-    "You noticed the elevator in the main building was out of order, so everyone took the stairs.",
-    "You noticed a bicycle with a bell shaped like a duck was propped against the railing near the gate.",
-    "You noticed a coffee ring covered the date of the next committee meeting on the notice board.",
-    "You noticed the corridor lights flickered at 21:00 and then settled, as if nothing had happened.",
-    "You noticed a stray umbrella in a corridor, dripping quietly onto a folded exam timetable.",
-    "You noticed a chalk drawing of a swan on the pavement, half washed away by the evening rain.",
+    "You noticed the rain started at 22:50 and the courtyard lights reflected in every puddle.",
+    "You noticed the main elevator was out of order, so everyone had to take the stairs.",
+    "You noticed the vending machine on the ground floor ran out of coffee before 23:00.",
+    "You noticed a delivery of printer paper blocking the side corridor all evening.",
+    "You noticed the university bell rang eleven times at 23:00, a little late as always.",
+    "You noticed the heating in the east wing clicked off at 23:10 to save energy.",
+    "You noticed a group of students rehearsing a presentation in the lobby until 22:30.",
+    "You noticed the cleaning trolley parked outside the lecture hall the whole night.",
+    "You noticed the Wi-Fi dropped for a minute at 22:40 and came back on its own.",
+    "You noticed a cat sheltering from the rain under the bicycle racks by the entrance.",
 ]
 
 TEMPLATES = {
-    "alibi": "I was at the {location} around 21:30.",
+    "alibi": "I was at the {location} around 23:30.",
     "scene": "Found at the {location}: {trace}. It belongs to {role}.",
-    "alibi_broken": "The door log of the {location} shows no entry by {role} between 21:15 and 21:45.",
-    "witness": "At 21:25 you saw {role} hurrying toward the {location}.",
-    "confirms": "At 21:30 you saw {role} at the {location}.",
+    "alibi_broken": "The keycard log of the {location} shows no entry by {role} between 23:15 and 23:45.",
+    "witness": "At 23:25 you saw {role} hurrying toward the {location}.",
+    "confirms": "At 23:30 you saw {role} at the {location}.",
     "knows_secret": "You heard a rumor: {rumor}",
     # Also used for the murderer's planted clue, so that it looks like a real one.
     "herring": "A note found at the {location}: {rumor}",
 }
 
-# Short rules, shown on the start page, the join form and in the lobby.
-HOW_TO_PLAY = """One player is secretly the murderer. Everyone else tries to find them.
+# The four endings. Which one you get depends only on the votes (see logic._compute_result).
+ENDINGS = {
+    "truth": {
+        "title": "The Truth Revealed",
+        "text": "You named the right person and the place where Vale really died. "
+                "The moved body, the locked door, the false alibi – every piece fits. Case closed.",
+    },
+    "incomplete": {
+        "title": "The Incomplete Case",
+        "text": "You caught the right person, but you could not say where it happened. "
+                "A good lawyer will call it a lucky guess. The truth is only half told.",
+    },
+    "wrong": {
+        "title": "The Wrong Accusation",
+        "text": "An innocent person is led away in handcuffs, still protesting. "
+                "Somewhere on campus, the real culprit lets out a slow breath.",
+    },
+    "escaped": {
+        "title": "The Case Goes Cold",
+        "text": "The room could not agree. The file is closed as 'inconclusive', "
+                "and the one who did it walks out into the Lisbon rain.",
+    },
+}
 
-1. **Read your card:** your role, alibi and clues.
-2. **Investigate:** take **one** action: search, ask, or share a clue.
-3. **Discuss:** answer questions and talk. Lying is allowed.
-4. **Vote:** the murderer is caught only with the most votes.
+# Short rules, shown on the start page, the join form and in the lobby.
+HOW_TO_PLAY = """Each player is one of six suspects. One of you killed Professor Vale – and only that player knows.
+
+1. **Read your card:** your role, your alibi, your secret and two clues only you know.
+2. **Investigate:** take **one** action: search a location, interrogate someone (you may confront them with evidence), or share a clue.
+3. **Discuss:** answer questions and argue. Everybody may lie.
+4. **Accuse:** vote for a suspect **and** for the place where Vale really died. Name both correctly for the full truth.
 """
+
+# First names of the demo suspects (bots) used in presentation mode. "(demo)" is added to each.
+DEMO_NAMES = ["Sofia", "Tiago", "Inês", "Rui", "Marta", "João"]
