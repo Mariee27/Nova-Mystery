@@ -321,7 +321,7 @@ def test_reveal_shows_a_sealed_envelope_that_stays_open_during_the_session(game_
     assert 'class="dossier' not in sealed                 # the card is not shown yet
     opened = phone.run(press=["Open your file"])
     assert ' play"' in opened                             # class="unseal ... play": the opening plays once ...
-        again = phone.run()                                   # ... a redraw in the same session keeps it open (a real reload seals it again)
+    again = phone.run()                                   # ... a redraw in the same session keeps it open (a real reload seals it again)
     assert 'class="dossier' in again and ' play"' not in again and 'class="envelope"' not in again
     guilty = game["case"]["murderer"] == 1                # pid 1 is the human "Detective"
     assert ("unseal guilty" in again) == guilty
