@@ -414,8 +414,10 @@ def show_card(me, expanded):
 
 def sealed_card(code, me):
     """REVEAL: first a sealed envelope, the file only after "Open your file".
-    session_state remembers the envelope per room and player, so a page refresh never seals it
-    again. States: missing = sealed, "opening" = play the animation once, "open" = just show it."""
+        session_state remembers the envelope per room and player within one browser session.
+    A real page reload starts a new session, so the envelope is sealed again and the player
+    opens it once more (the card itself is the same). States: missing = sealed, "opening" =
+    play the animation once, "open" = just show it."""
     key = f"envelope_{code}_{me['pid']}"
     st.markdown('<div class="kicker">Your card</div>', unsafe_allow_html=True)
     if key not in st.session_state:
