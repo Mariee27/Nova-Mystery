@@ -255,6 +255,27 @@ def test_board_pins_evidence_to_a_cork_wall_and_phones_keep_the_list(game_db):
     assert 'class="cork"' in page and "pin photo" in page     # the exhibit is a polaroid
     phone_page = phone.run()
     assert "Exhibit 1" in phone_page and 'class="cork"' not in phone_page
+def test_demo_link_starts_a_demo_without_the_intro(game_db):
+    home = Browser()
+    assert 'class="intro"' in home.run()                 # a normal first visit plays the intro
+    phone = Browser(demo="1")
+    page = phone.run()
+    assert 'class="intro"' not in page                   # ?demo=1 skips it completely
+    assert phone.st.query_params.get("t") and "demo" not in phone.st.query_params
+    assert phone.st.session_state["intro_seen"] is True
+    phone.st.query_params.clear()
+    assert 'class="intro"' not in phone.run()            # not even when you go back home
+
+
+def test_board_shows_the_big_timer_and_phones_the_thin_bar(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    phone.run(press=["Start game"])
+    board = Browser(room=code, view="board")
+    assert 'class="bigtimer' in board.run()
+    page = phone.run()
+    assert 'class="timer' in page and 'class="bigtimer' not in page
 def test_phone_shows_the_most_important_thing_first(game_db):
     """Mobile first: the phone puts the current task on top; the board keeps the big tiles."""
     phone = Browser()

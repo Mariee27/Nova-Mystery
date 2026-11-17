@@ -299,6 +299,25 @@ def test_timer_marks_the_last_ten_seconds():
     assert "width:0.0%" in ui.timer(0, 0)
 
 
+def test_big_board_timer_reads_minutes_and_turns_red_at_ten_seconds():
+    assert ">1:30<" in ui.big_timer(90, 90) and ">0:28<" in ui.big_timer(28, 30)
+    assert "low" in ui.big_timer(10, 90) and "low" not in ui.big_timer(11, 90)
+    assert ">0:00<" in ui.big_timer(-3, 30) and "width:0.0%" in ui.big_timer(0, 0)
+    assert 'role="timer"' in ui.big_timer(5, 30) and "\n\n" not in ui.big_timer(5, 30)
+
+
+def test_intro_lines_all_appear_within_the_first_two_seconds():
+    """The whole intro lasts about 4 s: the lines first, then the title (timings in style.css)."""
+    delays = [float(part.split("s")[0]) for part in ui.intro().split("animation-delay:")[1:]]
+    assert len(delays) == len(content.INTRO_LINES)
+    assert max(delays) <= 2.0
+
+
+def test_streamlit_toolbar_is_hidden_for_the_audience():
+    import pathlib
+    import tomllib
+    config = tomllib.loads((pathlib.Path(ui.__file__).parent / ".streamlit" / "config.toml").read_text())
+    assert config["client"]["toolbarMode"] == "viewer"
 def test_phone_suspect_list_is_compact_and_escapes_names():
     role = next(iter(content.ROLES))
     players = [

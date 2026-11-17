@@ -37,12 +37,17 @@ def brand():
             f'<div class="tag">{h(content.TAGLINE)}</div></div>')
 
 
+INTRO_FIRST_LINE = 0.15   # seconds until the first line appears
+INTRO_LINE_STEP = 0.3     # seconds between two lines; style.css ends the whole intro at 4 s
+
+
 def intro():
-    """The cinematic opening. Pure CSS: it plays once and then fades away by itself."""
+    """The cinematic opening, about 4 seconds. Pure CSS: it plays once and then fades away by itself."""
     lines = []
     for number, line in enumerate(content.INTRO_LINES):
         red = " red" if number == 3 else ""
-        lines.append(f'<div class="line{red}" style="animation-delay:{0.6 + number * 1.15:.2f}s">{h(line)}</div>')
+        delay = INTRO_FIRST_LINE + number * INTRO_LINE_STEP
+        lines.append(f'<div class="line{red}" style="animation-delay:{delay:.2f}s">{h(line)}</div>')
     return ('<div class="intro" aria-hidden="true"><div class="glitch"></div>'
             f'<div class="lines">{"".join(lines)}</div>'
             '<div class="final"><div class="title">NOVA <b>MYSTERY</b></div>'
@@ -77,6 +82,17 @@ def timer(left, total):
     low = " low" if left <= 10 else ""
     return (f'<div class="timer{low}"><div style="width:{share * 100:.1f}%"></div></div>'
             f'<div class="timer-label{low}">{int(left)} s left</div>')
+
+
+def big_timer(left, total):
+    """The board's countdown as large numbers (m:ss) with a thick bar under them.
+    Red and pulsing in the last 10 seconds; style.css stops the pulse for reduced motion."""
+    left = max(0, int(left))
+    share = 0 if total <= 0 else min(1.0, left / total)
+    low = " low" if left <= 10 else ""
+    return (f'<div class="bigtimer{low}" role="timer" aria-label="{left} seconds left">'
+            f'<div class="num">{left // 60}:{left % 60:02d}</div>'
+            f'<div class="timer{low}"><div style="width:{share * 100:.1f}%"></div></div></div>')
 
 
 # ---------------------------------------------------------------- suspects and map
