@@ -359,6 +359,8 @@ def test_vote_table_shows_every_ballot_escaped():
     players = [{"pid": 1}, {"pid": 2}, {"pid": 3}]
     html = ui.vote_table(result, players, lambda pid: f"{EVIL}{pid}")
     assert "<script>" not in html and "$" not in html
-    assert html.count("<tr>") == 4                          # header + one row per player
+    assert html.count('style="--i:') == 3                  # one card per player
     assert html.count("✓") == 2                             # player 1: right culprit and right scene
-    assert "did not vote" in html                           # player 3 abstained
+    assert "Did not vote" in html                           # player 3 abstained
+    assert "ballot killer" in html and "The killer&#x27;s ballot" in html   # player 2 is the culprit
+    assert "1 of 2 ballots named the killer" in html

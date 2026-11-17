@@ -440,28 +440,41 @@ def alibi_table(result, characters, name_of):
 
 
 def vote_table(result, players, name_of):
-    """After the game: every ballot in a row. A tick marks a vote for the real culprit
-    or the real crime scene; a dash means that player did not vote."""
+    """After the game: every ballot as a card that flips in, one after another.
+    Green = pointed at the real culprit, red = the culprit's own ballot, grey = wrong.
+    --i is the card's number; the CSS uses it to delay each card a little more."""
     murderer = result["murderer"]
     scene = result["murder_location"]
-    rows = []
-    for p in players:
+    votes = result.get("votes", {})
+    scene_votes = result.get("scene_votes", {})
+    right = sum(1 for accused in votes.values() if accused == murderer)
+    cards = []
+    for i, p in enumerate(players):
         voter = str(p["pid"])
-        accused = result.get("votes", {}).get(voter)
-        place = result.get("scene_votes", {}).get(voter)
+        accused = votes.get(voter)
+        place = scene_votes.get(voter)
+        killer = p["pid"] == murderer
         if accused is None:
-            who = '<span class="sec">did not vote</span>'
+            css, tag, target = "ballot none", "Did not vote", '<span class="who">—</span>'
         else:
-            right = ' <span class="ok">✓</span>' if accused == murderer else ""
-            who = f"{h(name_of(accused))}{right}"
-        if place is None:
-            where = "—"
-        else:
-            right = ' <span class="ok">✓</span>' if place == scene else ""
-            where = f"{h(place)}{right}"
-        rows.append(f'<tr><td><b>{h(name_of(p["pid"]))}</b></td><td>{who}</td><td>{where}</td></tr>')
-    return ('<table class="alibis votes"><tr><th>Voter</th><th>Accused</th><th>Scene</th></tr>'
-            f'{"".join(rows)}</table>')
+            css = "ballot right" if accused == murderer else "ballot"
+            tag = "✓ Right" if accused == murderer else "✗ Wrong"
+            target = (f'<span class="who"><span class="face">{initial(name_of(accused))}</span>'
+                      f'{h(name_of(accused))}</span>')
+        if killer:
+            css += " killer"
+            tag = "The killer's ballot"
+        where = ""
+        if place is not None:
+            mark = " ✓" if place == scene else ""
+            icon = content.LOCATION_ICONS.get(place, "")
+            where = f'<div class="where">{icon} {h(place)}{mark}</div>'
+        cards.append(f'<div class="{css}" style="--i:{i}">'
+                     f'<span class="who"><span class="face">{initial(name_of(p["pid"]))}</span>'
+                     f'{h(name_of(p["pid"]))}</span><span class="arrow">accuses</span>{target}'
+                     f'<span class="tag">{h(tag)}</span>{where}</div>')
+    summary = f'{right} of {len(votes)} ballots named the killer'
+    return f'<div class="ballots"><div class="sum">{h(summary)}</div>{"".join(cards)}</div>'
 
 
 def bars(counts, labels, hit=None):
