@@ -46,6 +46,10 @@ def brand():
             f'<div class="tag">{h(content.TAGLINE)}</div></div>')
 
 
+INTRO_FIRST_LINE = 0.15   # seconds until the first line appears
+INTRO_LINE_STEP = 0.3     # seconds between two lines; style.css ends the whole intro at 4 s
+
+
 def intro():
     """The cinematic opening of the home page, about the game (not one case).
     Pure CSS: it plays once and then fades away by itself."""
@@ -115,6 +119,19 @@ def _file(stamp, number, name, rows, brief):
 
 def case_file(story=None):
     story = _story(story)
+    """The cinematic opening, about 4 seconds. Pure CSS: it plays once and then fades away by itself."""
+    lines = []
+    for number, line in enumerate(content.INTRO_LINES):
+        red = " red" if number == 3 else ""
+        delay = INTRO_FIRST_LINE + number * INTRO_LINE_STEP
+        lines.append(f'<div class="line{red}" style="animation-delay:{delay:.2f}s">{h(line)}</div>')
+    return ('<div class="intro" aria-hidden="true"><div class="glitch"></div>'
+            f'<div class="lines">{"".join(lines)}</div>'
+            '<div class="final"><div class="title">NOVA <b>MYSTERY</b></div>'
+            '<div class="tag">Everyone has a secret.</div></div></div>')
+
+
+def case_file():
     rows = [
         ("Case", f"#{story['case_number']}"),
         ("Location", "NOVA University, Lisbon"),
@@ -146,6 +163,17 @@ def timer(left, total):
             f'<div class="timer-label{low}">{int(left)} s left</div>')
 
 
+def big_timer(left, total):
+    """The board's countdown as large numbers (m:ss) with a thick bar under them.
+    Red and pulsing in the last 10 seconds; style.css stops the pulse for reduced motion."""
+    left = max(0, int(left))
+    share = 0 if total <= 0 else min(1.0, left / total)
+    low = " low" if left <= 10 else ""
+    return (f'<div class="bigtimer{low}" role="timer" aria-label="{left} seconds left">'
+            f'<div class="num">{left // 60}:{left % 60:02d}</div>'
+            f'<div class="timer{low}"><div style="width:{share * 100:.1f}%"></div></div></div>')
+
+
 # ---------------------------------------------------------------- suspects and map
 
 def suspects(players, phase, guilty_pid=None, story=None):
@@ -175,6 +203,34 @@ def suspects(players, phase, guilty_pid=None, story=None):
 
 def campus_map(searched, scene=None, story=None):
     story = _story(story)
+def suspect_list(players, phase, me_pid=None):
+    """Compact suspects for the phone: one short row per player (avatar, name, role, online dot).
+    The board keeps the big dossier tiles from suspects(). Shows only public data."""
+    rows = []
+    for player in players:
+        tags = []
+        if player["pid"] == me_pid:
+            tags.append("you")
+        if player.get("is_host"):
+            tags.append("host")
+        if phase == "VOTE" and player.get("voted"):
+            tags.append("voted")
+        online = "online" if player.get("online") else "offline"
+        dot_css = "dot" if player.get("online") else "dot off"
+        mine = " me" if player["pid"] == me_pid else ""
+        rows.append(
+            f'<div class="srow{mine}" role="listitem">'
+            f'<span class="face">{initial(player["name"])}</span>'
+            f'<span class="who"><span class="n">{h(player["name"])}</span>'
+            f'<span class="r">{h(player.get("role") or "awaiting file")}</span></span>'
+            f'<span class="tags">{h(" · ".join(tags))}</span>'
+            f'<span class="{dot_css}" role="img" aria-label="{online}" title="{online}"></span></div>')
+    if not rows:
+        return '<div class="muted">Nobody has joined yet.</div>'
+    return f'<div class="slist" role="list" aria-label="Suspects">{"".join(rows)}</div>'
+
+
+def campus_map(searched, scene=None):
     tiles = []
     for location in story["locations"]:
         classes = "loc"
@@ -240,6 +296,59 @@ def log_entry(entry, name_of, entries_by_id, story=None):
     return f'<div class="ev note">— {text}</div>'
 
 
+# ---------------------------------------------------------------- evidence wall (board)
+
+# Small tilts in degrees. The id picks one, so a note keeps its angle on every refresh.
+TILTS = (-3, 2, -1.5, 3, -2.5, 1.5, -1, 2.5)
+
+
+def tilt(entry_id):
+    return TILTS[int(entry_id) % len(TILTS)]
+
+
+def pinned_note(entry, name_of, newest=False):
+    """One log entry as a note pinned to the cork board. name_of(pid) -> display name."""
+    kind = entry["kind"]
+    text = h(entry["text"])
+    number = h(entry["id"])
+    if kind == "search":       # an exhibit: a polaroid photo of the place
+        icon = content.LOCATION_ICONS.get(entry.get("location"), "")
+        css = "photo"
+        body = (f'<div class="shot">{icon}</div>'
+                f'<div class="cap">Exhibit {number} · {h(entry.get("location", ""))}</div>'
+                f'<div class="b">{text}</div>')
+    elif kind == "share":      # a witness statement: typed paper
+        css = "typed"
+        body = (f'<div class="cap">Exhibit {number} · Witness statement</div>'
+                f'<div class="b">{text}</div><div class="sig">– {h(name_of(entry["by"]))}</div>')
+    elif kind == "question":   # an interrogation: a handwritten note
+        css = "hand"
+        confront = ""
+        if entry.get("evidence") is not None:
+            confront = f'<div class="ref">re Exhibit {h(entry["evidence"])}</div>'
+        body = (f'<div class="cap">#{number} · {h(name_of(entry["by"]))} → {h(name_of(entry["target"]))}</div>'
+                f'{confront}<div class="b">“{text}”</div>')
+    elif kind == "answer":     # the answer: handwritten too, on white paper
+        css = "hand reply"
+        body = (f'<div class="cap">{h(name_of(entry["by"]))} answers #{h(entry["question_id"])}</div>'
+                f'<div class="b">“{text}”</div>')
+    else:                      # a message from the game itself
+        css = "slip"
+        body = f'<div class="b">{text}</div>'
+    new = " new" if newest else ""
+    return (f'<div class="pin {css}{new}" role="listitem" style="--tilt:{tilt(entry["id"])}deg">'
+            f'{_stamp(entry)}{body}</div>')
+
+
+def evidence_wall(log, name_of):
+    """The whole public log as a cork board. Oldest first, so old notes never move;
+    only the newest note gets the class 'new' and drops in."""
+    if not log:
+        return '<div class="cork empty">Nothing has been pinned up yet.</div>'
+    notes = [pinned_note(entry, name_of, newest=(i == len(log) - 1)) for i, entry in enumerate(log)]
+    return f'<div class="cork" role="list" aria-label="Evidence wall">{"".join(notes)}</div>'
+
+
 # ---------------------------------------------------------------- private card (phone)
 
 def dossier(me):
@@ -260,6 +369,26 @@ def dossier(me):
     return (f'<div class="{css}"><span class="lbl">Personal file</span>'
             f'<div class="role">{h(me["role"])}</div>{"".join(rows)}'
             f'<div class="row"><span class="lbl">What you know</span>{"".join(slips)}</div></div>')
+
+
+def envelope(name):
+    """The sealed case envelope the phone shows when the REVEAL phase starts.
+    No role and no card data in here: only the player's own name."""
+    return ('<div class="envelope" role="img" aria-label="Sealed case file">'
+            '<div class="flap"></div><div class="seal">N</div>'
+            f'<div class="env-label"><span class="case">Case #{h(content.CASE_NUMBER)}</span>'
+            f'CONFIDENTIAL – for {h(name)} only</div></div>')
+
+
+def opened_file(me, animate):
+    """The opened envelope with the dossier inside. animate=True plays the opening once:
+    the flap folds back, the seal breaks, the file slides out (pure CSS, see style.css).
+    The murderer's file gets a subtle red tint."""
+    guilty = " guilty" if me["is_murderer"] else ""
+    play = " play" if animate else ""
+    back = ('<div class="env-back" aria-hidden="true"><div class="flap"></div>'
+            '<div class="seal">N</div></div>') if animate else ""
+    return f'<div class="unseal{guilty}{play}">{back}<div class="file">{dossier(me)}</div></div>'
 
 
 # ---------------------------------------------------------------- the reveal

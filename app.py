@@ -215,12 +215,24 @@ def write_ai_case(code, settings):
 
 # ---------------------------------------------------------------- shared pieces
 
-def show_phase(public):
+def show_phase(public, big_timer=False):
+    """Phase title and timer. The board (big_timer=True) shows the countdown in large numbers
+    next to the title; phones keep the thin bar."""
     phase = public["phase"]
     subtitle = PHASE_SUBTITLES.get(phase, "").format(victim=public["story"]["victim_short"])
     show(ui.banner(PHASE_TITLES[phase], subtitle))
+    banner = ui.banner(PHASE_TITLES[phase], PHASE_SUBTITLES.get(phase, ""))
     left = seconds_left(public)
-    if left is not None:
+    if left is None:
+        show(banner)
+    elif big_timer:
+        title, clock = st.columns([3, 1])
+        with title:
+            show(banner)
+        with clock:
+            show(ui.big_timer(left, logic.DURATIONS[phase]))
+    else:
+        show(banner)
         show(ui.timer(left, logic.DURATIONS[phase]))
 
 
@@ -271,6 +283,11 @@ def show_result(public):
 # ---------------------------------------------------------------- home and join
 
 def home_screen():
+    # Presentation link ?demo=1: go straight into a demo game, without the intro.
+    if st.query_params.get("demo"):
+        del st.query_params["demo"]
+        start_demo()
+        return
     # The opening plays once per browser session. It is pure CSS, works without sound,
     # and is switched off for people who ask their system for reduced motion.
     if not st.session_state.get("intro_seen"):
@@ -313,6 +330,7 @@ DEMO_BOTS = 4   # with you as host: 5 players, enough for every phase
 
 def start_demo():
     """New room, you as host, plus demo suspects. You land on your phone screen in the lobby."""
+    st.session_state["intro_seen"] = True   # a demo never shows the intro, not even later
     token = logic.new_token()
     now = time.time()
     try:
@@ -381,7 +399,7 @@ def board_live(code):
     st.markdown(f'<div class="kicker">{ui.h(case_kicker(public))} · Room {ui.h(code)}</div>',
                 unsafe_allow_html=True)
     phase = public["phase"]
-    show_phase(public)
+    show_phase(public, big_timer=True)
     if phase == "ABORTED":
         st.error(public["abort_reason"])
     if phase == "RESULT":
@@ -414,14 +432,19 @@ def board_live(code):
         return
     st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
     show_players(public)
+    # The map gets the full width, so the five equal tiles are big enough to read on a projector.
+    st.markdown('<div class="kicker">Campus map</div>', unsafe_allow_html=True)
+    show(ui.campus_map(public["searched"]))
     left, right = st.columns([2, 3])
     with left:
         st.markdown('<div class="kicker">Campus map</div>', unsafe_allow_html=True)
         show(ui.campus_map(public["searched"], story=story))
         st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="place">{ui.h(content.BRIEFING)}</div>', unsafe_allow_html=True)
     with right:
-        st.markdown('<div class="kicker">Evidence &amp; statements</div>', unsafe_allow_html=True)
-        show_log(public)
+        st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
+        # The board shows the log as a cork board; phones keep the simple list (show_log).
+        show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid)))
 
 
 def board_screen(code):
@@ -451,9 +474,20 @@ def player_status(code, token):
     if public is None or me is None:
         st.rerun()
     show_phase(public)
-    show_players(public)
     if signature(public, me) != st.session_state.get("signature"):
         st.rerun()   # redraw the whole page so that the right buttons appear
+
+
+@st.fragment(run_every=POLL_SECONDS)
+def player_suspects(code, my_pid):
+    """The suspects as a short list. The phone has no room for the board's big tiles."""
+    with open_db() as conn:
+        game = db.load(conn, code)
+        online = logic.online_ids(db.presence(conn, code), time.time())
+    if game is not None:
+        public = logic.public_view(game, logic.with_bots(game, online))
+        st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
+        show(ui.suspect_list(public["players"], public["phase"], my_pid))
 
 
 @st.fragment(run_every=POLL_SECONDS)
@@ -466,9 +500,28 @@ def player_log(code):
         show_log(views(game, online)[0])
 
 
-def show_card(me):
-    with st.expander(f"Your card: {me['role']}", expanded=me["phase"] in ("REVEAL", "INVESTIGATION")):
+def show_card(me, expanded):
+    with st.expander(f"Your card: {me['role']}", expanded=expanded):
         show(ui.dossier(me))
+
+
+def sealed_card(code, me):
+    """REVEAL: first a sealed envelope, the file only after "Open your file".
+    session_state remembers the envelope per room and player within one browser session.
+    A real page reload starts a new session, so the envelope is sealed again and the player
+    opens it once more (the card itself is the same). States: missing = sealed, "opening" =
+    play the animation once, "open" = just show it."""
+    key = f"envelope_{code}_{me['pid']}"
+    st.markdown('<div class="kicker">Your card</div>', unsafe_allow_html=True)
+    if key not in st.session_state:
+        show(ui.envelope(me["name"]))
+        if st.button("Open your file", type="primary", use_container_width=True):
+            st.session_state[key] = "opening"
+            st.rerun()
+        return
+    animate = st.session_state[key] == "opening"
+    st.session_state[key] = "open"            # the next redraw shows the file without animation
+    show(ui.opened_file(me, animate))
 
 
 def host_controls(code, token, public, me):
@@ -622,29 +675,37 @@ def player_screen(code, token):
     if flash:
         st.error(flash)
 
-    host_controls(code, token, public, me)
-
+    # Mobile first: in every phase, the thing you have to do or read right now comes first.
+    # Your card follows (folded away once you have read it), then the suspects, then the evidence.
     if phase == "LOBBY":
+        host_controls(code, token, public, me)   # the host's "Start game" is the main thing here
         st.info("Keep this page open. The host starts the game.")
         show(ui.sealed_file())
+        player_suspects(code, me["pid"])         # who has joined so far
+        show(ui.case_file())
         show_rules(expanded=True)
     elif phase == "ABORTED":
         st.error(public["abort_reason"])
     elif phase == "RESULT":
         show_result(public)
-    else:
-        show_card(me)
-        if phase == "REVEAL":
-            st.info("Read your file. The investigation starts in a moment.")
-        if phase == "INVESTIGATION":
-            investigation_actions(code, token, public, me)
-        if phase in ("INVESTIGATION", "DISCUSSION"):
-            answer_forms(code, token, public, me)
-        if phase == "DISCUSSION":
-            st.info("Talk to each other. Compare the alibis. Who is lying?")
-        if phase == "VOTE":
-            vote_form(code, token, public, me)
+    elif phase == "REVEAL":
+        sealed_card(code, me)
+        st.info("Read your file. The investigation starts in a moment.")
+    elif phase == "INVESTIGATION":
+        investigation_actions(code, token, public, me)
+        answer_forms(code, token, public, me)
+        show_card(me, expanded=False)
+    elif phase == "DISCUSSION":
+        answer_forms(code, token, public, me)
+        st.info("Talk to each other. Compare the alibis. Who is lying?")
+        show_card(me, expanded=False)
+    elif phase == "VOTE":
+        vote_form(code, token, public, me)
+        show_card(me, expanded=False)
 
+    if phase in logic.DURATIONS:                 # REVEAL, INVESTIGATION, DISCUSSION, VOTE
+        host_controls(code, token, public, me)   # "End phase" sits below the player's own move
+        player_suspects(code, me["pid"])
     if phase != "RESULT":
         st.divider()
         player_log(code)
