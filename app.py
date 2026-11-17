@@ -220,8 +220,7 @@ def show_phase(public, big_timer=False):
     next to the title; phones keep the thin bar."""
     phase = public["phase"]
     subtitle = PHASE_SUBTITLES.get(phase, "").format(victim=public["story"]["victim_short"])
-    show(ui.banner(PHASE_TITLES[phase], subtitle))
-    banner = ui.banner(PHASE_TITLES[phase], PHASE_SUBTITLES.get(phase, ""))
+    banner = ui.banner(PHASE_TITLES[phase], subtitle)
     left = seconds_left(public)
     if left is None:
         show(banner)
@@ -434,17 +433,14 @@ def board_live(code):
     show_players(public)
     # The map gets the full width, so the five equal tiles are big enough to read on a projector.
     st.markdown('<div class="kicker">Campus map</div>', unsafe_allow_html=True)
-    show(ui.campus_map(public["searched"]))
+    show(ui.campus_map(public["searched"], story=story))
     left, right = st.columns([2, 3])
     with left:
-        st.markdown('<div class="kicker">Campus map</div>', unsafe_allow_html=True)
-        show(ui.campus_map(public["searched"], story=story))
         st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="place">{ui.h(content.BRIEFING)}</div>', unsafe_allow_html=True)
     with right:
         st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
         # The board shows the log as a cork board; phones keep the simple list (show_log).
-        show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid)))
+        show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid), story=story))
 
 
 def board_screen(code):
@@ -505,7 +501,7 @@ def show_card(me, expanded):
         show(ui.dossier(me))
 
 
-def sealed_card(code, me):
+def sealed_card(code, me, story):
     """REVEAL: first a sealed envelope, the file only after "Open your file".
     session_state remembers the envelope per room and player within one browser session.
     A real page reload starts a new session, so the envelope is sealed again and the player
@@ -514,7 +510,7 @@ def sealed_card(code, me):
     key = f"envelope_{code}_{me['pid']}"
     st.markdown('<div class="kicker">Your card</div>', unsafe_allow_html=True)
     if key not in st.session_state:
-        show(ui.envelope(me["name"]))
+        show(ui.envelope(me["name"], story=story))
         if st.button("Open your file", type="primary", use_container_width=True):
             st.session_state[key] = "opening"
             st.rerun()
@@ -682,14 +678,13 @@ def player_screen(code, token):
         st.info("Keep this page open. The host starts the game.")
         show(ui.sealed_file())
         player_suspects(code, me["pid"])         # who has joined so far
-        show(ui.case_file())
         show_rules(expanded=True)
     elif phase == "ABORTED":
         st.error(public["abort_reason"])
     elif phase == "RESULT":
         show_result(public)
     elif phase == "REVEAL":
-        sealed_card(code, me)
+        sealed_card(code, me, public["story"])
         st.info("Read your file. The investigation starts in a moment.")
     elif phase == "INVESTIGATION":
         investigation_actions(code, token, public, me)

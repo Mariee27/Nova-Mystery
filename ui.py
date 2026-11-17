@@ -51,10 +51,10 @@ INTRO_LINE_STEP = 0.3     # seconds between two lines; style.css ends the whole 
 
 
 def intro():
-    """The cinematic opening of the home page, about the game (not one case).
+    """The cinematic opening of the home page, about the game (not one case), about 4 seconds.
     Pure CSS: it plays once and then fades away by itself."""
     final = '<div class="title">NOVA <b>MYSTERY</b></div><div class="tag">Everyone has a secret.</div>'
-    return _intro(content.HOME_INTRO_LINES, " short", 0.6, 1.15, final, red=1)
+    return _intro(content.HOME_INTRO_LINES, "", INTRO_FIRST_LINE, INTRO_LINE_STEP, final, red=1)
 
 
 NUMBER_WORDS = {4: "Four", 5: "Five", 6: "Six"}
@@ -119,19 +119,6 @@ def _file(stamp, number, name, rows, brief):
 
 def case_file(story=None):
     story = _story(story)
-    """The cinematic opening, about 4 seconds. Pure CSS: it plays once and then fades away by itself."""
-    lines = []
-    for number, line in enumerate(content.INTRO_LINES):
-        red = " red" if number == 3 else ""
-        delay = INTRO_FIRST_LINE + number * INTRO_LINE_STEP
-        lines.append(f'<div class="line{red}" style="animation-delay:{delay:.2f}s">{h(line)}</div>')
-    return ('<div class="intro" aria-hidden="true"><div class="glitch"></div>'
-            f'<div class="lines">{"".join(lines)}</div>'
-            '<div class="final"><div class="title">NOVA <b>MYSTERY</b></div>'
-            '<div class="tag">Everyone has a secret.</div></div></div>')
-
-
-def case_file():
     rows = [
         ("Case", f"#{story['case_number']}"),
         ("Location", "NOVA University, Lisbon"),
@@ -201,8 +188,6 @@ def suspects(players, phase, guilty_pid=None, story=None):
     return f'<div class="suspects">{"".join(cards)}</div>'
 
 
-def campus_map(searched, scene=None, story=None):
-    story = _story(story)
 def suspect_list(players, phase, me_pid=None):
     """Compact suspects for the phone: one short row per player (avatar, name, role, online dot).
     The board keeps the big dossier tiles from suspects(). Shows only public data."""
@@ -230,7 +215,8 @@ def suspect_list(players, phase, me_pid=None):
     return f'<div class="slist" role="list" aria-label="Suspects">{"".join(rows)}</div>'
 
 
-def campus_map(searched, scene=None):
+def campus_map(searched, scene=None, story=None):
+    story = _story(story)
     tiles = []
     for location in story["locations"]:
         classes = "loc"
@@ -306,13 +292,13 @@ def tilt(entry_id):
     return TILTS[int(entry_id) % len(TILTS)]
 
 
-def pinned_note(entry, name_of, newest=False):
+def pinned_note(entry, name_of, newest=False, story=None):
     """One log entry as a note pinned to the cork board. name_of(pid) -> display name."""
     kind = entry["kind"]
     text = h(entry["text"])
     number = h(entry["id"])
     if kind == "search":       # an exhibit: a polaroid photo of the place
-        icon = content.LOCATION_ICONS.get(entry.get("location"), "")
+        icon = h(_story(story)["location_icons"].get(entry.get("location"), ""))
         css = "photo"
         body = (f'<div class="shot">{icon}</div>'
                 f'<div class="cap">Exhibit {number} · {h(entry.get("location", ""))}</div>'
@@ -340,12 +326,13 @@ def pinned_note(entry, name_of, newest=False):
             f'{_stamp(entry)}{body}</div>')
 
 
-def evidence_wall(log, name_of):
+def evidence_wall(log, name_of, story=None):
     """The whole public log as a cork board. Oldest first, so old notes never move;
     only the newest note gets the class 'new' and drops in."""
     if not log:
         return '<div class="cork empty">Nothing has been pinned up yet.</div>'
-    notes = [pinned_note(entry, name_of, newest=(i == len(log) - 1)) for i, entry in enumerate(log)]
+    notes = [pinned_note(entry, name_of, newest=(i == len(log) - 1), story=story)
+             for i, entry in enumerate(log)]
     return f'<div class="cork" role="list" aria-label="Evidence wall">{"".join(notes)}</div>'
 
 
@@ -371,12 +358,12 @@ def dossier(me):
             f'<div class="row"><span class="lbl">What you know</span>{"".join(slips)}</div></div>')
 
 
-def envelope(name):
+def envelope(name, story=None):
     """The sealed case envelope the phone shows when the REVEAL phase starts.
-    No role and no card data in here: only the player's own name."""
+    No role and no card data in here: only the player's own name and the case number."""
     return ('<div class="envelope" role="img" aria-label="Sealed case file">'
             '<div class="flap"></div><div class="seal">N</div>'
-            f'<div class="env-label"><span class="case">Case #{h(content.CASE_NUMBER)}</span>'
+            f'<div class="env-label"><span class="case">Case #{h(_story(story)["case_number"])}</span>'
             f'CONFIDENTIAL – for {h(name)} only</div></div>')
 
 
