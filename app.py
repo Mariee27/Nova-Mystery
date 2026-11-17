@@ -354,8 +354,9 @@ def board_live(code):
     with left:
         st.markdown(f'<div class="place">{ui.h(content.BRIEFING)}</div>', unsafe_allow_html=True)
     with right:
-        st.markdown('<div class="kicker">Evidence &amp; statements</div>', unsafe_allow_html=True)
-        show_log(public)
+        st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
+        # The board shows the log as a cork board; phones keep the simple list (show_log).
+        show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid)))
 
 
 def board_screen(code):

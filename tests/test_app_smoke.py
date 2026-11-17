@@ -243,6 +243,18 @@ def test_play_a_demo_seats_you_with_four_demo_suspects(game_db):
         conn.close()
 
 
+def test_board_pins_evidence_to_a_cork_wall_and_phones_keep_the_list(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+    phone.run(press=["End phase (host)"])                     # on to INVESTIGATION
+    phone.run(press=["Search this location"])
+    board = Browser(room=code, view="board")
+    page = board.run()
+    assert 'class="cork"' in page and "pin photo" in page     # the exhibit is a polaroid
+    phone_page = phone.run()
+    assert "Exhibit 1" in phone_page and 'class="cork"' not in phone_page
 def test_demo_link_starts_a_demo_without_the_intro(game_db):
     home = Browser()
     assert 'class="intro"' in home.run()                 # a normal first visit plays the intro
