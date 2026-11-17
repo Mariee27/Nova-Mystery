@@ -255,3 +255,52 @@ def test_board_pins_evidence_to_a_cork_wall_and_phones_keep_the_list(game_db):
     assert 'class="cork"' in page and "pin photo" in page     # the exhibit is a polaroid
     phone_page = phone.run()
     assert "Exhibit 1" in phone_page and 'class="cork"' not in phone_page
+def test_phone_shows_the_most_important_thing_first(game_db):
+    """Mobile first: the phone puts the current task on top; the board keeps the big tiles."""
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    board = Browser(room=code, view="board")
+    conn = db.connect(game_db)
+    try:
+        phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+        assert db.load(conn, code)["phase"] == "REVEAL"
+        page = phone.run()
+        assert page.index("Your card") < page.index('class="slist"') < page.index("Evidence &amp; statements")
+        assert 'class="suspects"' not in page                   # no big tiles on the phone
+        assert 'class="suspects"' in board.run()                # the board keeps them
+
+        phone.run(press=["End phase (host)"])
+        assert db.load(conn, code)["phase"] == "INVESTIGATION"
+        page = phone.run()
+        assert page.index("Your move") < page.index("Your card") < page.index("Evidence &amp; statements")
+
+        phone.run(press=["End phase (host)"])
+        phone.run(press=["End phase (host)"])
+        assert db.load(conn, code)["phase"] == "VOTE"
+        page = phone.run()
+        assert page.index("Name the right suspect") < page.index("Your card")
+    finally:
+        conn.close()
+
+
+def test_reveal_shows_a_sealed_envelope_that_stays_open(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+    conn = db.connect(game_db)
+    try:
+        game = db.load(conn, code)
+    finally:
+        conn.close()
+    assert game["phase"] == "REVEAL"
+    sealed = phone.run()
+    assert 'class="envelope"' in sealed and "CONFIDENTIAL – for Detective only" in sealed
+    assert 'class="dossier' not in sealed                 # the card is not shown yet
+    opened = phone.run(press=["Open your file"])
+    assert ' play"' in opened                             # class="unseal ... play": the opening plays once ...
+    again = phone.run()                                   # ... a refresh keeps it open, without replaying
+    assert 'class="dossier' in again and ' play"' not in again and 'class="envelope"' not in again
+    guilty = game["case"]["murderer"] == 1                # pid 1 is the human "Detective"
+    assert ("unseal guilty" in again) == guilty

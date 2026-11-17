@@ -105,6 +105,33 @@ def suspects(players, phase, guilty_pid=None):
     return f'<div class="suspects">{"".join(cards)}</div>'
 
 
+def suspect_list(players, phase, me_pid=None):
+    """Compact suspects for the phone: one short row per player (avatar, name, role, online dot).
+    The board keeps the big dossier tiles from suspects(). Shows only public data."""
+    rows = []
+    for player in players:
+        tags = []
+        if player["pid"] == me_pid:
+            tags.append("you")
+        if player.get("is_host"):
+            tags.append("host")
+        if phase == "VOTE" and player.get("voted"):
+            tags.append("voted")
+        online = "online" if player.get("online") else "offline"
+        dot_css = "dot" if player.get("online") else "dot off"
+        mine = " me" if player["pid"] == me_pid else ""
+        rows.append(
+            f'<div class="srow{mine}" role="listitem">'
+            f'<span class="face">{initial(player["name"])}</span>'
+            f'<span class="who"><span class="n">{h(player["name"])}</span>'
+            f'<span class="r">{h(player.get("role") or "awaiting file")}</span></span>'
+            f'<span class="tags">{h(" · ".join(tags))}</span>'
+            f'<span class="{dot_css}" role="img" aria-label="{online}" title="{online}"></span></div>')
+    if not rows:
+        return '<div class="muted">Nobody has joined yet.</div>'
+    return f'<div class="slist" role="list" aria-label="Suspects">{"".join(rows)}</div>'
+
+
 def campus_map(searched, scene=None):
     tiles = []
     for location in content.LOCATIONS:
@@ -244,6 +271,26 @@ def dossier(me):
     return (f'<div class="{css}"><span class="lbl">Personal file</span>'
             f'<div class="role">{h(me["role"])}</div>{"".join(rows)}'
             f'<div class="row"><span class="lbl">What you know</span>{"".join(slips)}</div></div>')
+
+
+def envelope(name):
+    """The sealed case envelope the phone shows when the REVEAL phase starts.
+    No role and no card data in here: only the player's own name."""
+    return ('<div class="envelope" role="img" aria-label="Sealed case file">'
+            '<div class="flap"></div><div class="seal">N</div>'
+            f'<div class="env-label"><span class="case">Case #{h(content.CASE_NUMBER)}</span>'
+            f'CONFIDENTIAL – for {h(name)} only</div></div>')
+
+
+def opened_file(me, animate):
+    """The opened envelope with the dossier inside. animate=True plays the opening once:
+    the flap folds back, the seal breaks, the file slides out (pure CSS, see style.css).
+    The murderer's file gets a subtle red tint."""
+    guilty = " guilty" if me["is_murderer"] else ""
+    play = " play" if animate else ""
+    back = ('<div class="env-back" aria-hidden="true"><div class="flap"></div>'
+            '<div class="seal">N</div></div>') if animate else ""
+    return f'<div class="unseal{guilty}{play}">{back}<div class="file">{dossier(me)}</div></div>'
 
 
 # ---------------------------------------------------------------- the reveal
