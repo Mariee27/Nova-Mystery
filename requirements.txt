@@ -2,8 +2,12 @@
 #    uv export --system-certs --no-dev --no-hashes --no-emit-project --format requirements-txt -o requirements.txt
 altair==6.3.0
     # via streamlit
+annotated-types==0.8.0
+    # via pydantic
 anyio==4.16.0
     # via
+    #   httpx2
+    #   openai
     #   starlette
     #   streamlit
 attrs==26.1.0
@@ -21,10 +25,19 @@ click==8.5.1
 colorama==0.4.6 ; sys_platform == 'win32'
     # via qrcode
 h11==0.16.0
-    # via uvicorn
+    # via
+    #   httpcore2
+    #   uvicorn
+httpcore2==2.16.2 ; sys_platform != 'emscripten'
+    # via httpx2
+httpx2==2.16.2
+    # via openai
+httpx2-jsfetch==1.0 ; python_full_version >= '3.12' and sys_platform == 'emscripten'
+    # via httpx2
 idna==3.20
     # via
     #   anyio
+    #   httpx2
     #   requests
 itsdangerous==2.2.0
     # via streamlit
@@ -32,6 +45,8 @@ jinja2==3.1.6
     # via
     #   altair
     #   pydeck
+jiter==0.19.0
+    # via openai
 jsonschema==4.26.0
     # via altair
 jsonschema-specifications==2025.9.1
@@ -50,6 +65,8 @@ numpy==2.5.4 ; python_full_version >= '3.12'
     #   pandas
     #   pydeck
     #   streamlit
+openai==3.52.0
+    # via murder-at-nova
 packaging==26.3
     # via
     #   altair
@@ -64,6 +81,10 @@ protobuf==7.36.2
     # via streamlit
 pyarrow==26.0.1
     # via streamlit
+pydantic==2.14.3
+    # via openai
+pydantic-core==2.50.4
+    # via pydantic
 pydeck==0.9.3
     # via streamlit
 python-dateutil==4.0.0
@@ -82,17 +103,30 @@ rpds-py==2026.9.1
     # via
     #   jsonschema
     #   referencing
+sniffio==1.3.1
+    # via openai
 starlette==1.10.0
     # via streamlit
 streamlit==1.67.0
     # via murder-at-nova
+truststore==0.10.5 ; sys_platform != 'emscripten'
+    # via
+    #   httpcore2
+    #   httpx2
 typing-extensions==4.16.0
     # via
     #   altair
     #   anyio
+    #   httpx2
+    #   openai
+    #   pydantic
+    #   pydantic-core
     #   referencing
     #   starlette
     #   streamlit
+    #   typing-inspection
+typing-inspection==0.4.5
+    # via pydantic
 tzdata==2026.6
     # via
     #   pandas

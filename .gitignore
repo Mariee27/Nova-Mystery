@@ -4,3 +4,6 @@ data/
 *.db*
 .env
 .streamlit/secrets.toml
+
+# macOS folder settings
+.DS_Store

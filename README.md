@@ -2,7 +2,8 @@
 
 A five-minute multiplayer murder mystery for 4 to 6 players, built with Python and Streamlit.
 One screen (the projector) shows the public board. Every player joins on their own phone, gets a
-secret role card, and together the group has to find out who murdered Dr. Marta Quintela before time runs out.
+secret role card, and together the group has to find out who committed the murder before time runs out.
+Every room can get a brand-new story written by an AI; case #001 "The Last Lecture" is always there as the fallback.
 
 **Course:** Introduction to Programming, Nova SBE
 
@@ -49,6 +50,16 @@ Phases end early when everybody is done, and the host can skip ahead.
 - **Real-time multiplayer** for 4–6 players on their own phones, plus a public projector board.
 - **A new case every game.** The generator draws the murderer, the crime scene, roles, alibis and clues.
   A demo switch gives a fixed case for rehearsing.
+- **A new story for every room, written by AI (optional).** While the players join, an AI model writes a new
+  NOVA-campus story: victim, five locations, six suspects with motives, secrets and rumors, and the endings.
+  The AI only writes words. Who did it, where, and which clue points to whom is still decided by the generator,
+  and every AI story is checked (`logic.validate_story`) before it is used. If the AI is not set up, too slow,
+  over its daily limit, or writes something that fails the checks, the game plays case #001 and only the host
+  sees a short note. See section 4 for the setup.
+- **Every case has its own opening.** The home page plays a short intro about the game. When the host starts,
+  the board and every phone play the intro of *this* case (six lines written with the story, then the case
+  title) before the private files open. While the AI is still writing, the lobby says so instead of showing an
+  old case file.
 - **Every case is checked for fairness** before the game starts (exactly one murderer, at least two strong
   clues against them, no strong clue against innocents, …). See `logic.validate_case`.
 - **Hidden information:** each phone only ever receives its own card. The board shows no secrets until the result.
@@ -85,11 +96,46 @@ Optional environment variables:
 |---|---|---|
 | `MURDER_DB` | `data/murder.db` | Where the SQLite file is stored. |
 | `APP_BASE_URL` | the page's own URL | Public address of the app, used for the QR code. Set it when deployed. |
+| `OPENROUTER_API_KEY` | not set | Key for AI-written cases. Without it, every game plays case #001. |
+| `OPENROUTER_MODEL` | `google/gemma-4-31b-it:free` | Which free OpenRouter model writes the stories. |
+
+All of them can also go into `.streamlit/secrets.toml` (git ignores it). Copy
+`.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and fill in the values.
+
+### AI-written cases (OpenRouter)
+
+We use [OpenRouter](https://openrouter.ai) and one of its free models (the model id ends in `:free`). Without
+buying credit, free models allow 20 requests per minute and 50 per day. Every new room uses one request.
+
+**Why not Requesty, the course's standard?** We tried it first. Requesty rejected every request from our
+account, also for its free models, with "Your organization reached its limit of concurrent requests". Its limit
+for parallel requests is the account balance times 5, so it is 0 without credit. OpenRouter's free models work
+without buying credit, and both speak the same OpenAI format, so only the address, key and model changed.
+
+1. One team member creates a free account at openrouter.ai and creates an API key.
+2. Share the key only privately (password manager or direct message), never in a chat, issue or commit.
+3. Put it into `.streamlit/secrets.toml` as `OPENROUTER_API_KEY = "..."` and restart the app.
+4. Create a room: the host's phone shows "The AI is writing a new case for this room …" and, a little later,
+   "New AI case ready". The board shows the new case title.
+
+If a key ever leaks: revoke it on openrouter.ai immediately, create a new one, and update it locally and on
+Streamlit Cloud. Deleting the commit does not remove it from the history.
+
+The free models and limits can change. Pick another model ending in `:free` from openrouter.ai/models and set it
+with `OPENROUTER_MODEL`.
 
 ### Deployment
 
 The app runs on Streamlit Community Cloud: main file `app.py`, dependencies from `requirements.txt`.
-Set `APP_BASE_URL` to the public URL in the app's secrets so the QR code points to the right address.
+In the app's **Settings → Secrets**, add:
+
+```toml
+APP_BASE_URL = "https://<your-app>.streamlit.app"
+OPENROUTER_API_KEY = "<the OpenRouter key>"
+```
+
+`APP_BASE_URL` makes the QR code point to the right address. Without `OPENROUTER_API_KEY` the app works
+the same, but always plays case #001.
 
 ## 5. Run the tests
 
@@ -154,8 +200,12 @@ and advances the timers.
 
 ## 8. Security
 
-- **No credentials in the repository.** The app needs no API keys. `.env`, `.streamlit/secrets.toml` and the
-  database are in `.gitignore`.
+- **No credentials in the repository.** The only key (the optional OpenRouter key) is read from the environment or
+  `.streamlit/secrets.toml`, never written in the code. `.env`, `.streamlit/secrets.toml` and the database are in
+  `.gitignore`; only `.streamlit/secrets.toml.example` with placeholders is committed.
+- **The AI never sees players or their data.** It only gets a fixed request for a new story. It never decides
+  who is guilty, and its text is checked (length, no giveaway words, no names inside clues) and shown as plain
+  text like everything else.
 - **No personal data is stored:** no accounts, passwords or e-mail addresses. Only a chosen name per room. Rooms are deleted after 24 hours.
 - **Access control:** every action checks the player's token, the phase, and the role (host only, murderer only, target of the question only).
   Before the result, the board never contains the murderer, secrets or private clues.
@@ -163,7 +213,7 @@ and advances the timers.
   and control characters are removed. All user text is escaped before it is shown, so HTML and Markdown are shown as plain text.
   Room codes from the URL must be exactly 4 valid letters. SQL always uses placeholders.
 - **Abuse limits:** at most 6 players per room, the host can remove strangers from the lobby, and at most 200 new rooms can be created per hour.
-- **Dependencies:** only two direct dependencies (`streamlit`, `qrcode[pil]`). All 42 packages are pinned to exact versions
+- **Dependencies:** only three direct dependencies (`streamlit`, `qrcode[pil]`, and `openai` for the OpenRouter calls). All 42 packages are pinned to exact versions
   in `uv.lock` and `requirements.txt` and checked against the OSV vulnerability database (no known vulnerabilities at the time of submission;
   the check runs again on every push).
 
@@ -177,7 +227,10 @@ More scenarios, each with the test that proves it, are in [`docs/WHAT_HAPPENS_IF
 - **The link is the key:** whoever has a player's link (screenshot, browser history) can see that card. Coming back on another device
   is not possible without the link.
 - **2-second delay:** updates appear with up to 2 seconds of delay, and every open screen causes a small amount of server work.
-- **Fixed content:** 6 roles and 5 locations, so the game supports at most 6 players, and repeat players get to know the texts.
+- **Fixed size:** every case has 6 roles and 5 locations, so the game supports at most 6 players. Without the AI,
+  repeat players get to know the texts of case #001.
+- **AI quality varies:** a free model sometimes writes a weaker story or one that fails the checks (then case #001
+  is played). The free plan allows 200 new rooms per day.
 - **English only.**
 
 ## 10. How it could change
@@ -192,9 +245,11 @@ More scenarios, each with the test that proves it, are in [`docs/WHAT_HAPPENS_IF
 
 ```
 app.py                  Streamlit screens
-logic.py                game rules, views, case validator
+ui.py                   HTML building blocks for the screens
+logic.py                game rules, views, case and story validator
 generator.py            case generator
-content.py              story texts
+content.py              story texts of case #001 and the clue templates
+ai.py                   asks an AI (via OpenRouter) for a new story
 db.py                   SQLite storage
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test

@@ -309,7 +309,7 @@ def test_big_board_timer_reads_minutes_and_turns_red_at_ten_seconds():
 def test_intro_lines_all_appear_within_the_first_two_seconds():
     """The whole intro lasts about 4 s: the lines first, then the title (timings in style.css)."""
     delays = [float(part.split("s")[0]) for part in ui.intro().split("animation-delay:")[1:]]
-    assert len(delays) == len(content.INTRO_LINES)
+    assert len(delays) == len(content.HOME_INTRO_LINES)   # the home intro is about the game, not case #001
     assert max(delays) <= 2.0
 
 

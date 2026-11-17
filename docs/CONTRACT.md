@@ -45,7 +45,7 @@ plus, depending on kind: `location`, `target` (pid), `question_id`, `answered` (
 Result: `{"winner": "detectives"|"murderer", "murderer": pid, "murder_location": str,
 "tally": {"3": 2, ...}, "secrets_kept": [pid, ...]}` (`tally` only lists players who received at least one vote)
 
-## Case dict (built by `generator.build_case(pids, seed)`)
+## Case dict (built by `generator.build_case(pids, seed, story=None)`)
 ```
 {
  "seed": int, "murderer": pid, "murder_location": str, "murder_time": "21:30",
@@ -58,10 +58,10 @@ Result: `{"winner": "detectives"|"murderer", "murderer": pid, "murder_location":
 Clue: `{"id": str, "text": str, "implicates": pid | None, "kind": "scene"|"alibi_broken"|"suspicious"|"confirms"|"neutral"}`.
 Location clues also carry `"location": str`. Clue ids are unique within a case.
 
-`generator.build_case(pids: list[int], seed: int) -> case` is deterministic for the same arguments.
-`generator.build_valid_case(pids, seed) -> case` tries seed, seed+1, ... (max 5) until `validate_case` passes, else raises `logic.Rejected`.
+`generator.build_case(pids: list[int], seed: int, story: dict | None = None) -> case` is deterministic for the same arguments. Without a story it uses case #001 (`content.DEFAULT_STORY`).
+`generator.build_valid_case(pids, seed, story=None) -> case` tries seed, seed+1, ... (max 5) until `validate_case` passes, else raises `logic.Rejected`.
 
-`logic.validate_case(case, pids) -> list[str]` returns a list of problems; an empty list means valid. Checks:
+`logic.validate_case(case, pids, story=None) -> list[str]` returns a list of problems; an empty list means valid. Checks:
 1. `case["murderer"]` is in `pids`, and there is exactly one character per pid.
 2. At least 2 clues (location or private) have `implicates == murderer` and kind in STRONG_KINDS; at least 1 of them is a location clue.
 3. No clue has an innocent as `implicates` with a strong kind. At most 1 clue with kind "suspicious" per innocent.
@@ -76,7 +76,7 @@ new_game(code, now) -> game
 online_ids(presence: dict[int, float], now) -> set[int]
 join(game, name, token, now) -> game                # new pid = game["next_pid"]; first player becomes host
 kick(game, token, target_pid, now) -> game          # host only, only in LOBBY
-start(game, token, online, now, seed=None) -> game  # host only
+start(game, token, online, now, seed=None, fixed_case=False) -> game  # host only
 end_phase(game, token, online, now) -> game         # host only, only in REVEAL/INVESTIGATION/DISCUSSION/VOTE
 tick(game, online, now) -> game                     # timers, early end, host handover, abort
 search(game, token, location, now) -> game
@@ -93,7 +93,7 @@ private_view(game, token) -> dict | None
 ### Behaviour
 - **join**: only in LOBBY (else Rejected). Name is stripped; 1..20 characters; unique in the room ignoring case. A 7th player is rejected. Token must not already be used in the room.
 - **kick**: only in LOBBY; only the host; the target must be another player of the room. The player is removed from `players`.
-- **start**: only the host; only in LOBBY; the number of *online* players must be 4..6. Offline lobby players are removed from `players`. Builds the case (seed=None → random seed). Phase becomes REVEAL, `phase_started = now`, `deadline = now + 30`.
+- **start**: only the host; only in LOBBY; the number of *online* players must be 4..6. Offline lobby players are removed from `players`. Picks the story (see *Stories* below), stores it in `game["story"]` and builds the case with it (seed=None → random seed). Phase becomes REVEAL, `phase_started = now`, `deadline = now + 30`.
 - **end_phase**: moves to the next phase immediately (same as a timer running out).
 - **tick** (in this order):
   1. Host handover (any phase except RESULT/ABORTED): if the host is not in `online` and another player is, the first online player in join order becomes host. The old host does not get the role back.
@@ -132,3 +132,40 @@ heartbeat(conn, code, pid, now) -> None
 presence(conn, code) -> dict[int, float]   # pid -> last_seen
 raw_state(conn, code) -> str | None        # the stored JSON text, for "unchanged" checks
 ```
+
+## Stories (case texts, optionally written by an AI)
+
+A *story* is a dict with exactly the keys of `content.DEFAULT_STORY` (case #001):
+`source` ("fixed" or "ai"), `case_number`, `case_title`, `victim`, `victim_short`, `found_place`,
+`briefing`, `intro_lines` (exactly 6 short lines, the 4th is shown in red), `locations` (list of 5 names), `location_flavor`, `location_icons`,
+`neutral_location_clues` (dicts keyed by location), `roles` (dict of 6 role names →
+`{"dossier","intro","trace","secret","rumor"}`), `neutral_private_clues` (list, at least 6),
+`endings` (`truth`, `incomplete`, `wrong`, `escaped` → `{"title","text"}`).
+The clue templates and the times (23:30, 23:47) are the same for every story.
+
+```
+logic.validate_story(story) -> list[str]        # empty = usable
+logic.ai_case_writing(game, now) -> game         # LOBBY only: game["ai_case"] = {"status": "writing", ...}
+logic.ai_case_ready(game, story, now) -> game    # checks the story; "ready" or "failed". Outside LOBBY: unchanged.
+logic.ai_case_failed(game, reason, now) -> game  # "failed" with a short reason. Outside LOBBY: unchanged.
+logic.story_of(game) -> story                    # game["story"]; before the start the AI story if ready; else case #001
+logic.public_story(story) -> dict                # no intro, secret, trace or rumor; roles only as "dossiers"
+logic.story_view(game) -> dict                   # public_story(story_of(game)) + "pending" (AI still writing in the lobby)
+logic.host_note(game, token) -> str | None       # a note about the AI case, only for the host
+ai.write_story(api_key, model, client=None) -> story   # raises ai.AIError; the only call to an AI service
+```
+
+- `start` plays the AI story only if `game["ai_case"]["status"] == "ready"` and `fixed_case` is False.
+  Otherwise it plays case #001. If an AI case was expected (writing or failed), `game["story_note"]`
+  explains why, and only the host sees it via `host_note`. Without `game["ai_case"]` nothing changes.
+- `validate_story` checks: 5 unique locations and 6 unique roles, no name inside another name, every text
+  present and within its length limit, no "murderer"/"killer" in texts that become clues (traces, rumors, neutral clues), intro lines that name no suspect and no location, every rumor starts with "<role> was seen " and names
+  nobody else, traces and neutral clues name nobody and use none of the phrases the demo suspects read as
+  evidence. `ai_case_ready` also builds a valid case with the story for 4, 5 and 6 players.
+- `public_view` and `private_view` are unchanged. The screens get the story from `story_view`.
+
+`ai.parse_story` tidies an AI answer before the checks: it keeps the first 6 suspects and 5 locations with
+different names (the request asks for 7 and 6), removes a leading "the" from place names, brings rumors into
+the form "<role> was seen ...", takes suspects and places out of neutral clues and traces, replaces intro
+lines that do not fit by a standard intro, and fills in generic endings if some are missing. Every request
+gets a random theme and a random first letter for the victim, so rooms get different cases.

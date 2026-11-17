@@ -6,12 +6,17 @@ No Streamlit, no database. app.py shows the strings with st.markdown(..., unsafe
 Safety rule: every piece of text that goes into the HTML passes through h() first,
 so names, questions and answers typed by players are always shown as plain text.
 The strings never contain blank lines, so Markdown never touches the HTML.
+
+Functions that show story texts take the public story of the game (logic.story_view).
+Without one they show case #001.
 """
 
 import html
 import pathlib
+import re
 
 import content
+import logic
 
 STYLE_FILE = pathlib.Path(__file__).with_name("style.css")
 
@@ -23,6 +28,10 @@ def h(text):
 
 def page_style():
     return "<style>" + STYLE_FILE.read_text(encoding="utf-8") + "</style>"
+
+
+def _story(story):
+    return story if story is not None else logic.public_story(content.DEFAULT_STORY)
 
 
 def initial(name):
@@ -42,32 +51,89 @@ INTRO_LINE_STEP = 0.3     # seconds between two lines; style.css ends the whole 
 
 
 def intro():
-    """The cinematic opening, about 4 seconds. Pure CSS: it plays once and then fades away by itself."""
-    lines = []
-    for number, line in enumerate(content.INTRO_LINES):
-        red = " red" if number == 3 else ""
-        delay = INTRO_FIRST_LINE + number * INTRO_LINE_STEP
-        lines.append(f'<div class="line{red}" style="animation-delay:{delay:.2f}s">{h(line)}</div>')
-    return ('<div class="intro" aria-hidden="true"><div class="glitch"></div>'
-            f'<div class="lines">{"".join(lines)}</div>'
-            '<div class="final"><div class="title">NOVA <b>MYSTERY</b></div>'
-            '<div class="tag">Everyone has a secret.</div></div></div>')
+    """The cinematic opening of the home page, about the game (not one case), about 4 seconds.
+    Pure CSS: it plays once and then fades away by itself."""
+    final = '<div class="title">NOVA <b>MYSTERY</b></div><div class="tag">Everyone has a secret.</div>'
+    return _intro(content.HOME_INTRO_LINES, "", INTRO_FIRST_LINE, INTRO_LINE_STEP, final, red=1)
 
 
-def case_file():
+NUMBER_WORDS = {4: "Four", 5: "Five", 6: "Six"}
+SUSPECT_RANGE = re.compile(r"4 to 6 suspects", re.IGNORECASE)
+
+
+def case_intro(story=None, suspects=None):
+    """The shorter intro of one case (about 8 seconds), on the board and every phone at the start.
+
+    suspects: how many play in this room. Then "4 to 6 suspects." becomes e.g. "Five suspects."
+    """
+    story = _story(story)
+    if suspects in NUMBER_WORDS:
+        word = NUMBER_WORDS[suspects]
+        story = dict(story, intro_lines=[
+            SUSPECT_RANGE.sub(lambda m: f"{word if m.start() == 0 else word.lower()} suspects", line)
+            for line in story["intro_lines"]])
+    final = (f'<div class="no">CASE #{h(story["case_number"])}</div>'
+             f'<div class="title case">{h(story["case_title"])}</div>'
+             '<div class="tag">Your file is waiting.</div>')
+    return _intro(story["intro_lines"], " case short", 0.3, 0.65, final)
+
+
+def _intro(lines, css, start, step, final, red=3):
+    """Lines appear one by one (line number `red`, counted from 0, in red), then the final title."""
+    parts = []
+    for number, line in enumerate(lines):
+        colour = " red" if number == red else ""
+        parts.append(f'<div class="line{colour}" style="animation-delay:{start + number * step:.2f}s">{h(line)}</div>')
+    return (f'<div class="intro{css}" aria-hidden="true"><div class="glitch"></div>'
+            f'<div class="lines">{"".join(parts)}</div><div class="final">{final}</div></div>')
+
+
+def teaser():
+    """The home page: what the game is, before any room or case exists. Only the rules."""
     rows = [
-        ("Case", f"#{content.CASE_NUMBER}"),
-        ("Location", "NOVA University, Lisbon"),
-        ("Victim", content.VICTIM),
-        ("Found", f"{content.FOUND_TIME}, locked research office"),
-        ("Initial classification", "Suspicious death"),
-        ("Suspects", "6"),
+        ("Players", "4 to 6, each on their own phone"),
+        ("Board", "One shared screen – laptop or projector"),
+        ("Your file", "Role, alibi, secret and two private clues"),
+        ("Your move", "One action: search, interrogate or share"),
+        ("The goal", "Name the culprit – and where it happened"),
+        ("Duration", "About 5 minutes"),
     ]
+    brief = ("One of you is the murderer, and only that player knows. Everybody may lie. "
+             "Collect evidence, compare alibis, and accuse together before the clock runs out.")
+    return _file("Classified", "MURDER MYSTERY", "One of you did it.", rows, brief)
+
+
+def sealed_file():
+    """The lobby: the case stays sealed until the host starts. It looks the same whether
+    the AI is still writing, is done, or failed, so the intro at the start is the reveal."""
+    rows = [("Opens", "when the host starts"), ("Players", "4 to 6")]
+    return _file("Sealed", "MURDER MYSTERY", "The file is sealed.", rows, "One of you did it.")
+
+
+def _file(stamp, number, name, rows, brief):
+    table = "".join(f"<tr><td>{h(k)}</td><td>{h(v)}</td></tr>" for k, v in rows)
+    return (f'<div class="casefile fade-up"><div class="stamp">{h(stamp)}</div>'
+            f'<div class="no">{h(number)}</div><div class="name">{h(name)}</div>'
+            f'<table>{table}</table><div class="brief">{h(brief)}</div></div>')
+
+
+def case_file(story=None):
+    story = _story(story)
+    rows = [
+        ("Case", f"#{story['case_number']}"),
+        ("Location", "NOVA University, Lisbon"),
+        ("Victim", story["victim"]),
+        ("Found", f"{content.FOUND_TIME}, {story['found_place']}"),
+        ("Initial classification", "Suspicious death"),
+        ("Suspects", "4 to 6"),
+    ]
+    if story["source"] == "ai":
+        rows.append(("Written by", "AI, new for this room"))
     table = "".join(f"<tr><td>{h(k)}</td><td>{h(v)}</td></tr>" for k, v in rows)
     return ('<div class="casefile fade-up"><div class="stamp">Active investigation</div>'
-            f'<div class="no">CASE FILE #{h(content.CASE_NUMBER)}</div>'
-            f'<div class="name">{h(content.CASE_TITLE)}</div>'
-            f'<table>{table}</table><div class="brief">{h(content.BRIEFING)}</div></div>')
+            f'<div class="no">CASE FILE #{h(story["case_number"])}</div>'
+            f'<div class="name">{h(story["case_title"])}</div>'
+            f'<table>{table}</table><div class="brief">{h(story["briefing"])}</div></div>')
 
 
 # ---------------------------------------------------------------- phase and timer
@@ -97,12 +163,13 @@ def big_timer(left, total):
 
 # ---------------------------------------------------------------- suspects and map
 
-def suspects(players, phase, guilty_pid=None):
+def suspects(players, phase, guilty_pid=None, story=None):
     """One dossier card per player. Roles are public from REVEAL on (see logic.public_view)."""
+    dossiers = _story(story)["dossiers"]
     cards = []
     for player in players:
         role = player.get("role")
-        dossier = content.ROLES.get(role, {}).get("dossier", "") if role else ""
+        dossier = dossiers.get(role, "") if role else ""
         tags = []
         if player.get("is_host"):
             tags.append("host")
@@ -148,15 +215,16 @@ def suspect_list(players, phase, me_pid=None):
     return f'<div class="slist" role="list" aria-label="Suspects">{"".join(rows)}</div>'
 
 
-def campus_map(searched, scene=None):
+def campus_map(searched, scene=None, story=None):
+    story = _story(story)
     tiles = []
-    for location in content.LOCATIONS:
+    for location in story["locations"]:
         classes = "loc"
         if location in searched:
             classes += " done"
         if scene == location:
             classes += " scene"
-        icon = content.LOCATION_ICONS.get(location, "")
+        icon = h(story["location_icons"].get(location, ""))
         tiles.append(f'<div class="{classes}"><span class="i">{icon}</span>{h(location)}</div>')
     return f'<div class="map">{"".join(tiles)}</div>'
 
@@ -183,12 +251,12 @@ def _stamp(entry):
     return ""
 
 
-def log_entry(entry, name_of, entries_by_id):
+def log_entry(entry, name_of, entries_by_id, story=None):
     """One entry of the public log as a card. name_of(pid) -> display name."""
     kind = entry["kind"]
     text = h(entry["text"])
     if kind == "search":
-        icon = content.LOCATION_ICONS.get(entry.get("location"), "")
+        icon = h(_story(story)["location_icons"].get(entry.get("location"), ""))
         note = ""
         if entry.get("planted"):
             note = '<div class="h" style="color:#B91C1C;margin-top:.4rem">Forged evidence: planted by the murderer</div>'
@@ -224,13 +292,13 @@ def tilt(entry_id):
     return TILTS[int(entry_id) % len(TILTS)]
 
 
-def pinned_note(entry, name_of, newest=False):
+def pinned_note(entry, name_of, newest=False, story=None):
     """One log entry as a note pinned to the cork board. name_of(pid) -> display name."""
     kind = entry["kind"]
     text = h(entry["text"])
     number = h(entry["id"])
     if kind == "search":       # an exhibit: a polaroid photo of the place
-        icon = content.LOCATION_ICONS.get(entry.get("location"), "")
+        icon = h(_story(story)["location_icons"].get(entry.get("location"), ""))
         css = "photo"
         body = (f'<div class="shot">{icon}</div>'
                 f'<div class="cap">Exhibit {number} · {h(entry.get("location", ""))}</div>'
@@ -258,12 +326,13 @@ def pinned_note(entry, name_of, newest=False):
             f'{_stamp(entry)}{body}</div>')
 
 
-def evidence_wall(log, name_of):
+def evidence_wall(log, name_of, story=None):
     """The whole public log as a cork board. Oldest first, so old notes never move;
     only the newest note gets the class 'new' and drops in."""
     if not log:
         return '<div class="cork empty">Nothing has been pinned up yet.</div>'
-    notes = [pinned_note(entry, name_of, newest=(i == len(log) - 1)) for i, entry in enumerate(log)]
+    notes = [pinned_note(entry, name_of, newest=(i == len(log) - 1), story=story)
+             for i, entry in enumerate(log)]
     return f'<div class="cork" role="list" aria-label="Evidence wall">{"".join(notes)}</div>'
 
 
@@ -289,12 +358,12 @@ def dossier(me):
             f'<div class="row"><span class="lbl">What you know</span>{"".join(slips)}</div></div>')
 
 
-def envelope(name):
+def envelope(name, story=None):
     """The sealed case envelope the phone shows when the REVEAL phase starts.
-    No role and no card data in here: only the player's own name."""
+    No role and no card data in here: only the player's own name and the case number."""
     return ('<div class="envelope" role="img" aria-label="Sealed case file">'
             '<div class="flap"></div><div class="seal">N</div>'
-            f'<div class="env-label"><span class="case">Case #{h(content.CASE_NUMBER)}</span>'
+            f'<div class="env-label"><span class="case">Case #{h(_story(story)["case_number"])}</span>'
             f'CONFIDENTIAL – for {h(name)} only</div></div>')
 
 
@@ -311,8 +380,9 @@ def opened_file(me, animate):
 
 # ---------------------------------------------------------------- the reveal
 
-def reveal(result, characters, name_of):
-    ending = content.ENDINGS[result.get("ending", "truth" if result["winner"] == "detectives" else "escaped")]
+def reveal(result, characters, name_of, story=None):
+    endings = _story(story)["endings"]
+    ending = endings[result.get("ending", "truth" if result["winner"] == "detectives" else "escaped")]
     won = result["winner"] == "detectives"
     who = "The detectives win" if won else "The murderer got away"
     culprit = next(c for c in characters if c["pid"] == result["murderer"])
@@ -326,19 +396,24 @@ def reveal(result, characters, name_of):
             f'<div class="r">{h(culprit["role"])} · {h(result["murder_location"])}, {h(content.MURDER_TIME)}</div></div></div>')
 
 
-def reconstruction(result, characters, name_of):
+def reconstruction(result, characters, name_of, story=None):
     """What really happened that night, built from the case data."""
+    story = _story(story)
+    victim = story["victim"]
     culprit = next(c for c in characters if c["pid"] == result["murderer"])
     scene = result["murder_location"]
     who = f'{name_of(culprit["pid"])} ({culprit["role"]})'
     events = [
-        ("22:30", "Professor Vale is seen alive for the last time, working late.", False),
-        ("23:15", "The keycard window opens. Six people are still on campus.", False),
+        ("22:30", f"{victim} is seen alive for the last time, working late.", False),
+        ("23:15", "The keycard window opens. The suspects are still on campus.", False),
         ("23:25", f"{who} hurries toward the {scene}.", False),
-        (content.MURDER_TIME, f"Professor Vale dies in the {scene}.", True),
-        ("23:40", f"{who} moves the body to Vale's office and locks the door. "
+        (content.MURDER_TIME, f"{victim} dies in the {scene}.", True),
+        ("23:40", f"{who} moves the body to {story['found_place']} and locks the door. "
                   f"The cover story: “{culprit['alibi']}”", True),
-        (content.FOUND_TIME, "The night guard finds the body and raises the alarm.", False),
+        (content.FOUND_TIME, ("The night guard finds the body and raises the alarm."
+                              if story["source"] == "fixed"
+                              else f"The body is found in {story['found_place']}. The alarm is raised."),
+         False),
     ]
     items = "".join(
         f'<div class="tl{" red" if red else ""}" style="animation-delay:{i * 0.25:.2f}s">'

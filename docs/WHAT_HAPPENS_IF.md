@@ -108,3 +108,26 @@ In an SQLite file on the server: one row per room with the game state, plus a ta
 
 **What do the tests cover?**
 All rules and rejections, the timers, the failure rules, the case checker, visibility (who sees what) and storage. The interface is played through with a mock. We check the look in the browser by hand.
+
+## AI-written cases
+
+**Where do the AI cases come from?**
+When a room is created, an AI model (a free model via OpenRouter) writes a new story in the background while the players join. The AI only writes words; the generator still decides who did it, where, and which clue points to whom. (`tests/test_ai_cases.py`)
+
+**What if there is no key, the AI is slow, or the daily limit is reached?**
+The game plays case #001 "The Last Lecture". Nobody has to wait. Only the host sees a short note with the reason. (`test_when_the_ai_case_is_missing_case_001_is_played_and_only_the_host_is_told`)
+
+**What if the AI writes something unusable, like giving the solution away?**
+Every AI story is checked before it can be played: right number of locations and roles, length limits, no "murderer"/"killer", no names hidden in neutral clues, rumors that point at exactly one suspect, and a fair case for 4, 5 and 6 players. A story that fails is not used. (`test_a_broken_story_is_rejected`, `test_an_ai_story_gives_fair_cases_for_many_seeds`)
+
+**Can the AI story leak secrets to the board?**
+No. The screens only get the public part of the story (titles, places, public dossiers, endings). Private intros, secrets, traces and rumors only reach a phone through that player's own card or through evidence found in the game. (`test_the_public_story_holds_no_secrets`)
+
+**Can we still rehearse the demo with the same case?**
+Yes. "Use the fixed demo case" always plays case #001 with the same seed, even when an AI case is ready. (`test_the_fixed_case_switch_always_plays_case_001`)
+
+**Does the interface change with the case?**
+Yes: the case file, board header, map, suspects' dossiers, the vote question, the endings and the timeline, plus a short intro of the case that plays on the board and every phone at the start. The colours and layout stay the same. The home page shows a general intro, because no case exists before a room is created. (`test_the_case_intro_shows_this_cases_lines_and_title`, `test_while_the_ai_writes_the_lobby_says_so_instead_of_showing_case_001`)
+
+**What if the AI case arrives after the host already started?**
+It is ignored; the running game is never changed. (`test_an_ai_case_that_arrives_after_the_start_is_ignored`)
