@@ -163,6 +163,20 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .suspect.guilty { border-color: var(--blood); box-shadow: 0 0 40px rgba(185,28,28,.35); }
 .suspect.guilty .face { background: linear-gradient(145deg, #ef4444, var(--blood)); color: var(--ivory); }
 
+/* compact suspect list on the phone (ui.suspect_list): one short row per player, no animation */
+.slist { margin: .3rem 0 1rem; border: 1px solid rgba(156,163,175,.16); border-radius: 3px; background: rgba(17,24,39,.75); }
+.srow { display: flex; align-items: center; gap: .6rem; padding: .45rem .7rem; border-top: 1px solid rgba(156,163,175,.10); }
+.srow:first-child { border-top: none; }
+.srow.me { background: rgba(212,168,83,.07); }
+.srow .face { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-family: var(--serif);
+  font-weight: 700; font-size: .9rem; color: var(--midnight); background: linear-gradient(145deg, var(--gold), #9c7a35); }
+.srow .who { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.srow .n { font-weight: 600; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .r { font-family: var(--mono); font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; color: var(--gold);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srow .tags { flex: none; font-family: var(--mono); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.srow .dot { flex: none; margin-left: 0; }
+
 /* ---------- campus map ---------- */
 /* Even grid: minmax(0, 1fr) gives every column the same width, even with long names;
    grid-auto-rows: 1fr gives every row the same height, so all five tiles are the same size. */
@@ -214,6 +228,32 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .slip .k { font-size: .6rem; letter-spacing: .2em; color: #7a6338; display: block; margin-bottom: .15rem; }
 .place { font-size: .85rem; color: var(--muted); font-style: italic; font-family: var(--serif); margin: .2rem 0 .6rem; }
 
+/* ---------- sealed envelope (phone, REVEAL) – ui.envelope and ui.opened_file ---------- */
+.envelope, .env-back { position: relative; max-width: 420px; margin: .4rem auto .8rem; border-radius: 4px;
+  background: linear-gradient(160deg, #d9c28f, #b99a5c); box-shadow: 0 14px 30px rgba(0,0,0,.55); }
+.envelope { aspect-ratio: 1.55; overflow: hidden; }
+.env-back { height: 110px; perspective: 600px; }
+.flap { position: absolute; left: 0; right: 0; top: 0; height: 58%; transform-origin: top center;   /* the triangle on top */
+  background: linear-gradient(180deg, #c9ad72, #a8884c); clip-path: polygon(0 0, 100% 0, 50% 100%); }
+.seal { position: absolute; left: 50%; top: 58%; width: 62px; height: 62px; margin: -31px 0 0 -31px; border-radius: 50%;
+  display: grid; place-items: center; font-family: var(--serif); font-weight: 800; font-size: 1.5rem; color: rgba(254,226,226,.85);
+  background: radial-gradient(circle at 35% 30%, #e04a4a, var(--blood) 45%, #6b1111 100%);
+  box-shadow: 0 0 0 4px rgba(127,29,29,.55), 0 4px 10px rgba(0,0,0,.45), inset 0 0 0 7px rgba(0,0,0,.12); }
+.env-label { position: absolute; left: 0; right: 0; bottom: 9%; text-align: center; font-family: var(--mono); font-size: .72rem;
+  letter-spacing: .14em; text-transform: uppercase; color: #7f1d1d; padding: 0 .8rem; }
+.env-label .case { display: block; color: #5b4720; font-size: .6rem; letter-spacing: .3em; margin-bottom: .25rem; }
+
+/* opening, played once after "Open your file": flap folds back, seal breaks, file slides out, envelope goes */
+.unseal.play .flap { animation: flapOpen .55s ease forwards; }
+.unseal.play .seal { animation: sealBreak .35s ease forwards; }
+.unseal.play .env-back { animation: envGone .45s ease 1.05s forwards; }
+.unseal.play .file { animation: fileOut .7s cubic-bezier(.2,.8,.2,1) .45s both; }
+@keyframes flapOpen { to { transform: rotateX(180deg); filter: brightness(.8); } }
+@keyframes sealBreak { to { transform: scale(1.35) rotate(-18deg); opacity: 0; } }
+@keyframes fileOut { from { transform: translateY(-70px) scale(.94); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes envGone { to { height: 0; margin: 0 auto; opacity: 0; } }
+.unseal.guilty .dossier { background: linear-gradient(180deg, rgba(64,22,27,.96), rgba(28,14,18,.96)); }   /* subtle red tint */
+
 /* ---------- the reveal ---------- */
 .reveal { text-align: center; padding: 2.2rem 1rem 1.6rem; margin: .4rem 0 1rem; position: relative;
   background: radial-gradient(ellipse at center, rgba(185,28,28,.18), transparent 70%); }
@@ -264,6 +304,7 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   .intro, .st-key-skip_intro { display: none !important; }
+  .unseal .env-back { display: none; }   /* no opening animation: the file is simply there */
 }
 @media (max-width: 640px) {
   .casefile { padding: 1.2rem 1rem; transform: none; }
