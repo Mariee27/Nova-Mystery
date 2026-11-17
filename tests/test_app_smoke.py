@@ -293,7 +293,7 @@ def test_phone_shows_the_most_important_thing_first(game_db):
         conn.close()
 
 
-def test_reveal_shows_a_sealed_envelope_that_stays_open(game_db):
+def test_reveal_shows_a_sealed_envelope_that_stays_open_during_the_session(game_db):
     phone = Browser()
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
@@ -309,7 +309,7 @@ def test_reveal_shows_a_sealed_envelope_that_stays_open(game_db):
     assert 'class="dossier' not in sealed                 # the card is not shown yet
     opened = phone.run(press=["Open your file"])
     assert ' play"' in opened                             # class="unseal ... play": the opening plays once ...
-    again = phone.run()                                   # ... a refresh keeps it open, without replaying
+        again = phone.run()                                   # ... a redraw in the same session keeps it open (a real reload seals it again)
     assert 'class="dossier' in again and ' play"' not in again and 'class="envelope"' not in again
     guilty = game["case"]["murderer"] == 1                # pid 1 is the human "Detective"
     assert ("unseal guilty" in again) == guilty
