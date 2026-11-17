@@ -439,6 +439,31 @@ def alibi_table(result, characters, name_of):
             f'{"".join(rows)}</table>')
 
 
+def vote_table(result, players, name_of):
+    """After the game: every ballot in a row. A tick marks a vote for the real culprit
+    or the real crime scene; a dash means that player did not vote."""
+    murderer = result["murderer"]
+    scene = result["murder_location"]
+    rows = []
+    for p in players:
+        voter = str(p["pid"])
+        accused = result.get("votes", {}).get(voter)
+        place = result.get("scene_votes", {}).get(voter)
+        if accused is None:
+            who = '<span class="sec">did not vote</span>'
+        else:
+            right = ' <span class="ok">✓</span>' if accused == murderer else ""
+            who = f"{h(name_of(accused))}{right}"
+        if place is None:
+            where = "—"
+        else:
+            right = ' <span class="ok">✓</span>' if place == scene else ""
+            where = f"{h(place)}{right}"
+        rows.append(f'<tr><td><b>{h(name_of(p["pid"]))}</b></td><td>{who}</td><td>{where}</td></tr>')
+    return ('<table class="alibis votes"><tr><th>Voter</th><th>Accused</th><th>Scene</th></tr>'
+            f'{"".join(rows)}</table>')
+
+
 def bars(counts, labels, hit=None):
     """Vote bars. counts: key -> votes; labels: list of (key, label) in display order."""
     most = max(counts.values(), default=0) or 1

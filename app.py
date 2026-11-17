@@ -270,6 +270,8 @@ def show_result(public):
         st.markdown("### Who the room accused")
         labels = [(str(p["pid"]), p["name"]) for p in public["players"]]
         show(ui.bars(result["tally"], labels, hit=str(result["murderer"])))
+        st.markdown("### How everyone voted")
+        show(ui.vote_table(result, public["players"], who))
         st.markdown("### Where it happened")
         places = [(loc, loc) for loc in story["locations"]]
         show(ui.bars(result.get("scene_tally", {}), places, hit=result["murder_location"]))

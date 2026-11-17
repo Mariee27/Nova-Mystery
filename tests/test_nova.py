@@ -351,3 +351,14 @@ def test_opened_file_plays_once_and_tints_the_murderers_file():
     assert "<script>" not in first and 'class="dossier"' in later
     assert "unseal guilty" in ui.opened_file(dict(me, is_murderer=True), animate=False)
     assert "guilty" not in later
+
+
+def test_vote_table_shows_every_ballot_escaped():
+    result = {"murderer": 2, "murder_location": content.LOCATIONS[0],
+              "votes": {"1": 2, "2": 1}, "scene_votes": {"1": content.LOCATIONS[0]}}
+    players = [{"pid": 1}, {"pid": 2}, {"pid": 3}]
+    html = ui.vote_table(result, players, lambda pid: f"{EVIL}{pid}")
+    assert "<script>" not in html and "$" not in html
+    assert html.count("<tr>") == 4                          # header + one row per player
+    assert html.count("✓") == 2                             # player 1: right culprit and right scene
+    assert "did not vote" in html                           # player 3 abstained
