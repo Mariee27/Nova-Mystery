@@ -338,7 +338,16 @@ def evidence_wall(log, name_of, story=None):
 
 # ---------------------------------------------------------------- private card (phone)
 
-def dossier(me):
+def file_stamp(guilty, slam=False):
+    """The rubber stamp on the private card. Only private_view knows is_murderer, so this
+    stamp can only ever reach the player's own phone. slam=True plays the stamp landing once."""
+    if guilty:
+        play = " slam" if slam else ""
+        return f'<div class="dstamp murderer{play}" aria-label="Stamp: murderer">MURDERER</div>'
+    return '<div class="dstamp innocent" aria-label="Stamp: innocent">INNOCENT</div>'
+
+
+def dossier(me, slam=False):
     guilty = me["is_murderer"]
     rows = [f'<div class="row">{h(me["intro"])}</div>']
     if guilty:
@@ -353,7 +362,7 @@ def dossier(me):
         state = "shared" if clue["shared"] else "only you know"
         slips.append(f'<div class="slip"><span class="k">{h(state.upper())}</span>{h(clue["text"])}</div>')
     css = "dossier guilty" if guilty else "dossier"
-    return (f'<div class="{css}"><span class="lbl">Personal file</span>'
+    return (f'<div class="{css}">{file_stamp(guilty, slam)}<span class="lbl">Personal file</span>'
             f'<div class="role">{h(me["role"])}</div>{"".join(rows)}'
             f'<div class="row"><span class="lbl">What you know</span>{"".join(slips)}</div></div>')
 
@@ -367,15 +376,15 @@ def envelope(name, story=None):
             f'CONFIDENTIAL – for {h(name)} only</div></div>')
 
 
-def opened_file(me, animate):
+def opened_file(me, animate, slam=False):
     """The opened envelope with the dossier inside. animate=True plays the opening once:
     the flap folds back, the seal breaks, the file slides out (pure CSS, see style.css).
-    The murderer's file gets a subtle red tint."""
+    The murderer's file gets a subtle red tint. slam=True lets the stamp land once."""
     guilty = " guilty" if me["is_murderer"] else ""
     play = " play" if animate else ""
     back = ('<div class="env-back" aria-hidden="true"><div class="flap"></div>'
             '<div class="seal">N</div></div>') if animate else ""
-    return f'<div class="unseal{guilty}{play}">{back}<div class="file">{dossier(me)}</div></div>'
+    return f'<div class="unseal{guilty}{play}">{back}<div class="file">{dossier(me, slam)}</div></div>'
 
 
 # ---------------------------------------------------------------- the reveal

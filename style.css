@@ -265,6 +265,29 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .dossier { background: linear-gradient(180deg, rgba(31,41,55,.95), rgba(17,24,39,.95)); border: 1px solid rgba(212,168,83,.35);
   border-radius: 3px; padding: 1rem 1.1rem; position: relative; overflow: hidden; }
 .dossier.guilty { border-color: var(--blood); box-shadow: 0 0 50px rgba(185,28,28,.3); }
+/* The rubber stamp on the private card. Only the open card shows it: Streamlit hides the
+   content of a closed expander, so a neighbour sees the same folded title for everyone. */
+.dstamp { position: absolute; z-index: 2; pointer-events: none; font-family: var(--mono); font-weight: 700;
+  text-transform: uppercase; border: 5px double currentColor; border-radius: 4px; }
+/* Murderer: big, red, diagonally across the card. The dotted mask makes the ink look worn. */
+.dstamp.murderer { top: 46%; left: 50%; transform: translate(-50%, -50%) rotate(-12deg);
+  font-size: clamp(1.9rem, 9vw, 3rem); letter-spacing: .14em; padding: .2rem .7rem;
+  color: var(--blood); opacity: .78; text-shadow: 0 0 1px currentColor;
+  -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,.35) 0 1px, #000 1.6px);
+  mask-image: radial-gradient(circle, rgba(0,0,0,.35) 0 1px, #000 1.6px);
+  -webkit-mask-size: 6px 5px; mask-size: 6px 5px; }
+/* Innocent: small, calm, grey, in the corner. Same kind of stamp, no drama. */
+.dstamp.innocent { top: .7rem; right: .8rem; transform: rotate(-12deg); font-size: .62rem;
+  letter-spacing: .2em; padding: .15rem .45rem; border-width: 3px; color: #9ca3af; opacity: .55; }
+/* The slam: starts big, hits the card, shakes a little. Runs once, after the file is out. */
+.dstamp.murderer.slam { animation: stampSlam .6s cubic-bezier(.3,1.5,.5,1) 1.2s both; }
+@keyframes stampSlam {
+  0%   { opacity: 0;   transform: translate(-50%, -50%) rotate(-12deg) scale(2.6); }
+  55%  { opacity: .78; transform: translate(-50%, -50%) rotate(-12deg) scale(.96); }
+  70%  { transform: translate(-52%, -49%) rotate(-13deg) scale(1); }
+  85%  { transform: translate(-48%, -51%) rotate(-11deg) scale(1); }
+  100% { opacity: .78; transform: translate(-50%, -50%) rotate(-12deg) scale(1); }
+}
 .dossier .role { font-family: var(--serif); font-size: 1.6rem; font-weight: 700; margin: .1rem 0 .5rem; }
 .dossier .row { margin: .55rem 0; font-size: .92rem; line-height: 1.5; }
 .dossier .lbl { font-family: var(--mono); font-size: .64rem; letter-spacing: .22em; text-transform: uppercase; color: var(--muted); display: block; }
