@@ -140,11 +140,22 @@ def base_url():
 
 # ---------------------------------------------------------------- shared pieces
 
-def show_phase(public):
+def show_phase(public, big_timer=False):
+    """Phase title and timer. The board (big_timer=True) shows the countdown in large numbers
+    next to the title; phones keep the thin bar."""
     phase = public["phase"]
-    show(ui.banner(PHASE_TITLES[phase], PHASE_SUBTITLES.get(phase, "")))
+    banner = ui.banner(PHASE_TITLES[phase], PHASE_SUBTITLES.get(phase, ""))
     left = seconds_left(public)
-    if left is not None:
+    if left is None:
+        show(banner)
+    elif big_timer:
+        title, clock = st.columns([3, 1])
+        with title:
+            show(banner)
+        with clock:
+            show(ui.big_timer(left, logic.DURATIONS[phase]))
+    else:
+        show(banner)
         show(ui.timer(left, logic.DURATIONS[phase]))
 
 
@@ -194,6 +205,11 @@ def show_result(public):
 # ---------------------------------------------------------------- home and join
 
 def home_screen():
+    # Presentation link ?demo=1: go straight into a demo game, without the intro.
+    if st.query_params.get("demo"):
+        del st.query_params["demo"]
+        start_demo()
+        return
     # The opening plays once per browser session. It is pure CSS, works without sound,
     # and is switched off for people who ask their system for reduced motion.
     if not st.session_state.get("intro_seen"):
@@ -235,6 +251,7 @@ DEMO_BOTS = 4   # with you as host: 5 players, enough for every phase
 
 def start_demo():
     """New room, you as host, plus demo suspects. You land on your phone screen in the lobby."""
+    st.session_state["intro_seen"] = True   # a demo never shows the intro, not even later
     token = logic.new_token()
     now = time.time()
     try:
@@ -297,7 +314,7 @@ def board_live(code):
         st.error(f"Room {code} does not exist.")
         return
     phase = public["phase"]
-    show_phase(public)
+    show_phase(public, big_timer=True)
     if phase == "ABORTED":
         st.error(public["abort_reason"])
     if phase == "RESULT":
@@ -330,10 +347,11 @@ def board_live(code):
         return
     st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
     show_players(public)
+    # The map gets the full width, so the five equal tiles are big enough to read on a projector.
+    st.markdown('<div class="kicker">Campus map</div>', unsafe_allow_html=True)
+    show(ui.campus_map(public["searched"]))
     left, right = st.columns([2, 3])
     with left:
-        st.markdown('<div class="kicker">Campus map</div>', unsafe_allow_html=True)
-        show(ui.campus_map(public["searched"]))
         st.markdown(f'<div class="place">{ui.h(content.BRIEFING)}</div>', unsafe_allow_html=True)
     with right:
         st.markdown('<div class="kicker">Evidence &amp; statements</div>', unsafe_allow_html=True)
