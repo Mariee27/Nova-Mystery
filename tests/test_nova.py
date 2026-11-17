@@ -256,6 +256,28 @@ def test_no_card_leaks_a_forgery_before_the_result():
     assert "planted by the murderer" in ui.log_entry(revealed, str, {})
 
 
+def test_evidence_wall_pins_every_kind_escaped_with_a_fixed_tilt():
+    log = [{"id": 1, "kind": "search", "by": None, "text": EVIL, "location": content.LOCATIONS[0]},
+           {"id": 2, "kind": "share", "by": 1, "text": EVIL},
+           {"id": 3, "kind": "question", "by": 1, "target": 2, "text": EVIL, "evidence": 1},
+           {"id": 4, "kind": "answer", "by": 2, "text": EVIL, "question_id": 3}]
+    html = ui.evidence_wall(log, lambda pid: EVIL)
+    assert "<script>" not in html and "$" not in html
+    for css in ("pin photo", "pin typed", "pin hand", "pin hand reply"):
+        assert css in html
+    assert content.LOCATION_ICONS[content.LOCATIONS[0]] in html     # the polaroid shows the place
+    assert html.count(" new") == 1 and 'pin hand reply new"' in html  # only the newest drops in
+    assert html == ui.evidence_wall(log, lambda pid: EVIL)          # same tilt on every refresh
+    assert f"--tilt:{ui.tilt(3)}deg" in html
+
+
+def test_evidence_wall_hides_forgeries_and_handles_an_empty_log():
+    hidden = {"id": 1, "kind": "search", "by": None, "text": "A note.", "location": content.LOCATIONS[0]}
+    html = ui.evidence_wall([hidden], str)
+    assert "Forged" not in html and "Unverified" in html
+    assert "Nothing has been pinned up yet" in ui.evidence_wall([], str)
+
+
 def test_suspect_cards_and_dossier_escape_names():
     players = [{"pid": 1, "name": EVIL, "role": None, "online": True, "is_host": True,
                 "acted": False, "voted": False}]

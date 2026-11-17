@@ -171,6 +171,59 @@ def log_entry(entry, name_of, entries_by_id):
     return f'<div class="ev note">— {text}</div>'
 
 
+# ---------------------------------------------------------------- evidence wall (board)
+
+# Small tilts in degrees. The id picks one, so a note keeps its angle on every refresh.
+TILTS = (-3, 2, -1.5, 3, -2.5, 1.5, -1, 2.5)
+
+
+def tilt(entry_id):
+    return TILTS[int(entry_id) % len(TILTS)]
+
+
+def pinned_note(entry, name_of, newest=False):
+    """One log entry as a note pinned to the cork board. name_of(pid) -> display name."""
+    kind = entry["kind"]
+    text = h(entry["text"])
+    number = h(entry["id"])
+    if kind == "search":       # an exhibit: a polaroid photo of the place
+        icon = content.LOCATION_ICONS.get(entry.get("location"), "")
+        css = "photo"
+        body = (f'<div class="shot">{icon}</div>'
+                f'<div class="cap">Exhibit {number} · {h(entry.get("location", ""))}</div>'
+                f'<div class="b">{text}</div>')
+    elif kind == "share":      # a witness statement: typed paper
+        css = "typed"
+        body = (f'<div class="cap">Exhibit {number} · Witness statement</div>'
+                f'<div class="b">{text}</div><div class="sig">– {h(name_of(entry["by"]))}</div>')
+    elif kind == "question":   # an interrogation: a handwritten note
+        css = "hand"
+        confront = ""
+        if entry.get("evidence") is not None:
+            confront = f'<div class="ref">re Exhibit {h(entry["evidence"])}</div>'
+        body = (f'<div class="cap">#{number} · {h(name_of(entry["by"]))} → {h(name_of(entry["target"]))}</div>'
+                f'{confront}<div class="b">“{text}”</div>')
+    elif kind == "answer":     # the answer: handwritten too, on white paper
+        css = "hand reply"
+        body = (f'<div class="cap">{h(name_of(entry["by"]))} answers #{h(entry["question_id"])}</div>'
+                f'<div class="b">“{text}”</div>')
+    else:                      # a message from the game itself
+        css = "slip"
+        body = f'<div class="b">{text}</div>'
+    new = " new" if newest else ""
+    return (f'<div class="pin {css}{new}" role="listitem" style="--tilt:{tilt(entry["id"])}deg">'
+            f'{_stamp(entry)}{body}</div>')
+
+
+def evidence_wall(log, name_of):
+    """The whole public log as a cork board. Oldest first, so old notes never move;
+    only the newest note gets the class 'new' and drops in."""
+    if not log:
+        return '<div class="cork empty">Nothing has been pinned up yet.</div>'
+    notes = [pinned_note(entry, name_of, newest=(i == len(log) - 1)) for i, entry in enumerate(log)]
+    return f'<div class="cork" role="list" aria-label="Evidence wall">{"".join(notes)}</div>'
+
+
 # ---------------------------------------------------------------- private card (phone)
 
 def dossier(me):
