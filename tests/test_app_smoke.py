@@ -270,3 +270,25 @@ def test_phone_shows_the_most_important_thing_first(game_db):
         assert page.index("Name the right suspect") < page.index("Your card")
     finally:
         conn.close()
+
+
+def test_reveal_shows_a_sealed_envelope_that_stays_open(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+    conn = db.connect(game_db)
+    try:
+        game = db.load(conn, code)
+    finally:
+        conn.close()
+    assert game["phase"] == "REVEAL"
+    sealed = phone.run()
+    assert 'class="envelope"' in sealed and "CONFIDENTIAL – for Detective only" in sealed
+    assert 'class="dossier' not in sealed                 # the card is not shown yet
+    opened = phone.run(press=["Open your file"])
+    assert ' play"' in opened                             # class="unseal ... play": the opening plays once ...
+    again = phone.run()                                   # ... a refresh keeps it open, without replaying
+    assert 'class="dossier' in again and ' play"' not in again and 'class="envelope"' not in again
+    guilty = game["case"]["murderer"] == 1                # pid 1 is the human "Detective"
+    assert ("unseal guilty" in again) == guilty

@@ -220,6 +220,26 @@ def dossier(me):
             f'<div class="row"><span class="lbl">What you know</span>{"".join(slips)}</div></div>')
 
 
+def envelope(name):
+    """The sealed case envelope the phone shows when the REVEAL phase starts.
+    No role and no card data in here: only the player's own name."""
+    return ('<div class="envelope" role="img" aria-label="Sealed case file">'
+            '<div class="flap"></div><div class="seal">N</div>'
+            f'<div class="env-label"><span class="case">Case #{h(content.CASE_NUMBER)}</span>'
+            f'CONFIDENTIAL – for {h(name)} only</div></div>')
+
+
+def opened_file(me, animate):
+    """The opened envelope with the dossier inside. animate=True plays the opening once:
+    the flap folds back, the seal breaks, the file slides out (pure CSS, see style.css).
+    The murderer's file gets a subtle red tint."""
+    guilty = " guilty" if me["is_murderer"] else ""
+    play = " play" if animate else ""
+    back = ('<div class="env-back" aria-hidden="true"><div class="flap"></div>'
+            '<div class="seal">N</div></div>') if animate else ""
+    return f'<div class="unseal{guilty}{play}">{back}<div class="file">{dossier(me)}</div></div>'
+
+
 # ---------------------------------------------------------------- the reveal
 
 def reveal(result, characters, name_of):

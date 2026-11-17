@@ -293,3 +293,20 @@ def test_phone_suspect_list_is_compact_and_escapes_names():
     assert "awaiting file" in html                          # no role before the reveal
     assert ui.h(content.ROLES[role]["dossier"]) not in html   # no long dossier text on the phone
     assert ui.suspect_list([], "LOBBY") == '<div class="muted">Nobody has joined yet.</div>'
+
+
+def test_sealed_envelope_shows_only_the_name_escaped():
+    html = ui.envelope(EVIL)
+    assert "<script>" not in html and "\n\n" not in html
+    assert "CONFIDENTIAL – for &lt;script&gt;" in html and 'class="seal"' in html
+
+
+def test_opened_file_plays_once_and_tints_the_murderers_file():
+    me = {"is_murderer": False, "intro": "i", "alibi": "a", "secret": "s", "role": EVIL,
+          "clues": [{"id": "a", "text": EVIL, "shared": False}]}
+    first, later = ui.opened_file(me, animate=True), ui.opened_file(me, animate=False)
+    assert "unseal play" in first and "env-back" in first      # the opening animation
+    assert "play" not in later and "env-back" not in later      # afterwards just the file
+    assert "<script>" not in first and 'class="dossier"' in later
+    assert "unseal guilty" in ui.opened_file(dict(me, is_murderer=True), animate=False)
+    assert "guilty" not in later

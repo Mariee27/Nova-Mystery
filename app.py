@@ -394,6 +394,23 @@ def show_card(me, expanded):
         show(ui.dossier(me))
 
 
+def sealed_card(code, me):
+    """REVEAL: first a sealed envelope, the file only after "Open your file".
+    session_state remembers the envelope per room and player, so a page refresh never seals it
+    again. States: missing = sealed, "opening" = play the animation once, "open" = just show it."""
+    key = f"envelope_{code}_{me['pid']}"
+    st.markdown('<div class="kicker">Your card</div>', unsafe_allow_html=True)
+    if key not in st.session_state:
+        show(ui.envelope(me["name"]))
+        if st.button("Open your file", type="primary", use_container_width=True):
+            st.session_state[key] = "opening"
+            st.rerun()
+        return
+    animate = st.session_state[key] == "opening"
+    st.session_state[key] = "open"            # the next redraw shows the file without animation
+    show(ui.opened_file(me, animate))
+
+
 def host_controls(code, token, public, me):
     if not me["is_host"]:
         return
@@ -547,7 +564,7 @@ def player_screen(code, token):
     elif phase == "RESULT":
         show_result(public)
     elif phase == "REVEAL":
-        show_card(me, expanded=True)
+        sealed_card(code, me)
         st.info("Read your file. The investigation starts in a moment.")
     elif phase == "INVESTIGATION":
         investigation_actions(code, token, public, me)
