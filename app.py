@@ -363,9 +363,20 @@ def player_status(code, token):
     if public is None or me is None:
         st.rerun()
     show_phase(public)
-    show_players(public)
     if signature(public, me) != st.session_state.get("signature"):
         st.rerun()   # redraw the whole page so that the right buttons appear
+
+
+@st.fragment(run_every=POLL_SECONDS)
+def player_suspects(code, my_pid):
+    """The suspects as a short list. The phone has no room for the board's big tiles."""
+    with open_db() as conn:
+        game = db.load(conn, code)
+        online = logic.online_ids(db.presence(conn, code), time.time())
+    if game is not None:
+        public = logic.public_view(game, logic.with_bots(game, online))
+        st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
+        show(ui.suspect_list(public["players"], public["phase"], my_pid))
 
 
 @st.fragment(run_every=POLL_SECONDS)
@@ -378,8 +389,8 @@ def player_log(code):
         show_log(logic.public_view(game, online))
 
 
-def show_card(me):
-    with st.expander(f"Your card: {me['role']}", expanded=me["phase"] in ("REVEAL", "INVESTIGATION")):
+def show_card(me, expanded):
+    with st.expander(f"Your card: {me['role']}", expanded=expanded):
         show(ui.dossier(me))
 
 
@@ -523,29 +534,36 @@ def player_screen(code, token):
     if flash:
         st.error(flash)
 
-    host_controls(code, token, public, me)
-
+    # Mobile first: in every phase, the thing you have to do or read right now comes first.
+    # Your card follows (folded away once you have read it), then the suspects, then the evidence.
     if phase == "LOBBY":
+        host_controls(code, token, public, me)   # the host's "Start game" is the main thing here
         st.info("Keep this page open. The host starts the game.")
+        player_suspects(code, me["pid"])         # who has joined so far
         show(ui.case_file())
         show_rules(expanded=True)
     elif phase == "ABORTED":
         st.error(public["abort_reason"])
     elif phase == "RESULT":
         show_result(public)
-    else:
-        show_card(me)
-        if phase == "REVEAL":
-            st.info("Read your file. The investigation starts in a moment.")
-        if phase == "INVESTIGATION":
-            investigation_actions(code, token, public, me)
-        if phase in ("INVESTIGATION", "DISCUSSION"):
-            answer_forms(code, token, public, me)
-        if phase == "DISCUSSION":
-            st.info("Talk to each other. Compare the alibis. Who is lying?")
-        if phase == "VOTE":
-            vote_form(code, token, public, me)
+    elif phase == "REVEAL":
+        show_card(me, expanded=True)
+        st.info("Read your file. The investigation starts in a moment.")
+    elif phase == "INVESTIGATION":
+        investigation_actions(code, token, public, me)
+        answer_forms(code, token, public, me)
+        show_card(me, expanded=False)
+    elif phase == "DISCUSSION":
+        answer_forms(code, token, public, me)
+        st.info("Talk to each other. Compare the alibis. Who is lying?")
+        show_card(me, expanded=False)
+    elif phase == "VOTE":
+        vote_form(code, token, public, me)
+        show_card(me, expanded=False)
 
+    if phase in logic.DURATIONS:                 # REVEAL, INVESTIGATION, DISCUSSION, VOTE
+        host_controls(code, token, public, me)   # "End phase" sits below the player's own move
+        player_suspects(code, me["pid"])
     if phase != "RESULT":
         st.divider()
         player_log(code)

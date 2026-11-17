@@ -241,3 +241,32 @@ def test_play_a_demo_seats_you_with_four_demo_suspects(game_db):
         assert db.load(conn, code)["phase"] == "REVEAL"      # bots count as online
     finally:
         conn.close()
+
+
+def test_phone_shows_the_most_important_thing_first(game_db):
+    """Mobile first: the phone puts the current task on top; the board keeps the big tiles."""
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    board = Browser(room=code, view="board")
+    conn = db.connect(game_db)
+    try:
+        phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+        assert db.load(conn, code)["phase"] == "REVEAL"
+        page = phone.run()
+        assert page.index("Your card") < page.index('class="slist"') < page.index("Evidence &amp; statements")
+        assert 'class="suspects"' not in page                   # no big tiles on the phone
+        assert 'class="suspects"' in board.run()                # the board keeps them
+
+        phone.run(press=["End phase (host)"])
+        assert db.load(conn, code)["phase"] == "INVESTIGATION"
+        page = phone.run()
+        assert page.index("Your move") < page.index("Your card") < page.index("Evidence &amp; statements")
+
+        phone.run(press=["End phase (host)"])
+        phone.run(press=["End phase (host)"])
+        assert db.load(conn, code)["phase"] == "VOTE"
+        page = phone.run()
+        assert page.index("Name the right suspect") < page.index("Your card")
+    finally:
+        conn.close()

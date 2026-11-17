@@ -105,6 +105,33 @@ def suspects(players, phase, guilty_pid=None):
     return f'<div class="suspects">{"".join(cards)}</div>'
 
 
+def suspect_list(players, phase, me_pid=None):
+    """Compact suspects for the phone: one short row per player (avatar, name, role, online dot).
+    The board keeps the big dossier tiles from suspects(). Shows only public data."""
+    rows = []
+    for player in players:
+        tags = []
+        if player["pid"] == me_pid:
+            tags.append("you")
+        if player.get("is_host"):
+            tags.append("host")
+        if phase == "VOTE" and player.get("voted"):
+            tags.append("voted")
+        online = "online" if player.get("online") else "offline"
+        dot_css = "dot" if player.get("online") else "dot off"
+        mine = " me" if player["pid"] == me_pid else ""
+        rows.append(
+            f'<div class="srow{mine}" role="listitem">'
+            f'<span class="face">{initial(player["name"])}</span>'
+            f'<span class="who"><span class="n">{h(player["name"])}</span>'
+            f'<span class="r">{h(player.get("role") or "awaiting file")}</span></span>'
+            f'<span class="tags">{h(" · ".join(tags))}</span>'
+            f'<span class="{dot_css}" role="img" aria-label="{online}" title="{online}"></span></div>')
+    if not rows:
+        return '<div class="muted">Nobody has joined yet.</div>'
+    return f'<div class="slist" role="list" aria-label="Suspects">{"".join(rows)}</div>'
+
+
 def campus_map(searched, scene=None):
     tiles = []
     for location in content.LOCATIONS:
