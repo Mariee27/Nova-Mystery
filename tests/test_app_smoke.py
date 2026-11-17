@@ -78,6 +78,16 @@ class FakeStreamlit(types.ModuleType):
     def tabs(self, labels):
         return [Block() for _ in labels]
 
+    column_config = types.SimpleNamespace(SelectboxColumn=lambda *args, **kwargs: None)
+
+    def data_editor(self, data, key=None, **kwargs):
+        """Returns the table unchanged, or the table stored under the key "data_editor"."""
+        self.shown.append(data.to_string())
+        return self.values.get("data_editor", data)
+
+    def toggle(self, label, value=False, **kwargs):
+        return self.values.get(label, value)
+
     def expander(self, label, **kwargs):
         self.shown.append(str(label))
         return Block()
@@ -358,3 +368,48 @@ def test_only_the_murderer_sees_the_murderer_stamp_and_the_board_never(game_db):
         assert 'class="dstamp' not in page                     # the board never shows a stamp
         phones[0].run(press=["End phase (host)"])
     assert 'class="dstamp' not in board.run()
+
+
+def test_detective_notebook_is_private_and_saves_the_marks(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    token = phone.st.query_params["t"]
+    board = Browser(room=code, view="board")
+    phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+    phone.run(press=["End phase (host)"])
+    conn = db.connect(game_db)
+    try:
+        game = db.load(conn, code)
+        assert game["phase"] == "INVESTIGATION"
+        page = phone.run()
+        assert "Detective notebook" in page and 'class="notebook"' in page
+        assert "combinations are still possible" in page
+        # 5 players × 5 places; you know you are innocent, so your own row is struck
+        assert "20 of 25 combinations" in page
+
+        frame = app_module(phone).notebook_frame(
+            logic.public_view(game, set())["players"], game["story"]["locations"],
+            logic.empty_notes())
+        frame.iloc[1, 0] = "✗"                          # suspect 2 ruled out as a whole
+        frame.iloc[len(frame) - 1, 1] = "✓"             # the first place is the crime scene
+        page = phone.run(data_editor=frame)
+        notes = logic.private_view(db.load(conn, code), token)["notes"]
+        assert notes["suspects"] == {"2": "✗"}
+        assert notes["places"] == {game["story"]["locations"][0]: "✓"}
+
+        page = phone.run()
+        assert "3 of 25 combinations" in page            # 3 suspects left, 1 place
+        assert "Detective notebook" not in board.run()
+        assert 'class="notebook"' not in board.run()
+    finally:
+        conn.close()
+
+
+def app_module(browser):
+    """The functions of app.py, loaded with this browser's fake Streamlit."""
+    sys.modules["streamlit"] = browser.st
+    try:
+        return types.SimpleNamespace(**runpy.run_path(str(ROOT / "app.py"), run_name="app_helpers"))
+    finally:
+        del sys.modules["streamlit"]

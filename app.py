@@ -530,6 +530,108 @@ def stamp_slams_now(code, me):
     return True
 
 
+NOTEBOOK_WHOLE_SUSPECT = "👤 all"      # column: a mark for the suspect as a whole
+NOTEBOOK_WHOLE_PLACE = "📍 all"      # row: a mark for the place as a whole
+NOTEBOOK_EMPTY = "·"                 # an empty cell (Streamlit would show "" as "None")
+
+
+def notebook_frame(players, places, notes):
+    """The player's own marks as a table: one row per suspect, one column per place,
+    plus a column for the suspect as a whole and a row for the place as a whole."""
+    import pandas as pd
+
+    empty = NOTEBOOK_EMPTY
+    rows = [p["name"] for p in players]    # short labels: the places must fit on a phone
+    data = {NOTEBOOK_WHOLE_SUSPECT: [notes["suspects"].get(str(p["pid"]), empty) for p in players]
+            + [empty]}
+    for place in places:
+        data[place] = ([notes["cells"].get(str(p["pid"]), {}).get(place, empty) for p in players]
+                       + [notes["places"].get(place, empty)])
+    return pd.DataFrame(data, index=rows + [NOTEBOOK_WHOLE_PLACE])
+
+
+def notes_from_frame(frame, players, places):
+    """Read the edited table back into the notebook format of logic.set_notes."""
+    def mark(value):
+        return value if isinstance(value, str) and value in logic.NOTE_MARKS else ""
+
+    notes = logic.empty_notes()
+    for index, player in enumerate(players):
+        pid = str(player["pid"])
+        if mark(frame.iloc[index][NOTEBOOK_WHOLE_SUSPECT]):
+            notes["suspects"][pid] = mark(frame.iloc[index][NOTEBOOK_WHOLE_SUSPECT])
+        for place in places:
+            if mark(frame.iloc[index][place]):
+                notes["cells"].setdefault(pid, {})[place] = mark(frame.iloc[index][place])
+    for place in places:
+        if mark(frame.iloc[len(players)][place]):
+            notes["places"][place] = mark(frame.iloc[len(players)][place])
+    return notes
+
+
+@st.fragment
+def notebook(code, token, expanded=False):
+    """Detective notebook: a private grid of suspects × places with ✓ / ✗ / ?.
+    It is a fragment, so ticking a cell redraws only the notebook. The marks are saved
+    with the player's seat (they survive a reload); no other screen ever shows them."""
+    with open_db() as conn:
+        game = db.load(conn, code)
+    me = logic.private_view(game, token) if game is not None else None
+    if me is None or game["case"] is None:
+        return
+    players = logic.public_view(game, set())["players"]
+    story = logic.story_view(game)
+    places = list(story["locations"])
+    notes = me["notes"]
+    with st.expander("🔎 Detective notebook (only you see it)", expanded=expanded):
+        st.caption("✓ did it · ✗ ruled out · ? not sure · “·” empty. Mark a single combination, a whole "
+                   f"suspect ({NOTEBOOK_WHOLE_SUSPECT}) or a whole place ({NOTEBOOK_WHOLE_PLACE}).")
+        version_key = f"notebook_version_{code}_{me['pid']}"
+        version = st.session_state.get(version_key, 0)
+        marks = [NOTEBOOK_EMPTY] + [m for m in logic.NOTE_MARKS if m]   # "·" clears a cell
+        columns = {
+            NOTEBOOK_WHOLE_SUSPECT: st.column_config.SelectboxColumn(
+                NOTEBOOK_WHOLE_SUSPECT, options=marks, required=False, width="small",
+                help="A mark for this suspect at every place."),
+        }
+        for place in places:   # the icon is the column title; the full name is the tooltip
+            columns[place] = st.column_config.SelectboxColumn(
+                story["location_icons"].get(place) or place,
+                options=marks, required=False, width="small", help=place)
+        st.caption(" · ".join(f"{story['location_icons'].get(place, '')} {place}".strip()
+                              for place in places))
+        edited = st.data_editor(
+            notebook_frame(players, places, notes), key=f"notebook_{code}_{me['pid']}_{version}",
+            column_config=columns, num_rows="fixed", width="stretch")
+        if edited is not None:
+            changed = notes_from_frame(edited, players, places)
+            if changed != notes:
+                now = time.time()
+                try:
+                    with open_db() as conn:
+                        db.apply(conn, code, lambda g: logic.set_notes(g, token, changed, now))
+                except logic.Rejected as problem:
+                    st.error(str(problem))
+                    return
+                # A fresh editor key, so the table starts from the saved marks again.
+                st.session_state[version_key] = version + 1
+                st.rerun(scope="fragment")
+        if not st.toggle("Strike impossible combinations automatically", value=True,
+                         key=f"notebook_auto_{code}"):
+            return
+        innocent = None if me["is_murderer"] else me["pid"]   # you know you did not do it
+        deduction = logic.deduce_notes(notes, [p["pid"] for p in players], places, innocent)
+        show(ui.notebook_grid(players, places, deduction, story=story))
+        if deduction["conflict"]:
+            st.warning("Your marks contradict each other: there is only one culprit and one crime scene.")
+        elif deduction["solved"]:
+            pid, place = deduction["solved"]
+            st.success(f"Only one combination is left: {name_of({'players': players}, pid)} in {place}.")
+        else:
+            total = len(players) * len(places)
+            st.caption(f"{len(deduction['possible'])} of {total} combinations are still possible.")
+
+
 def host_controls(code, token, public, me):
     if not me["is_host"]:
         return
@@ -696,17 +798,21 @@ def player_screen(code, token):
     elif phase == "REVEAL":
         sealed_card(code, me, public["story"])
         st.info("Read your file. The investigation starts in a moment.")
+        notebook(code, token)
     elif phase == "INVESTIGATION":
         investigation_actions(code, token, public, me)
         answer_forms(code, token, public, me)
         show_card(me, expanded=False)
+        notebook(code, token)
     elif phase == "DISCUSSION":
         answer_forms(code, token, public, me)
         st.info("Talk to each other. Compare the alibis. Who is lying?")
         show_card(me, expanded=False)
+        notebook(code, token, expanded=True)
     elif phase == "VOTE":
         vote_form(code, token, public, me)
         show_card(me, expanded=False)
+        notebook(code, token, expanded=True)
 
     if phase in logic.DURATIONS:                 # REVEAL, INVESTIGATION, DISCUSSION, VOTE
         host_controls(code, token, public, me)   # "End phase" sits below the player's own move

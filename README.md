@@ -63,6 +63,11 @@ Phases end early when everybody is done, and the host can skip ahead.
 - **Every case is checked for fairness** before the game starts (exactly one murderer, at least two strong
   clues against them, no strong clue against innocents, …). See `logic.validate_case`.
 - **Hidden information:** each phone only ever receives its own card. The board shows no secrets until the result.
+- **Detective notebook (like Cluedo):** every phone has a private grid of suspects × locations
+  (`st.data_editor`) where the player sets ✓ / ✗ / ? for a single combination, a whole suspect or a whole
+  location. Optionally the app strikes every combination that is no longer possible (one culprit, one crime
+  scene, and you know you are innocent) and says when only one is left. The marks are saved with the seat, so
+  they survive a reload, and no other screen ever sees them.
 - **A murderer's special move:** one planted fake clue that looks exactly like a real search result.
 - **Robust to real life:** players who lose connection are marked offline and never block the game, the host
   role moves to another player, and the game stops cleanly if fewer than 3 players are left. Reloading the

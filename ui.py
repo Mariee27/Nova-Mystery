@@ -459,3 +459,30 @@ def bars(counts, labels, hit=None):
                     f'<div class="fill" style="width:{count / most * 100:.0f}%"></div></div>'
                     f'<div class="c">{count}</div></div>')
     return f'<div class="bars">{"".join(rows)}</div>'
+
+
+def notebook_grid(players, places, deduction, story=None):
+    """The detective notebook with the app's deductions: suspects × places.
+    Marks the app filled in itself (auto) are faded, the solution is highlighted.
+    Shows only the player's own marks and public names and roles."""
+    story = _story(story)
+    icons = story.get("location_icons", {})
+    head = "".join(f'<th scope="col" title="{h(place)}">{h(icons.get(place, ""))}'
+                   f'<span class="pl">{h(place)}</span></th>' for place in places)
+    rows = []
+    for player in players:
+        cells = []
+        for place in places:
+            mark, auto = deduction["cells"][player["pid"]][place]
+            css = {"✓": "yes", "✗": "no", "?": "maybe"}.get(mark, "open")
+            if auto:
+                css += " auto"
+            label = f"{player['name']} in {place}: " + {
+                "✓": "did it", "✗": "ruled out", "?": "not sure"}.get(mark, "open")
+            if auto:
+                label += " (deduced)"
+            cells.append(f'<td class="{css}" aria-label="{h(label)}">{h(mark)}</td>')
+        role = f'<span class="r">{h(player.get("role") or "")}</span>'
+        rows.append(f'<tr><th scope="row">{h(player["name"])}{role}</th>{"".join(cells)}</tr>')
+    return ('<div class="nb-wrap"><table class="notebook" aria-label="Detective notebook">'
+            f'<thead><tr><th></th>{head}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>')

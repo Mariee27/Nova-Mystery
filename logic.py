@@ -641,6 +641,7 @@ def private_view(game, token):
         "can_plant": False,
         "plant_locations": [],
         "open_questions": [],
+        "notes": empty_notes(),   # the player's private detective notebook
     }
     if game["case"] is None:
         return view
@@ -666,8 +667,118 @@ def private_view(game, token):
             for e in game["log"]
             if e["kind"] == "question" and e["target"] == pid and not e["answered"]
         ],
+        "notes": copy.deepcopy(game.get("notes", {}).get(str(pid), empty_notes())),
     })
     return view
+
+
+# ---------------------------------------------------------------- detective notebook
+
+NOTE_MARKS = ("", "✓", "✗", "?")      # empty, "did it", "ruled out", "not sure"
+NOTE_PHASES = ("REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE", "RESULT")
+
+
+def empty_notes():
+    """A player's private notebook: one mark per (suspect, place) cell, plus one mark for a
+    suspect as a whole ("suspects") and one for a place as a whole ("places")."""
+    return {"cells": {}, "suspects": {}, "places": {}}
+
+
+def set_notes(game, token, notes, now):
+    """Save the player's own notebook. Only marks in NOTE_MARKS on real suspects and places
+    are kept; empty marks are dropped. Nobody else ever sees the notebook."""
+    _require_phase(game, *NOTE_PHASES)
+    player = _player_by_token(game, token)
+    pids = {str(pid) for pid in _player_ids(game)}
+    places = set(story_of(game)["locations"])
+
+    def mark(value):
+        value = "" if value is None else str(value).strip()
+        if value not in NOTE_MARKS:
+            raise Rejected("A note can only be ✓, ✗ or ?.")
+        return value
+
+    clean = empty_notes()
+    for suspect, row in (notes.get("cells") or {}).items():
+        if str(suspect) not in pids:
+            raise Rejected("That suspect is not in this game.")
+        for place, value in (row or {}).items():
+            if place not in places:
+                raise Rejected("That place is not in this case.")
+            if mark(value):
+                clean["cells"].setdefault(str(suspect), {})[place] = mark(value)
+    for suspect, value in (notes.get("suspects") or {}).items():
+        if str(suspect) not in pids:
+            raise Rejected("That suspect is not in this game.")
+        if mark(value):
+            clean["suspects"][str(suspect)] = mark(value)
+    for place, value in (notes.get("places") or {}).items():
+        if place not in places:
+            raise Rejected("That place is not in this case.")
+        if mark(value):
+            clean["places"][place] = mark(value)
+    game = copy.deepcopy(game)
+    game.setdefault("notes", {})[str(player["pid"])] = clean
+    return game
+
+
+def deduce_notes(notes, pids, places, innocent_pid=None):
+    """Which (suspect, place) combinations the player's own marks still allow.
+
+    There is exactly one murderer and one crime scene, so:
+      * ✗ on a cell rules out that combination; ✗ on a suspect or a place rules out the
+        whole row or column. innocent_pid (the player themself, if innocent) is ruled out.
+      * ✓ on a suspect or a place rules out every other row or column; ✓ on a cell rules
+        out every other combination.
+      * If only one combination is left, it is the solution.
+    Returns {"possible": [(pid, place)], "solved": (pid, place) | None,
+             "conflict": bool, "cells": {pid: {place: (mark, auto)}}}.
+    `auto` is True when the app filled the mark in; the player's own marks always win.
+    """
+    cells = notes.get("cells", {})
+    suspects = notes.get("suspects", {})
+    by_place = notes.get("places", {})
+
+    def cell(pid, place):
+        return cells.get(str(pid), {}).get(place, "")
+
+    ticked_suspects = [pid for pid in pids if suspects.get(str(pid)) == "✓"]
+    ticked_places = [place for place in places if by_place.get(place) == "✓"]
+    ticked_cells = [(pid, place) for pid in pids for place in places if cell(pid, place) == "✓"]
+    conflict = len(ticked_suspects) > 1 or len(ticked_places) > 1 or len(ticked_cells) > 1
+
+    possible = []
+    for pid in pids:
+        for place in places:
+            ruled_out = (
+                cell(pid, place) == "✗"
+                or suspects.get(str(pid)) == "✗"
+                or by_place.get(place) == "✗"
+                or pid == innocent_pid
+                or (len(ticked_suspects) == 1 and pid != ticked_suspects[0])
+                or (len(ticked_places) == 1 and place != ticked_places[0])
+                or (len(ticked_cells) == 1 and (pid, place) != ticked_cells[0])
+            )
+            if not ruled_out:
+                possible.append((pid, place))
+    if not possible or any(c not in possible for c in ticked_cells):
+        conflict = True
+    solved = possible[0] if len(possible) == 1 and not conflict else None
+
+    grid = {}
+    for pid in pids:
+        grid[pid] = {}
+        for place in places:
+            own = cell(pid, place)
+            if own:
+                grid[pid][place] = (own, False)
+            elif (pid, place) == solved:
+                grid[pid][place] = ("✓", True)
+            elif (pid, place) not in possible:
+                grid[pid][place] = ("✗", True)
+            else:
+                grid[pid][place] = ("", False)
+    return {"possible": possible, "solved": solved, "conflict": conflict, "cells": grid}
 
 
 # ---------------------------------------------------------------- case validator

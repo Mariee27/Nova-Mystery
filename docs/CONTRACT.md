@@ -117,7 +117,7 @@ private_view(game, token) -> dict | None
 - `public_view(game, online)` → `{"code","phase","deadline","players":[{"pid","name","role","online","is_host","acted","voted"}],"log":[...],"searched":[...],"result":None|result,"abort_reason", "characters": None | [...]}`.
   `role` is None in LOBBY and the player's role name from REVEAL on. **Roles are public** (clues talk about roles, so everybody must know who plays whom); who the murderer is stays secret.
   Before RESULT: log entries contain **no** `implicates`, `clue_kind`, `planted` keys; `result` is None; `characters` is None; and nowhere in the view is there a token, the murderer, a secret, an intro, an alibi or a private clue. In RESULT: full log, result, and `characters` (the case's characters with names).
-- `private_view(game, token)` → None for an unknown token. Otherwise `{"pid","name","is_host","phase","acted","voted","role","intro","alibi","secret","is_murderer","clues":[{"id","text","shared"}],"can_plant","plant_locations","open_questions":[log entries the player still has to answer]}`. Before the game starts, the case fields are None / empty. `plant_locations` is empty unless `can_plant`; `can_plant` is False when there is no location left to plant at. It never contains another player's card or token.
+- `private_view(game, token)` → None for an unknown token. Otherwise `{"pid","name","is_host","phase","acted","voted","role","intro","alibi","secret","is_murderer","clues":[{"id","text","shared"}],"can_plant","plant_locations","open_questions":[log entries the player still has to answer]}`. Before the game starts, the case fields are None / empty. `plant_locations` is empty unless `can_plant`; `can_plant` is False when there is no location left to plant at. It never contains another player's card or token. `notes` is the player's own detective notebook (see below), empty before the game starts.
 
 ## `db` functions (SQLite)
 ```
@@ -169,3 +169,22 @@ different names (the request asks for 7 and 6), removes a leading "the" from pla
 the form "<role> was seen ...", takes suspects and places out of neutral clues and traces, replaces intro
 lines that do not fit by a standard intro, and fills in generic endings if some are missing. Every request
 gets a random theme and a random first letter for the victim, so rooms get different cases.
+
+## Detective notebook (private, one per phone)
+
+```
+logic.NOTE_MARKS = ("", "✓", "✗", "?")
+logic.empty_notes() -> {"cells": {}, "suspects": {}, "places": {}}
+logic.set_notes(game, token, notes, now) -> game
+logic.deduce_notes(notes, pids, places, innocent_pid=None) -> dict
+```
+- Notes: `{"cells": {"<pid>": {place: mark}}, "suspects": {"<pid>": mark}, "places": {place: mark}}`.
+  `cells` marks one combination (suspect × place); `suspects` / `places` mark a whole row or column.
+- `set_notes`: phases REVEAL to RESULT; only the player's own notebook (`game["notes"]["<pid>"]`); marks must
+  be in `NOTE_MARKS`, suspects players of the game, places locations of the story; empty marks are dropped.
+  `public_view` never contains notes; `private_view` only the player's own.
+- `deduce_notes` (pure, used when the player switches on automatic striking): there is exactly one culprit and
+  one crime scene, so ✗ rules out a cell, row or column; ✓ on a suspect / place / cell rules out every other
+  row / column / cell; `innocent_pid` (the player, if innocent) is ruled out. Returns
+  `{"possible": [(pid, place)], "solved": (pid, place) | None, "conflict": bool, "cells": {pid: {place: (mark, auto)}}}`.
+  The player's own marks always win; `auto` marks are filled in by the app. Contradicting marks set `conflict`.
