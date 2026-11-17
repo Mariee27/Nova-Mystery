@@ -269,9 +269,11 @@ hr { border-color: rgba(156,163,175,.15) !important; }
    content of a closed expander, so a neighbour sees the same folded title for everyone. */
 .dstamp { position: absolute; z-index: 2; pointer-events: none; font-family: var(--mono); font-weight: 700;
   text-transform: uppercase; border: 5px double currentColor; border-radius: 4px; }
-/* Murderer: big, red, diagonally across the card. The dotted mask makes the ink look worn. */
-.dstamp.murderer { top: 46%; left: 50%; transform: translate(-50%, -50%) rotate(-12deg);
-  font-size: clamp(1.9rem, 9vw, 3rem); letter-spacing: .14em; padding: .2rem .7rem;
+/* Murderer: big, red, tilted, in its own free band at the top of the card (see the padding
+   below), so it never covers the text. The dotted mask makes the ink look worn. */
+.dossier.guilty { padding-top: 7rem; }
+.dstamp.murderer { top: 3.5rem; left: 50%; transform: translate(-50%, -50%) rotate(-12deg);
+  font-size: clamp(1.6rem, 7.5vw, 2.5rem); letter-spacing: .14em; padding: .15rem .6rem;
   color: var(--blood); opacity: .78; text-shadow: 0 0 1px currentColor;
   -webkit-mask-image: radial-gradient(circle, rgba(0,0,0,.35) 0 1px, #000 1.6px);
   mask-image: radial-gradient(circle, rgba(0,0,0,.35) 0 1px, #000 1.6px);
