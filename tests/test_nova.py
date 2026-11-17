@@ -275,3 +275,38 @@ def test_html_blocks_have_no_blank_lines():
 def test_timer_marks_the_last_ten_seconds():
     assert "low" in ui.timer(10, 90) and "low" not in ui.timer(11, 90)
     assert "width:0.0%" in ui.timer(0, 0)
+
+
+def test_phone_suspect_list_is_compact_and_escapes_names():
+    role = next(iter(content.ROLES))
+    players = [
+        {"pid": 1, "name": EVIL, "role": role, "online": True, "is_host": True,
+         "acted": False, "voted": True},
+        {"pid": 2, "name": "Ben", "role": None, "online": False, "is_host": False,
+         "acted": False, "voted": False},
+    ]
+    html = ui.suspect_list(players, "VOTE", me_pid=1)
+    assert "<script>" not in html and "\n\n" not in html
+    assert html.count('role="listitem"') == 2              # one short row per player
+    assert "you · host · voted" in html                     # my own row is marked
+    assert 'aria-label="online"' in html and 'aria-label="offline"' in html
+    assert "awaiting file" in html                          # no role before the reveal
+    assert ui.h(content.ROLES[role]["dossier"]) not in html   # no long dossier text on the phone
+    assert ui.suspect_list([], "LOBBY") == '<div class="muted">Nobody has joined yet.</div>'
+
+
+def test_sealed_envelope_shows_only_the_name_escaped():
+    html = ui.envelope(EVIL)
+    assert "<script>" not in html and "\n\n" not in html
+    assert "CONFIDENTIAL – for &lt;script&gt;" in html and 'class="seal"' in html
+
+
+def test_opened_file_plays_once_and_tints_the_murderers_file():
+    me = {"is_murderer": False, "intro": "i", "alibi": "a", "secret": "s", "role": EVIL,
+          "clues": [{"id": "a", "text": EVIL, "shared": False}]}
+    first, later = ui.opened_file(me, animate=True), ui.opened_file(me, animate=False)
+    assert "unseal play" in first and "env-back" in first      # the opening animation
+    assert "play" not in later and "env-back" not in later      # afterwards just the file
+    assert "<script>" not in first and 'class="dossier"' in later
+    assert "unseal guilty" in ui.opened_file(dict(me, is_murderer=True), animate=False)
+    assert "guilty" not in later
