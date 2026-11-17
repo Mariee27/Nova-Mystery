@@ -152,7 +152,12 @@ def kick(game, token, target_pid, now):
     return game
 
 
-def start(game, token, online, now, seed=None):
+def start(game, token, online, now, seed=None, fixed_case=False):
+    """Start the game. The story is the AI-written one if it is ready, otherwise case #001.
+
+    fixed_case=True always plays case #001 (the demo switch). If an AI case was
+    expected but cannot be used, the host gets a short note (see host_note).
+    """
     _require_phase(game, "LOBBY")
     player = _player_by_token(game, token)
     if player["pid"] != game["host"]:
@@ -164,9 +169,33 @@ def start(game, token, online, now, seed=None):
         seed = secrets.randbits(32)
     game = copy.deepcopy(game)
     game["players"] = copy.deepcopy(present)  # players who are offline in the lobby are dropped
-    game["case"] = generator.build_valid_case(_player_ids(game), seed)
+    story, note = _story_for_start(game, fixed_case)
+    try:
+        game["case"] = generator.build_valid_case(_player_ids(game), seed, story)
+    except Rejected:
+        if story is content.DEFAULT_STORY:
+            raise
+        # The AI story passed the checks but no fair case came out of it: play case #001.
+        story = content.DEFAULT_STORY
+        note = "The AI case could not be used, so you are playing case #001."
+        game["case"] = generator.build_valid_case(_player_ids(game), seed, story)
+    game["story"] = story
+    if note:
+        game["story_note"] = note
     _enter_phase(game, "REVEAL", now)
     return game
+
+
+def _story_for_start(game, fixed_case):
+    """(story, note for the host) at the start of a game."""
+    ai = game.get("ai_case")
+    if fixed_case or ai is None:   # demo switch, or the AI was never asked
+        return content.DEFAULT_STORY, None
+    if ai["status"] == "ready":
+        return ai["story"], None
+    if ai["status"] == "writing":
+        return content.DEFAULT_STORY, "The AI case was not finished yet, so you are playing case #001."
+    return content.DEFAULT_STORY, f"No AI case ({ai['reason']}), so you are playing case #001."
 
 
 # ---------------------------------------------------------------- phases
@@ -260,7 +289,7 @@ def _begin_action(game, token):
 
 def search(game, token, location, now):
     player = _begin_action(game, token)
-    if location not in content.LOCATIONS:
+    if location not in story_of(game)["locations"]:
         raise Rejected("Unknown location.")
     if location in game["searched"]:
         raise Rejected("This location has already been searched. Pick another one.")
@@ -355,14 +384,14 @@ def plant(game, token, target_pid, location, now):
         raise Rejected("You have already planted a clue in this game.")
     if target_pid == player["pid"] or target_pid not in _player_ids(game):
         raise Rejected("Pick another player.")
-    if location not in content.LOCATIONS:
+    if location not in story_of(game)["locations"]:
         raise Rejected("Unknown location.")
     if location not in plant_locations(game):
         raise Rejected("You cannot plant a clue there. Pick another location.")
     # Same wording as a real red herring, so the fake clue does not stand out.
     role = _character(game, target_pid)["role"]
     text = content.TEMPLATES["herring"].format(
-        location=location, rumor=content.ROLES[role]["rumor"])
+        location=location, rumor=story_of(game)["roles"][role]["rumor"])
     game = copy.deepcopy(game)
     game["planted"] = True
     # The location now counts as searched: its real clue is covered up.
@@ -383,7 +412,7 @@ def vote(game, token, target_pid, now, scene=None):
         raise Rejected("You cannot vote for yourself.")
     if target_pid not in _player_ids(game):
         raise Rejected("Unknown player.")
-    if scene is not None and scene not in content.LOCATIONS:
+    if scene is not None and scene not in story_of(game)["locations"]:
         raise Rejected("Unknown location.")
     game = copy.deepcopy(game)
     game["votes"][str(player["pid"])] = target_pid
@@ -494,7 +523,7 @@ def _bot_suspect(game, pid):
 def _bot_scene(game, pid):
     for text in _bot_reading(game, pid):
         if "belongs to" in text or "hurrying" in text:
-            for location in content.LOCATIONS:
+            for location in story_of(game)["locations"]:
                 if location in text:
                     return location
     return None
@@ -502,7 +531,7 @@ def _bot_scene(game, pid):
 
 def _bot_investigate(game, bot, index, now):
     pid = bot["pid"]
-    free = [loc for loc in content.LOCATIONS if loc not in game["searched"]]
+    free = [loc for loc in story_of(game)["locations"] if loc not in game["searched"]]
     if pid == game["case"]["murderer"]:
         # A guilty bot does not search where its own traces are.
         mine = {c["location"] for c in game["case"]["location_clues"]
@@ -643,8 +672,9 @@ def private_view(game, token):
 
 # ---------------------------------------------------------------- case validator
 
-def validate_case(case, pids):
+def validate_case(case, pids, story=None):
     """Returns a list of problems. An empty list means the case is fair and solvable."""
+    story = story or content.DEFAULT_STORY
     problems = []
     murderer = case.get("murderer")
     characters = case.get("characters", [])
@@ -683,10 +713,10 @@ def validate_case(case, pids):
         if clue["implicates"] is not None and clue["implicates"] not in pids:
             problems.append(f"Clue {clue['id']} points to an unknown player.")
     for clue in location_clues:
-        if clue.get("location") not in content.LOCATIONS:
+        if clue.get("location") not in story["locations"]:
             problems.append(f"Clue {clue['id']} has an unknown location.")
     for character in characters:
-        if character["role"] not in content.ROLES:
+        if character["role"] not in story["roles"]:
             problems.append(f"Unknown role {character['role']}.")
 
     # 5. texts: no giveaway words, sensible length
@@ -698,7 +728,7 @@ def validate_case(case, pids):
             problems.append(f"Clue {clue['id']} must have 1 to {MAX_CLUE_TEXT} characters.")
 
     # 6. counts
-    if sorted(c.get("location", "") for c in location_clues) != sorted(content.LOCATIONS):
+    if sorted(c.get("location", "") for c in location_clues) != sorted(story["locations"]):
         problems.append("There must be exactly one clue per location.")
     for character in characters:
         if len(character["clues"]) != 2:
@@ -706,4 +736,242 @@ def validate_case(case, pids):
     ids = [c["id"] for c in all_clues]
     if len(ids) != len(set(ids)):
         problems.append("Clue ids must be unique.")
+    return problems
+
+
+# ---------------------------------------------------------------- the story of a game
+#
+# Every game has a story: the texts of its case (victim, locations, roles, ...).
+# It is case #001 from content.py, or a new one written by an AI while the lobby
+# fills (see ai.py and app.py). The AI only writes words: who did it, where, and
+# which clue points to whom is still decided by generator.py and checked by
+# validate_case. A story from the AI is checked by validate_story first.
+#
+# Lifecycle of an AI case, stored in game["ai_case"] (only in the lobby):
+#   {"status": "writing"}  ->  {"status": "ready", "story": {...}}
+#                          ->  {"status": "failed", "reason": "..."}
+
+STORY_LIMITS = {   # the longest allowed text per field, in characters
+    # Generous where a longer text only means more reading. Tight where a text becomes
+    # part of a clue: every clue must stay within MAX_CLUE_TEXT (checked by validate_case).
+    "case_title": 80, "victim": 60, "victim_short": 30, "found_place": 80, "briefing": 900,
+    "location": 30, "flavor": 300, "neutral_clue": 200, "role": 40, "dossier": 240,
+    "intro": 360, "trace": 90, "secret": 240, "rumor": 140, "ending_title": 60,
+    "ending_text": 450, "intro_line": 60,
+}
+NUMBER_OF_INTRO_LINES = len(content.INTRO_LINES)   # 6, the 4th one is shown in red
+ENDING_KEYS = ("truth", "incomplete", "wrong", "escaped")
+# The demo suspects (bots) read these phrases as evidence, so ordinary texts must not use them.
+EVIDENCE_PHRASES = ("belongs to", "no entry by", "hurrying", "was seen")
+NUMBER_OF_LOCATIONS = len(content.LOCATIONS)   # 5
+NUMBER_OF_ROLES = len(content.ROLES)           # 6
+FIXED_CASE_NOTE = "Case #001 will be played."
+
+
+def story_of(game):
+    """The story of this game. Before the start: the one that would be played now."""
+    if game.get("story"):
+        return game["story"]
+    ai = game.get("ai_case")
+    if game["case"] is None and ai is not None and ai["status"] == "ready":
+        return ai["story"]
+    return content.DEFAULT_STORY
+
+
+def public_story(story):
+    """The parts of a story everybody may see. No secrets, rumors, traces or private intros."""
+    return {
+        "source": story["source"],
+        "case_number": story["case_number"],
+        "case_title": story["case_title"],
+        "victim": story["victim"],
+        "victim_short": story["victim_short"],
+        "found_place": story["found_place"],
+        "briefing": story["briefing"],
+        "intro_lines": list(story["intro_lines"]),
+        "locations": list(story["locations"]),
+        "location_flavor": dict(story["location_flavor"]),
+        "location_icons": dict(story["location_icons"]),
+        "dossiers": {role: texts["dossier"] for role, texts in story["roles"].items()},
+        "endings": copy.deepcopy(story["endings"]),
+    }
+
+
+def story_view(game):
+    """The public story of this game, for the board and every phone.
+
+    "pending" is True while an AI is still writing the case in the lobby: the screens
+    then say so instead of showing case #001, which will probably not be played.
+    """
+    view = public_story(story_of(game))
+    ai = game.get("ai_case")
+    view["pending"] = (game["case"] is None and ai is not None and ai["status"] == "writing")
+    return view
+
+
+def host_note(game, token):
+    """A short note about the AI case, for the host only. None for everybody else."""
+    player = next((p for p in game["players"] if token and p["token"] == token), None)
+    if player is None or player["pid"] != game["host"]:
+        return None
+    if game["phase"] != "LOBBY":
+        return game.get("story_note")
+    ai = game.get("ai_case")
+    if ai is None:
+        return None
+    if ai["status"] == "writing":
+        return "The AI is writing a new case for this room …"
+    if ai["status"] == "ready":
+        return f"New AI case ready: “{ai['story']['case_title']}”."
+    return f"No AI case ({ai['reason']}). {FIXED_CASE_NOTE}"
+
+
+def ai_case_writing(game, now):
+    """Mark that an AI is writing a new case for this lobby."""
+    _require_phase(game, "LOBBY")
+    game = copy.deepcopy(game)
+    game["ai_case"] = {"status": "writing", "since": now}
+    return game
+
+
+def ai_case_ready(game, story, now):
+    """Store a story the AI wrote, but only if it passes every check."""
+    if game["phase"] != "LOBBY":
+        return game   # too late: the game has already started with another case
+    problems = validate_story(story)
+    if not problems:
+        story = copy.deepcopy(story)
+        story["source"] = "ai"
+        story["case_number"] = game["code"]
+        # Every player count must give a fair, solvable case with this story.
+        for count in range(MIN_PLAYERS, MAX_PLAYERS + 1):
+            try:
+                generator.build_valid_case(list(range(1, count + 1)), count, story)
+            except Rejected as problem:
+                problems.append(str(problem))
+                break
+    game = copy.deepcopy(game)
+    if problems:
+        game["ai_case"] = {"status": "failed", "reason": "the AI case did not pass the checks",
+                           "problems": problems[:5]}
+    else:
+        game["ai_case"] = {"status": "ready", "story": story}
+    return game
+
+
+def ai_case_failed(game, reason, now):
+    """The AI could not write a case (no key, no answer, limit reached ...)."""
+    if game["phase"] != "LOBBY":
+        return game
+    game = copy.deepcopy(game)
+    game["ai_case"] = {"status": "failed", "reason": str(reason)}
+    return game
+
+
+def validate_story(story):
+    """Returns a list of problems. An empty list means the story can be used for a case."""
+    if not isinstance(story, dict):
+        return ["The story is missing."]
+    problems = []
+
+    def check_text(value, limit_key, what, becomes_a_clue=False):
+        if not isinstance(value, str) or not value.strip():
+            problems.append(f"{what} is missing.")
+            return ""
+        if len(value) > STORY_LIMITS[limit_key]:
+            problems.append(f"{what} is longer than {STORY_LIMITS[limit_key]} characters.")
+        if any(ord(ch) < 32 for ch in value):
+            problems.append(f"{what} contains control characters.")
+        # "murderer"/"killer" only matter in texts that become clues: a clue must never
+        # call someone the murderer. In a briefing or an ending the word gives nothing away.
+        if becomes_a_clue and any(word in value.lower() for word in FORBIDDEN_WORDS):
+            problems.append(f"{what} gives the solution away.")
+        return value
+
+    for key in ("case_title", "victim", "victim_short", "found_place", "briefing"):
+        check_text(story.get(key), key, key)
+
+    locations = story.get("locations")
+    roles = story.get("roles")
+    if not isinstance(locations, list) or len(locations) != NUMBER_OF_LOCATIONS:
+        problems.append(f"There must be exactly {NUMBER_OF_LOCATIONS} locations.")
+        locations = []
+    if not isinstance(roles, dict) or len(roles) != NUMBER_OF_ROLES:
+        problems.append(f"There must be exactly {NUMBER_OF_ROLES} roles.")
+        roles = {}
+    locations = [check_text(loc, "location", "A location name") for loc in locations]
+    role_names = [check_text(role, "role", "A role name") for role in roles]
+
+    # No name may be part of another one: clues and bots find people and places by name.
+    names = [name for name in locations + role_names if name]
+    for a in names:
+        for b in names:
+            if a is not b and a.casefold() in b.casefold():
+                problems.append(f"The name '{a}' is part of the name '{b}'.")
+
+    def mentions_a_name(value):
+        return any(name.casefold() in value.casefold() for name in names)
+
+    def uses_evidence_words(value):
+        return any(phrase in value.lower() for phrase in EVIDENCE_PHRASES)
+
+    for key in ("location_flavor", "location_icons", "neutral_location_clues"):
+        if not isinstance(story.get(key), dict):
+            problems.append(f"{key} is missing.")
+    flavor = story.get("location_flavor") or {}
+    icons = story.get("location_icons") or {}
+    neutral_at = story.get("neutral_location_clues") or {}
+    for location in locations:
+        check_text(flavor.get(location), "flavor", f"The description of {location}")
+        icon = icons.get(location)
+        if not isinstance(icon, str) or not 1 <= len(icon) <= 4:
+            problems.append(f"The icon of {location} must be one emoji.")
+        clue = check_text(neutral_at.get(location), "neutral_clue", f"The neutral clue at {location}",
+                          becomes_a_clue=True)
+        if mentions_a_name(clue) or uses_evidence_words(clue):
+            problems.append(f"The neutral clue at {location} must not point at anybody.")
+
+    for role, texts in roles.items():
+        if not isinstance(texts, dict):
+            problems.append(f"The texts of {role} are missing.")
+            continue
+        for field in ("dossier", "intro", "secret"):
+            check_text(texts.get(field), field, f"The {field} of {role}")
+        trace = check_text(texts.get("trace"), "trace", f"The trace of {role}", becomes_a_clue=True)
+        if mentions_a_name(trace) or uses_evidence_words(trace):
+            problems.append(f"The trace of {role} must not name anybody or any place.")
+        rumor = check_text(texts.get("rumor"), "rumor", f"The rumor about {role}", becomes_a_clue=True)
+        if rumor and not rumor.startswith(f"{role} was seen "):
+            problems.append(f"The rumor about {role} must start with '{role} was seen'.")
+        others = [name for name in role_names if name and name != role]
+        if any(name.casefold() in rumor.casefold() for name in others) or any(
+                phrase in rumor.lower() for phrase in EVIDENCE_PHRASES[:3]):
+            problems.append(f"The rumor about {role} must only point at {role}.")
+
+    intro = story.get("intro_lines")
+    if not isinstance(intro, list) or len(intro) != NUMBER_OF_INTRO_LINES:
+        problems.append(f"There must be exactly {NUMBER_OF_INTRO_LINES} intro lines.")
+        intro = []
+    for line in intro:
+        line = check_text(line, "intro_line", "An intro line")
+        if mentions_a_name(line):   # the intro must not hint at a suspect or a place
+            problems.append("An intro line must not name a suspect or a location.")
+
+    private = story.get("neutral_private_clues")
+    if not isinstance(private, list) or len(private) < MAX_PLAYERS:
+        problems.append(f"There must be at least {MAX_PLAYERS} neutral private clues.")
+        private = []
+    for clue in private:
+        clue = check_text(clue, "neutral_clue", "A neutral private clue", becomes_a_clue=True)
+        if mentions_a_name(clue) or uses_evidence_words(clue):
+            problems.append("A neutral private clue must not point at anybody.")
+
+    endings = story.get("endings")
+    if not isinstance(endings, dict) or set(endings) != set(ENDING_KEYS):
+        problems.append("There must be exactly the four endings " + ", ".join(ENDING_KEYS) + ".")
+    else:
+        for key in ENDING_KEYS:
+            ending = endings[key] if isinstance(endings[key], dict) else {}
+            check_text(ending.get("title"), "ending_title", f"The title of the ending '{key}'")
+            check_text(ending.get("text"), "ending_text", f"The text of the ending '{key}'")
     return problems

@@ -1,7 +1,11 @@
 """All story texts of NOVA MYSTERY – Case #001: The Last Lecture.
 
 Only words live here. Who did it, where, and which clue points to whom is decided
-in generator.py. See docs/NARRATIVE.md for the story behind these texts.
+in generator.py.
+
+Case #001 is the fixed case: it is used for the demo, and whenever no AI-written
+case is available (see ai.py). All its texts are collected in DEFAULT_STORY at the
+bottom of this file; an AI-written case has exactly the same shape.
 """
 
 GAME_TITLE = "NOVA MYSTERY"
@@ -9,16 +13,26 @@ TAGLINE = "Everyone has a secret. Only one knows the truth."
 CASE_NUMBER = "001"
 CASE_TITLE = "The Last Lecture"
 VICTIM = "Professor Adrian Vale"
+VICTIM_SHORT = "Vale"                          # used in short sentences: "Where did Vale really die?"
+FOUND_PLACE = "Vale's locked research office"  # where the body was found (not where he died)
+# The times are the same in every case: the clue templates below rely on them.
 MURDER_TIME = "23:30"
 FOUND_TIME = "23:47"
 
-# The cinematic opening, one line at a time.
+# The opening of the home page, before anybody is in a room: about the game, not one case.
+HOME_INTRO_LINES = [
+    "NOVA University.",
+    "Someone is dead.",   # shown in red
+]
+
+# The cinematic intro of case #001. It plays on the board and every phone at the start.
+# Line 4 (index 3) is shown in red. An AI case brings its own six lines.
 INTRO_LINES = [
     "Lisbon, Portugal.",
     "23:47.",
     "NOVA University.",
     "A professor is dead.",
-    "Six suspects.",
+    "4 to 6 suspects.",
     "One impossible crime.",
 ]
 
@@ -26,7 +40,7 @@ BRIEFING = (
     "At 23:47 the night guard found Professor Adrian Vale slumped over the desk of his "
     "locked research office. The police called it an accident. The coroner disagrees: "
     "Vale died around 23:30, and he did not die in that office. Someone moved him, "
-    "locked the door, and walked away. Six people were still on campus that night. "
+    "locked the door, and walked away. Four to six people were still on campus that night. "
     "Every one of them had a reason to hate him. Only one of them knows where it really happened."
 )
 
@@ -157,13 +171,34 @@ ENDINGS = {
 }
 
 # Short rules, shown on the start page, the join form and in the lobby.
-HOW_TO_PLAY = """Each player is one of six suspects. One of you killed Professor Vale – and only that player knows.
+HOW_TO_PLAY = """Each player is one of 4 to 6 suspects. One of you killed the victim – and only that player knows.
 
 1. **Read your card:** your role, your alibi, your secret and two clues only you know.
 2. **Investigate:** take **one** action: search a location, interrogate someone (you may confront them with evidence), or share a clue.
 3. **Discuss:** answer questions and argue. Everybody may lie.
-4. **Accuse:** vote for a suspect **and** for the place where Vale really died. Name both correctly for the full truth.
+4. **Accuse:** vote for a suspect **and** for the place where the victim really died. Name both correctly for the full truth.
 """
 
 # First names of the demo suspects (bots) used in presentation mode. "(demo)" is added to each.
 DEMO_NAMES = ["Sofia", "Tiago", "Inês", "Rui", "Marta", "João"]
+
+# Every text of case #001 in one place. An AI-written case (see ai.py) has exactly
+# these keys, and logic.validate_story checks it before it is ever used.
+# The clue TEMPLATES above stay the same for every case.
+DEFAULT_STORY = {
+    "source": "fixed",
+    "case_number": CASE_NUMBER,
+    "case_title": CASE_TITLE,
+    "victim": VICTIM,
+    "victim_short": VICTIM_SHORT,
+    "found_place": FOUND_PLACE,
+    "briefing": BRIEFING,
+    "intro_lines": INTRO_LINES,
+    "locations": LOCATIONS,
+    "location_flavor": LOCATION_FLAVOR,
+    "location_icons": LOCATION_ICONS,
+    "neutral_location_clues": NEUTRAL_LOCATION_CLUES,
+    "roles": ROLES,
+    "neutral_private_clues": NEUTRAL_PRIVATE_CLUES,
+    "endings": ENDINGS,
+}

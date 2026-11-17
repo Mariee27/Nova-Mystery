@@ -1,7 +1,8 @@
 """Screens of NOVA MYSTERY (Streamlit).
 
 This file only shows things and passes clicks on. All rules are in logic.py,
-all storage is in db.py, all HTML building blocks are in ui.py.
+all storage is in db.py, all HTML building blocks are in ui.py, and the only
+call to an AI service is in ai.py.
 
 Three kinds of screens, chosen by the link:
   ?room=CODE&view=board   the projector board (public data only)
@@ -11,11 +12,13 @@ Three kinds of screens, chosen by the link:
 
 import io
 import os
+import threading
 import time
 from contextlib import contextmanager
 
 import streamlit as st
 
+import ai
 import content
 import db
 import logic
@@ -39,7 +42,7 @@ PHASE_SUBTITLES = {
     "REVEAL": "Every phone now holds a private file. One of you is lying about everything.",
     "INVESTIGATION": "Search a location, interrogate a suspect, or share what you know. One move only.",
     "DISCUSSION": "Answer the open questions. Compare the alibis. Everybody may lie.",
-    "VOTE": "Name the suspect – and the place where Vale really died.",
+    "VOTE": "Name the suspect – and the place where {victim} really died.",
     "RESULT": "",
     "ABORTED": "",
 }
@@ -74,7 +77,17 @@ def sync(code, token=None):
         # Only write when the timers or the bots really change something.
         if step(game) is not game:
             game = db.apply(conn, code, step)
-        return logic.public_view(game, online), logic.private_view(game, token)
+        return views(game, online, token)
+
+
+def views(game, online, token=None):
+    """The public view plus the story everybody may read, and the player's own view."""
+    public = logic.public_view(game, online)
+    public["story"] = logic.story_view(game)
+    me = logic.private_view(game, token)
+    if me is not None:
+        me["host_note"] = logic.host_note(game, token)
+    return public, me
 
 
 def act(code, action):
@@ -93,6 +106,22 @@ def act(code, action):
 def show(html):
     """Show an HTML block from ui.py (all text in it is already escaped)."""
     st.markdown(html, unsafe_allow_html=True)
+
+
+def play_case_intro(code, public):
+    """The intro of this room's case plays once on each screen, when the game starts."""
+    key = f"case_intro_{code}"
+    if public["phase"] == "REVEAL" and not st.session_state.get(key):
+        st.session_state[key] = True
+        show(ui.case_intro(public["story"], suspects=len(public["players"])))
+
+
+def case_kicker(public):
+    """'Case #ABCD · Title' once the game runs. In the lobby the case is still sealed."""
+    if public["phase"] == "LOBBY":
+        return "Murder Mystery · sealed case"
+    story = public["story"]
+    return f"Case #{story['case_number']} · {story['case_title']}"
 
 
 def valid_code(code):
@@ -138,11 +167,58 @@ def base_url():
     return url.rstrip("/")
 
 
+# ---------------------------------------------------------------- AI case (background)
+
+def setting(name):
+    """A setting from the environment or from .streamlit/secrets.toml (None if missing)."""
+    value = os.environ.get(name)
+    if value:
+        return value
+    try:
+        return st.secrets.get(name)
+    except Exception:   # no secrets file at all
+        return None
+
+
+def begin_ai_case(code):
+    """Let the AI write a new case for this room while the players join.
+
+    The writing runs in a background thread, so nobody has to wait for it. When it
+    is done, the thread stores the result in the game (logic.ai_case_ready or
+    logic.ai_case_failed). The host clicks Start whenever they like: if the AI case
+    is not ready by then, the game plays case #001.
+    """
+    settings = ai.settings(setting)
+    now = time.time()
+    with open_db() as conn:
+        if settings is None:
+            db.apply(conn, code, lambda g: logic.ai_case_failed(g, "no AI key is set up", now))
+            return
+        db.apply(conn, code, lambda g: logic.ai_case_writing(g, now))
+    threading.Thread(target=write_ai_case, args=(code, settings), daemon=True).start()
+
+
+def write_ai_case(code, settings):
+    """Runs in the background thread: ask the AI, then save what came back."""
+    try:
+        story = ai.write_story(settings["key"], settings["model"])
+        change = lambda g: logic.ai_case_ready(g, story, time.time())
+    except ai.AIError as problem:
+        reason = str(problem)
+        change = lambda g: logic.ai_case_failed(g, reason, time.time())
+    try:
+        with open_db() as conn:
+            db.apply(conn, code, change)
+    except logic.Rejected:
+        pass   # the room is gone
+
+
 # ---------------------------------------------------------------- shared pieces
 
 def show_phase(public):
     phase = public["phase"]
-    show(ui.banner(PHASE_TITLES[phase], PHASE_SUBTITLES.get(phase, "")))
+    subtitle = PHASE_SUBTITLES.get(phase, "").format(victim=public["story"]["victim_short"])
+    show(ui.banner(PHASE_TITLES[phase], subtitle))
     left = seconds_left(public)
     if left is not None:
         show(ui.timer(left, logic.DURATIONS[phase]))
@@ -154,7 +230,7 @@ def show_rules(expanded=False):
 
 
 def show_players(public):
-    show(ui.suspects(public["players"], public["phase"]))
+    show(ui.suspects(public["players"], public["phase"], story=public["story"]))
 
 
 def show_log(public):
@@ -164,18 +240,19 @@ def show_log(public):
     by_id = {entry["id"]: entry for entry in public["log"]}
     # Oldest first: a new entry is added at the bottom and only that card animates in.
     for entry in public["log"]:
-        show(ui.log_entry(entry, lambda pid: name_of(public, pid), by_id))
+        show(ui.log_entry(entry, lambda pid: name_of(public, pid), by_id, story=public["story"]))
 
 
 def show_result(public):
     result = public["result"]
     characters = public["characters"]
     who = lambda pid: name_of(public, pid)   # noqa: E731
-    show(ui.reveal(result, characters, who))
+    story = public["story"]
+    show(ui.reveal(result, characters, who, story=story))
     left, right = st.columns([3, 2])
     with left:
         st.markdown("### Reconstruction of the night")
-        show(ui.reconstruction(result, characters, who))
+        show(ui.reconstruction(result, characters, who, story=story))
         st.markdown("### Every alibi, checked")
         show(ui.alibi_table(result, characters, who))
     with right:
@@ -183,9 +260,9 @@ def show_result(public):
         labels = [(str(p["pid"]), p["name"]) for p in public["players"]]
         show(ui.bars(result["tally"], labels, hit=str(result["murderer"])))
         st.markdown("### Where it happened")
-        places = [(loc, loc) for loc in content.LOCATIONS]
+        places = [(loc, loc) for loc in story["locations"]]
         show(ui.bars(result.get("scene_tally", {}), places, hit=result["murder_location"]))
-        show(ui.campus_map(public["searched"], scene=result["murder_location"]))
+        show(ui.campus_map(public["searched"], scene=result["murder_location"], story=story))
     st.markdown("### The evidence, re-examined")
     st.caption("Now that the case is closed, every exhibit shows how reliable it really was.")
     show_log(public)
@@ -204,7 +281,7 @@ def home_screen():
     show(ui.brand())
     left, right = st.columns([3, 2])
     with left:
-        show(ui.case_file())
+        show(ui.teaser())
     with right:
         st.markdown("#### Open the investigation")
         st.caption("One screen becomes the board (a laptop or projector). "
@@ -216,6 +293,7 @@ def home_screen():
             except logic.Rejected as problem:
                 st.error(str(problem))
                 return
+            begin_ai_case(code)
             st.query_params["room"] = code
             st.query_params["view"] = "board"
             st.rerun()
@@ -247,6 +325,7 @@ def start_demo():
     except logic.Rejected as problem:
         st.error(str(problem))
         return
+    begin_ai_case(code)
     st.query_params["room"] = code
     st.query_params["t"] = token
     st.rerun()
@@ -261,7 +340,7 @@ def join_screen(code):
             st.query_params.clear()
             st.rerun()
         return
-    st.markdown(f'<div class="kicker">Room {ui.h(code)} · Case #{content.CASE_NUMBER}</div>',
+    st.markdown(f'<div class="kicker">Room {ui.h(code)} · {ui.h(case_kicker(public))}</div>',
                 unsafe_allow_html=True)
     if public["phase"] != "LOBBY":
         st.warning("This investigation has already started. You can watch on the board.")
@@ -296,6 +375,11 @@ def board_live(code):
     if public is None:
         st.error(f"Room {code} does not exist.")
         return
+    if public["phase"] != st.session_state.get("board_phase"):
+        st.rerun()   # a new phase: redraw the whole board (and play the case intro at the start)
+    story = public["story"]
+    st.markdown(f'<div class="kicker">{ui.h(case_kicker(public))} · Room {ui.h(code)}</div>',
+                unsafe_allow_html=True)
     phase = public["phase"]
     show_phase(public)
     if phase == "ABORTED":
@@ -333,8 +417,8 @@ def board_live(code):
     left, right = st.columns([2, 3])
     with left:
         st.markdown('<div class="kicker">Campus map</div>', unsafe_allow_html=True)
-        show(ui.campus_map(public["searched"]))
-        st.markdown(f'<div class="place">{ui.h(content.BRIEFING)}</div>', unsafe_allow_html=True)
+        show(ui.campus_map(public["searched"], story=story))
+        st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
     with right:
         st.markdown('<div class="kicker">Evidence &amp; statements</div>', unsafe_allow_html=True)
         show_log(public)
@@ -342,8 +426,10 @@ def board_live(code):
 
 def board_screen(code):
     show(ui.brand())
-    st.markdown(f'<div class="kicker">Case #{content.CASE_NUMBER} · {ui.h(content.CASE_TITLE)} · '
-                f'Room {ui.h(code)}</div>', unsafe_allow_html=True)
+    public, _ = sync(code)
+    if public is not None:
+        st.session_state["board_phase"] = public["phase"]
+        play_case_intro(code, public)
     board_live(code)
 
 
@@ -353,8 +439,10 @@ def signature(public, me):
     """Changes whenever the buttons on the phone have to change: also when new evidence
     arrives, so that the search list and the 'confront with evidence' list stay current."""
     evidence = sum(1 for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS)
+    # Who is in the room and online: the host's Start button depends on it.
+    players = tuple((p["pid"], p["online"]) for p in public["players"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
-            tuple(q["id"] for q in me["open_questions"]), evidence)
+            tuple(q["id"] for q in me["open_questions"]), evidence, me["host_note"], players)
 
 
 @st.fragment(run_every=POLL_SECONDS)
@@ -375,7 +463,7 @@ def player_log(code):
         online = logic.online_ids(db.presence(conn, code), time.time())
     if game is not None:
         st.markdown('<div class="kicker">Evidence &amp; statements</div>', unsafe_allow_html=True)
-        show_log(logic.public_view(game, online))
+        show_log(views(game, online)[0])
 
 
 def show_card(me):
@@ -386,6 +474,8 @@ def show_card(me):
 def host_controls(code, token, public, me):
     if not me["is_host"]:
         return
+    if me["host_note"]:
+        st.caption(f"Host only: {me['host_note']}")
     if public["phase"] == "LOBBY":
         online = sum(1 for p in public["players"] if p["online"])
         url = base_url()
@@ -395,11 +485,17 @@ def host_controls(code, token, public, me):
                            help="Presentation mode: always the same case, so a demo can be rehearsed.")
         ready = logic.MIN_PLAYERS <= online <= logic.MAX_PLAYERS
         if not ready:
-            st.caption(f"{online} online. The game needs "
-                       f"{logic.MIN_PLAYERS} to {logic.MAX_PLAYERS} players.")
+            missing = logic.MIN_PLAYERS - online
+            if missing > 0:
+                st.warning(f"{online} online – the game needs {logic.MIN_PLAYERS} to {logic.MAX_PLAYERS} "
+                           f"players, so {missing} more. Let them join with the room code {code}, "
+                           f"or click “Add demo suspect” to fill up with computer players.")
+            else:
+                st.warning(f"{online} online – at most {logic.MAX_PLAYERS} players can play. "
+                           "Remove a player below.")
         if st.button("Start game", type="primary", disabled=not ready):
             seed = logic.DEMO_SEED if demo else None
-            act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed))
+            act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=demo))
         full = len(public["players"]) >= logic.MAX_PLAYERS
         if st.button("Add demo suspect", disabled=full,
                      help="A computer player for presentations. It plays by the same rules "
@@ -446,12 +542,13 @@ def investigation_actions(code, token, public, me):
         st.markdown('<div class="kicker">Your move – pick one</div>', unsafe_allow_html=True)
         tab_search, tab_question, tab_share = st.tabs(["Search", "Interrogate", "Share a clue"])
         with tab_search:
-            free = [loc for loc in content.LOCATIONS if loc not in public["searched"]]
+            story = public["story"]
+            free = [loc for loc in story["locations"] if loc not in public["searched"]]
             if free:
                 location = st.selectbox(
                     "Location", free,
-                    format_func=lambda loc: f"{content.LOCATION_ICONS.get(loc, '')} {loc}")
-                st.markdown(f'<div class="place">{ui.h(content.LOCATION_FLAVOR[location])}</div>',
+                    format_func=lambda loc: f"{story['location_icons'].get(loc, '')} {loc}")
+                st.markdown(f'<div class="place">{ui.h(story["location_flavor"][location])}</div>',
                             unsafe_allow_html=True)
                 if st.button("Search this location", type="primary"):
                     act(code, lambda g, on, now: logic.search(g, token, location, now))
@@ -492,7 +589,8 @@ def vote_form(code, token, public, me):
     others = [p["pid"] for p in public["players"] if p["pid"] != me["pid"]]
     suspect = st.selectbox("Who did it?", others,
                            format_func=lambda pid: player_label(public, pid))
-    scene = st.selectbox("Where did Vale really die?", [None] + content.LOCATIONS,
+    story = public["story"]
+    scene = st.selectbox(f"Where did {story['victim_short']} really die?", [None] + story["locations"],
                          format_func=lambda loc: "Not sure" if loc is None else loc)
     st.caption("Name the right suspect for a win – and the right place for the full truth.")
     if st.button("Vote", type="primary"):
@@ -514,6 +612,7 @@ def player_screen(code, token):
         return
     st.session_state["signature"] = signature(public, me)
     phase = public["phase"]
+    play_case_intro(code, public)
 
     st.markdown(f'<div class="kicker">Room {ui.h(code)} · you are {ui.h(me["name"])}</div>',
                 unsafe_allow_html=True)
@@ -527,7 +626,7 @@ def player_screen(code, token):
 
     if phase == "LOBBY":
         st.info("Keep this page open. The host starts the game.")
-        show(ui.case_file())
+        show(ui.sealed_file())
         show_rules(expanded=True)
     elif phase == "ABORTED":
         st.error(public["abort_reason"])
