@@ -517,7 +517,17 @@ def sealed_card(code, me, story):
         return
     animate = st.session_state[key] == "opening"
     st.session_state[key] = "open"            # the next redraw shows the file without animation
-    show(ui.opened_file(me, animate))
+    show(ui.opened_file(me, animate, slam=stamp_slams_now(code, me)))
+
+
+def stamp_slams_now(code, me):
+    """True only the first time this browser session shows the open file, so the stamp
+    lands once and stays still on every later redraw (the board polls every 2 seconds)."""
+    key = f"stamp_{code}_{me['pid']}"
+    if st.session_state.get(key):
+        return False
+    st.session_state[key] = True
+    return True
 
 
 def host_controls(code, token, public, me):

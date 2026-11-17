@@ -325,3 +325,36 @@ def test_reveal_shows_a_sealed_envelope_that_stays_open_during_the_session(game_
     assert 'class="dossier' in again and ' play"' not in again and 'class="envelope"' not in again
     guilty = game["case"]["murderer"] == 1                # pid 1 is the human "Detective"
     assert ("unseal guilty" in again) == guilty
+
+
+def test_only_the_murderer_sees_the_murderer_stamp_and_the_board_never(game_db):
+    board = Browser()
+    board.run(press=["Create room"])
+    code = board.st.query_params["room"]
+    phones = []
+    for name in ["Ana", "Ben", "Caro", "Dev", "Eli"]:
+        phone = Browser(room=code)
+        phone.run(press=["Join"], **{"Your name": name})
+        phones.append(phone)
+    phones[0].run(press=["Start game"], **{"Use the fixed demo case": True})
+    conn = db.connect(game_db)
+    try:
+        murderer = db.load(conn, code)["case"]["murderer"]
+    finally:
+        conn.close()
+
+    for pid, phone in enumerate(phones, start=1):
+        card = phone.run(press=["Open your file"])            # REVEAL: the file comes out of the envelope
+        if pid == murderer:
+            assert 'class="dstamp murderer slam"' in card and "MURDERER</div>" in card
+            again = phone.run()                                # the stamp lands only once per session
+            assert 'class="dstamp murderer"' in again and "dstamp murderer slam" not in again
+        else:
+            assert 'class="dstamp innocent"' in card and "MURDERER</div>" not in card
+            assert 'class="dstamp murderer' not in card
+
+    for _ in range(3):                                         # REVEAL → INVESTIGATION → DISCUSSION → VOTE
+        page = board.run()
+        assert 'class="dstamp' not in page                     # the board never shows a stamp
+        phones[0].run(press=["End phase (host)"])
+    assert 'class="dstamp' not in board.run()
