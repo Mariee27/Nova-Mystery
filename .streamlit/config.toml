@@ -7,3 +7,7 @@ textColor = "#F5F1E8"
 
 [browser]
 gatherUsageStats = false
+
+[client]
+# "viewer" hides the Deploy button and the developer items in the menu.
+toolbarMode = "viewer"
