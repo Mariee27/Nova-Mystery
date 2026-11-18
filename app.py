@@ -15,6 +15,7 @@ import os
 import threading
 import time
 from contextlib import contextmanager
+from urllib.parse import urlencode
 
 import streamlit as st
 
@@ -30,7 +31,7 @@ POLL_SECONDS = 2   # every open screen asks for the current state this often
 PHASE_TITLES = {
     "LOBBY": "Lobby – the suspects arrive",
     "REVEAL": "Read your file",
-    "INVESTIGATION": "Investigation – one action each",
+    "INVESTIGATION": "Investigation – round {round} of {rounds}",
     "DISCUSSION": "Discussion – who is lying?",
     "VOTE": "The final accusation",
     "RESULT": "Case closed",
@@ -40,7 +41,7 @@ PHASE_TITLES = {
 PHASE_SUBTITLES = {
     "LOBBY": "Scan the code or enter the room code on your phone. 4 to 6 suspects.",
     "REVEAL": "Every phone now holds a private file. One of you is lying about everything.",
-    "INVESTIGATION": "Search a location, interrogate a suspect, or share what you know. One move only.",
+    "INVESTIGATION": "One move per round: search a place on the map, interrogate a suspect, or share what you know.",
     "DISCUSSION": "Answer the open questions. Compare the alibis. Everybody may lie.",
     "VOTE": "Name the suspect – and the place where {victim} really died.",
     "RESULT": "",
@@ -84,6 +85,7 @@ def views(game, online, token=None):
     """The public view plus the story everybody may read, and the player's own view."""
     public = logic.public_view(game, online)
     public["story"] = logic.story_view(game)
+    public["map"] = logic.map_view(game)
     me = logic.private_view(game, token)
     if me is not None:
         me["host_note"] = logic.host_note(game, token)
@@ -220,7 +222,8 @@ def show_phase(public, big_timer=False):
     next to the title; phones keep the thin bar."""
     phase = public["phase"]
     subtitle = PHASE_SUBTITLES.get(phase, "").format(victim=public["story"]["victim_short"])
-    banner = ui.banner(PHASE_TITLES[phase], subtitle)
+    title = PHASE_TITLES[phase].format(round=public["map"]["round"], rounds=public["map"]["rounds"])
+    banner = ui.banner(title, subtitle)
     left = seconds_left(public)
     if left is None:
         show(banner)
@@ -273,7 +276,8 @@ def show_result(public):
         st.markdown("### Where it happened")
         places = [(loc, loc) for loc in story["locations"]]
         show(ui.bars(result.get("scene_tally", {}), places, hit=result["murder_location"]))
-        show(ui.campus_map(public["searched"], scene=result["murder_location"], story=story))
+        show(ui.campus_map(public["searched"], scene=result["murder_location"], story=story,
+                           view=public["map"]))
     st.markdown("### The evidence, re-examined")
     st.caption("Now that the case is closed, every exhibit shows how reliable it really was.")
     show_log(public)
@@ -395,9 +399,12 @@ def board_live(code):
     if public["phase"] != st.session_state.get("board_phase"):
         st.rerun()   # a new phase: redraw the whole board (and play the case intro at the start)
     story = public["story"]
+    phase = public["phase"]
+    if phase == "INVESTIGATION":
+        board_round(code, public)
+        return
     st.markdown(f'<div class="kicker">{ui.h(case_kicker(public))} · Room {ui.h(code)}</div>',
                 unsafe_allow_html=True)
-    phase = public["phase"]
     show_phase(public, big_timer=True)
     if phase == "ABORTED":
         st.error(public["abort_reason"])
@@ -433,7 +440,7 @@ def board_live(code):
     show_players(public)
     # The map gets the full width, so the five equal tiles are big enough to read on a projector.
     st.markdown('<div class="kicker">Campus map</div>', unsafe_allow_html=True)
-    show(ui.campus_map(public["searched"], story=story))
+    show(ui.campus_map(public["searched"], story=story, view=public["map"], board=True))
     left, right = st.columns([2, 3])
     with left:
         st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
@@ -441,6 +448,23 @@ def board_live(code):
         st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
         # The board shows the log as a cork board; phones keep the simple list (show_log).
         show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid), story=story))
+
+
+def board_round(code, public):
+    """The board during the rounds: header with room, round and timer; the campus plan on
+    the left; on the right who has moved, the evidence board and the interrogation."""
+    story = public["story"]
+    show(ui.board_head(code, public["map"]["round"], public["map"]["rounds"], seconds_left(public)))
+    st.markdown(f'<div class="kicker">{ui.h(case_kicker(public))}</div>', unsafe_allow_html=True)
+    left, right = st.columns([3, 2])
+    with left:
+        show(ui.campus_map(public["searched"], story=story, view=public["map"], board=True))
+    with right:
+        show(ui.detectives(public["players"]))
+        show(ui.evidence_board(public["log"], lambda pid: name_of(public, pid), story=story))
+        show(ui.interrogation(public["log"], lambda pid: name_of(public, pid),
+                              lambda pid: next((p.get("role") or "" for p in public["players"]
+                                                if p["pid"] == pid), "")))
 
 
 def board_screen(code):
@@ -460,8 +484,10 @@ def signature(public, me):
     evidence = sum(1 for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS)
     # Who is in the room and online: the host's Start button depends on it.
     players = tuple((p["pid"], p["online"]) for p in public["players"])
+    # The round and the state of every place: the map's markers depend on them.
+    places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
-            tuple(q["id"] for q in me["open_questions"]), evidence, me["host_note"], players)
+            tuple(q["id"] for q in me["open_questions"]), evidence, me["host_note"], players, places)
 
 
 @st.fragment(run_every=POLL_SECONDS)
@@ -584,61 +610,190 @@ def answer_forms(code, token, public, me):
                 act(code, lambda g, on, now: logic.answer(g, token, question_id, text, now))
 
 
-def evidence_options(public):
-    """Public exhibits a player can confront someone with. None means: no evidence."""
-    exhibits = {e["id"]: e["text"] for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS}
-    label = lambda eid: "No evidence – just ask" if eid is None else (   # noqa: E731
-        f"Exhibit {eid}: {exhibits[eid][:70]}{'…' if len(exhibits[eid]) > 70 else ''}")
-    return [None] + list(exhibits), label
+# ---------------------------------------------------------------- the move, step by step
+#
+# Every tap on the phone (an action card, a pin, a player row, an evidence chip, a clue)
+# is a link: the page reloads with ?step=...&place=... . handle_move_links copies those
+# parameters into session_state["move"] and removes them from the address at once.
+# Every link carries the whole selection, so nothing gets lost on the reload.
+
+MOVE_STEPS = ("search", "question", "share", "plant")
+MOVE_KEYS = ("place", "ask", "ev", "clue", "blame")
+NUMBER_KEYS = ("ask", "ev", "blame")
+
+
+def move_link(code, token, move):
+    """The link for a selection. move: {"step": ..., "place": ..., ...}; {} = choose an action."""
+    params = {"room": code, "t": token, "step": move.get("step") or "home"}
+    params.update({key: move[key] for key in MOVE_KEYS if move.get(key) is not None})
+    return "?" + urlencode(params)
+
+
+def handle_move_links():
+    if "step" not in st.query_params:
+        return
+    move = {}
+    step = st.query_params.get("step")
+    if step in MOVE_STEPS:
+        move["step"] = step
+        for key in MOVE_KEYS:
+            value = st.query_params.get(key)
+            if not value:
+                continue
+            if key in NUMBER_KEYS:
+                try:
+                    value = int(value)
+                except ValueError:
+                    continue
+            move[key] = value
+    for key in ("step",) + MOVE_KEYS:
+        if key in st.query_params:
+            del st.query_params[key]
+    st.session_state["move"] = move
+
+
+def choose_action(code, token, public, me):
+    """'Your move.': three big cards (four for the murderer while planting is possible)."""
+    open_places = sum(1 for p in public["map"]["places"] if p["state"] == "open")
+    others = sum(1 for p in public["players"] if p["pid"] != me["pid"])
+    unshared = sum(1 for c in me["clues"] if not c["shared"])
+    cards = [
+        {"href": move_link(code, token, {"step": "search"}) if open_places else None, "icon": "search",
+         "title": "Search a place", "text": "Look for evidence somewhere on campus.",
+         "info": f"{open_places} place{'s' if open_places != 1 else ''} open" if open_places else "Nothing open"},
+        {"href": move_link(code, token, {"step": "question"}), "icon": "question",
+         "title": "Interrogate a player", "text": "Ask one suspect a question in public.",
+         "info": f"{others} suspects"},
+        {"href": move_link(code, token, {"step": "share"}) if unshared else None, "icon": "share",
+         "title": "Share a clue", "text": "Reveal one of your private clues to everyone.",
+         "info": f"{unshared} private clue{'s' if unshared != 1 else ''}" if unshared else "All shared"},
+    ]
+    show(ui.step_head("Your move.", "One action per round. Choose wisely."))
+    if me["can_plant"]:
+        cards.append(plant_card(code, token))
+    show(ui.action_cards(cards))
+
+
+def plant_card(code, token):
+    return {"href": move_link(code, token, {"step": "plant"}), "icon": "plant", "css": "dark",
+            "title": "Plant a false clue", "text": "Once per game. Does not use your move.",
+            "info": "Only you see this"}
+
+
+def search_step(code, token, public, me, move):
+    show(ui.back_link(move_link(code, token, {})))
+    show(ui.step_head("Search a place", "Tap a red pin on the campus plan."))
+    places = {p["name"]: p for p in public["map"]["places"]}
+    place = move.get("place") if move.get("place") in places else None
+    links = {name: move_link(code, token, {"step": "search", "place": name}) for name in places}
+    show(ui.campus_map(public["searched"], story=public["story"], view=public["map"],
+                       links=links, selected=place))
+    found = [e for e in public["log"] if e["kind"] == "search" and e.get("location") == place]
+    show(ui.place_card(place, places.get(place), found, story=public["story"]))
+    if (place and places[place]["state"] == "open"
+            and st.button(f"Search {place}", type="primary", use_container_width=True)):
+        act(code, lambda g, on, now: logic.search(g, token, place, now))
+
+
+def question_step(code, token, public, me, move):
+    show(ui.back_link(move_link(code, token, {})))
+    show(ui.step_head("Interrogate", "Question and answer appear on the board for everyone."))
+    others = [p for p in public["players"] if p["pid"] != me["pid"]]
+    ask = move.get("ask") if any(p["pid"] == move.get("ask") for p in others) else None
+    show(ui.label("Ask"))
+    show(ui.pick_rows([(move_link(code, token, dict(move, ask=p["pid"])), p["name"], p.get("role"),
+                        p["pid"] == ask) for p in others]))
+    exhibits = [e for e in reversed(public["log"]) if e["kind"] in logic.EVIDENCE_KINDS]
+    evidence = move.get("ev") if any(e["id"] == move.get("ev") for e in exhibits) else None
+    show(ui.label("Confront with evidence · optional"))
+    show(ui.chips([(move_link(code, token, dict(move, ev=None if e["id"] == evidence else e["id"])),
+                    f"#{e['id']} {e['text']}", e["id"] == evidence) for e in exhibits]))
+    show(ui.label("Your question"))
+    text = st.text_input("Your question", max_chars=logic.MAX_TEXT, placeholder="Where were you at 23:30?",
+                         label_visibility="collapsed", key="question_text")
+    if st.button("Ask in public", type="primary", use_container_width=True):
+        if ask is None:
+            st.error("Choose who you want to ask.")
+        elif len((text or "").strip()) < logic.MIN_QUESTION:
+            st.error(f"Write a question first (at least {logic.MIN_QUESTION} characters).")
+        else:
+            act(code, lambda g, on, now: logic.question(g, token, ask, text, now, evidence_id=evidence))
+
+
+def share_step(code, token, public, me, move):
+    show(ui.back_link(move_link(code, token, {})))
+    show(ui.step_head("Share a clue", "Only you know these. Once shared, everyone sees it."))
+    mine = {c["id"]: c for c in me["clues"]}
+    clue = move.get("clue") if move.get("clue") in mine and not mine[move["clue"]]["shared"] else None
+    show(ui.clue_cards([(None if c["shared"] else move_link(code, token, dict(move, clue=c["id"])),
+                         number, c["text"], c["id"] == clue)
+                        for number, c in enumerate(me["clues"], start=1)]))
+    show('<div class="hint">Sharing builds trust. It can also point at someone else.</div>')
+    if st.button("Share with everyone", type="primary", use_container_width=True):
+        if clue is None:
+            st.error("Choose a clue to share.")
+        else:
+            act(code, lambda g, on, now: logic.share(g, token, clue, now))
+
+
+def plant_step(code, token, public, me, move):
+    show(ui.back_link(move_link(code, token, {})))
+    show(ui.step_head("Plant a false clue",
+                      "It appears on the board exactly like a real search result. Does not use your move."))
+    others = [p for p in public["players"] if p["pid"] != me["pid"]]
+    blame = move.get("blame") if any(p["pid"] == move.get("blame") for p in others) else None
+    place = move.get("place") if move.get("place") in me["plant_locations"] else None
+    show(ui.label("Blame"))
+    show(ui.pick_rows([(move_link(code, token, dict(move, blame=p["pid"])), p["name"], p.get("role"),
+                        p["pid"] == blame) for p in others]))
+    show(ui.label("Where"))
+    show(ui.chips([(move_link(code, token, dict(move, place=name)), name, name == place)
+                   for name in me["plant_locations"]]))
+    if st.button("Plant it", type="primary", use_container_width=True):
+        if blame is None:
+            st.error("Choose who you want to blame.")
+        elif place is None:
+            st.error("Choose where to plant it.")
+        else:
+            st.session_state["move"] = {}
+            act(code, lambda g, on, now: logic.plant(g, token, blame, place, now))
+
+
+def move_made(code, token, public, me):
+    """'Move made.': what you did this round, and who is still choosing."""
+    show(ui.step_head("Move made."))
+    last = me["last_move"]
+    if last is None:
+        show(ui.move_made("Move logged", "", "The next round starts when everybody has moved."))
+    elif last["kind"] == "search":
+        show(ui.move_made(f"New evidence · {last.get('location', '')}", f"Exhibit {last['id']}", last["text"]))
+    elif last["kind"] == "question":
+        show(ui.move_made("Question sent", f"To {name_of(public, last['target'])}", f"“{last['text']}”"))
+    else:
+        show(ui.move_made("Clue shared", f"Exhibit {last['id']}", last["text"]))
+    show(ui.waiting_list(public["players"], me["pid"]))
+    if me["can_plant"]:
+        show(ui.action_cards([plant_card(code, token)]))
 
 
 def investigation_actions(code, token, public, me):
-    others = [p["pid"] for p in public["players"] if p["pid"] != me["pid"]]
-    label = lambda pid: player_label(public, pid)   # noqa: E731
-    if me["acted"]:
-        st.success("You have made your move. Watch the evidence come in.")
+    move = st.session_state.get("move") or {}
+    if move and move.setdefault("round", public["map"]["round"]) != public["map"]["round"]:
+        move = st.session_state["move"] = {}     # a new round starts with "Your move."
+    step = move.get("step")
+    if step == "plant" and me["can_plant"]:
+        plant_step(code, token, public, me, move)
+    elif me["acted"]:
+        st.session_state["move"] = {}
+        move_made(code, token, public, me)
+    elif step == "search":
+        search_step(code, token, public, me, move)
+    elif step == "question":
+        question_step(code, token, public, me, move)
+    elif step == "share":
+        share_step(code, token, public, me, move)
     else:
-        st.markdown('<div class="kicker">Your move – pick one</div>', unsafe_allow_html=True)
-        tab_search, tab_question, tab_share = st.tabs(["Search", "Interrogate", "Share a clue"])
-        with tab_search:
-            story = public["story"]
-            free = [loc for loc in story["locations"] if loc not in public["searched"]]
-            if free:
-                location = st.selectbox(
-                    "Location", free,
-                    format_func=lambda loc: f"{story['location_icons'].get(loc, '')} {loc}")
-                st.markdown(f'<div class="place">{ui.h(story["location_flavor"][location])}</div>',
-                            unsafe_allow_html=True)
-                if st.button("Search this location", type="primary"):
-                    act(code, lambda g, on, now: logic.search(g, token, location, now))
-            else:
-                st.caption("Every location has been searched.")
-        with tab_question:
-            with st.form("question", clear_on_submit=True):
-                target = st.selectbox("Ask", others, format_func=label)
-                options, evidence_label = evidence_options(public)
-                evidence = st.selectbox("Confront with evidence (optional)", options,
-                                        format_func=evidence_label)
-                text = st.text_input("Your question", max_chars=logic.MAX_TEXT,
-                                     placeholder="Where were you at 23:30?")
-                if st.form_submit_button("Ask in public"):
-                    act(code, lambda g, on, now:
-                        logic.question(g, token, target, text, now, evidence_id=evidence))
-        with tab_share:
-            mine = {c["id"]: c["text"] for c in me["clues"] if not c["shared"]}
-            if mine:
-                clue_id = st.selectbox("Clue", list(mine), format_func=mine.get)
-                if st.button("Make this clue public"):
-                    act(code, lambda g, on, now: logic.share(g, token, clue_id, now))
-            else:
-                st.caption("You have already shared everything you know.")
-    if me["can_plant"]:
-        with st.expander("Plant a false clue (once per game, does not use your action)"):
-            st.caption("It appears on the board exactly like a real search result.")
-            victim = st.selectbox("Blame", others, format_func=label, key="plant_target")
-            place = st.selectbox("Where", me["plant_locations"], key="plant_place")
-            if st.button("Plant it"):
-                act(code, lambda g, on, now: logic.plant(g, token, victim, place, now))
+        choose_action(code, token, public, me)
 
 
 def vote_form(code, token, public, me):
@@ -657,6 +812,7 @@ def vote_form(code, token, public, me):
 
 
 def player_screen(code, token):
+    handle_move_links()
     public, me = sync(code, token)
     if public is None:
         st.error(f"Room {code} does not exist.")
@@ -697,8 +853,8 @@ def player_screen(code, token):
         sealed_card(code, me, public["story"])
         st.info("Read your file. The investigation starts in a moment.")
     elif phase == "INVESTIGATION":
+        answer_forms(code, token, public, me)    # the round waits for your answer
         investigation_actions(code, token, public, me)
-        answer_forms(code, token, public, me)
         show_card(me, expanded=False)
     elif phase == "DISCUSSION":
         answer_forms(code, token, public, me)

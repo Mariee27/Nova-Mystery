@@ -9,8 +9,7 @@ from conftest import (
     LOC, advance_to, assert_rejected_unchanged, cast_votes, character, host_token,
     innocent_pids, innocent_token, last_log_id, make_lobby, make_started,
     murderer_pid, murderer_token, online_all, own_clue_ids, pids_of, plant_spot,
-    started_in, token_of,
-)
+    started_in, token_of, open_places, locked_places, to_last_round)
 
 ON5 = {1, 2, 3, 4, 5}
 
@@ -89,7 +88,9 @@ def test_dw05_only_host_can_start():
 def test_dw05_only_host_can_end_phase(phase):
     g = started_in(phase)
     assert_rejected_unchanged(lambda x: logic.end_phase(x, "t2", ON5, 1), g)
-    assert logic.end_phase(g, "t1", ON5, 1)["phase"] != phase
+    after = logic.end_phase(g, "t1", ON5, 1)
+    # Rounds: in the investigation the host ends the round, the phase changes after the last one.
+    assert after["phase"] != phase or after["round"] == g["round"] + 1
 
 
 def _inv():
@@ -121,20 +122,29 @@ def test_dw05_unknown_token_rejected(name):
 
 
 # ================================================================ DW06
-def test_dw06_timers_30_90_60_30():
+def test_dw06_timers_30_then_5_rounds_of_300_then_180_60():
     g = make_started(5)
     assert g["phase"] == "REVEAL"
     assert logic.tick(g, ON5, 29)["phase"] == "REVEAL"
     g = logic.tick(g, ON5, 30)
-    assert g["phase"] == "INVESTIGATION" and g["phase_started"] == 30 and g["deadline"] == 120
-    assert logic.tick(g, ON5, 119)["phase"] == "INVESTIGATION"
-    g = logic.tick(g, ON5, 120)
-    assert g["phase"] == "DISCUSSION" and g["phase_started"] == 120 and g["deadline"] == 180
-    assert logic.tick(g, ON5, 179)["phase"] == "DISCUSSION"
-    g = logic.tick(g, ON5, 180)
-    assert g["phase"] == "VOTE" and g["phase_started"] == 180 and g["deadline"] == 210
-    assert logic.tick(g, ON5, 209)["phase"] == "VOTE"
-    g = logic.tick(g, ON5, 210)
+    assert g["phase"] == "INVESTIGATION" and g["round"] == 1
+    assert g["phase_started"] == 30 and g["deadline"] == 330
+    now = 30
+    for round_number in range(2, logic.ROUNDS + 1):      # each round lasts at most 300 s
+        assert logic.tick(g, ON5, now + 299)["round"] == round_number - 1
+        now += 300
+        g = logic.tick(g, ON5, now)
+        assert g["phase"] == "INVESTIGATION" and g["round"] == round_number
+        assert g["phase_started"] == now and g["deadline"] == now + 300
+    now += 300
+    g = logic.tick(g, ON5, now)
+    assert g["phase"] == "DISCUSSION" and g["phase_started"] == now and g["deadline"] == now + 180
+    assert logic.tick(g, ON5, now + 179)["phase"] == "DISCUSSION"
+    now += 180
+    g = logic.tick(g, ON5, now)
+    assert g["phase"] == "VOTE" and g["deadline"] == now + 60
+    assert logic.tick(g, ON5, now + 59)["phase"] == "VOTE"
+    g = logic.tick(g, ON5, now + 60)
     assert g["phase"] == "RESULT"
     assert g["result"] is not None
 
@@ -142,10 +152,14 @@ def test_dw06_timers_30_90_60_30():
 def test_dw06_new_phase_starts_at_now_of_the_switching_tick():
     g = logic.tick(make_started(5), ON5, 35)
     assert g["phase"] == "INVESTIGATION"
-    assert g["phase_started"] == 35 and g["deadline"] == 125
-    g = logic.tick(g, ON5, 130)
+    assert g["phase_started"] == 35 and g["deadline"] == 335
+    g = logic.tick(g, ON5, 340)                          # next round starts at the switching tick
+    assert g["round"] == 2
+    assert g["phase_started"] == 340 and g["deadline"] == 640
+    g = to_last_round(g, now=400)
+    g = logic.tick(g, ON5, 800)
     assert g["phase"] == "DISCUSSION"
-    assert g["phase_started"] == 130 and g["deadline"] == 190
+    assert g["phase_started"] == 800 and g["deadline"] == 980
 
 
 def test_dw06_only_one_step_per_tick():
@@ -181,13 +195,14 @@ def test_dw07_action_in_lobby_rejected():
     assert_rejected_unchanged(lambda x: logic.search(x, "t1", LOC[0], 5), make_lobby(4))
 
 
-def test_dw07_search_already_searched_location_rejected_and_action_not_used_up():
-    g = logic.search(_inv(), "t1", LOC[0], 5)
-    assert g["searched"] == [LOC[0]]
-    assert_rejected_unchanged(lambda x: logic.search(x, "t2", LOC[0], 6), g)
+def test_dw07_a_place_gives_its_one_clue_then_nothing():
+    g = _inv()
+    place = open_places(g)[0]
+    g = logic.search(g, "t1", place, 5)
+    assert g["searched"] == [place]
+    assert_rejected_unchanged(lambda x: logic.search(x, "t2", place, 6), g)   # nothing left
     assert 2 not in g["acted"]
-    g2 = logic.search(g, "t2", LOC[1], 7)
-    assert g2["searched"] == [LOC[0], LOC[1]]
+    g2 = logic.search(g, "t2", open_places(g)[0], 6)
     assert sorted(g2["acted"]) == [1, 2]
 
 
@@ -196,15 +211,17 @@ def test_dw07_search_unknown_location_rejected():
 
 
 def test_dw07_search_appends_log_entry_and_marks_acted():
-    g = logic.search(_inv(), "t3", LOC[2], 5)
+    g = _inv()
+    place = open_places(g)[0]
+    g = logic.search(g, "t3", place, 5)
     assert g["acted"] == [3]
     entry = g["log"][-1]
-    assert entry["kind"] == "search" and entry["location"] == LOC[2]
+    assert entry["kind"] == "search" and entry["location"] == place
     assert entry["by"] == 3
 
 
 def test_dw07_question_and_share_use_up_the_action():
-    g = logic.question(_inv(), "t1", 2, "Hi", 5)
+    g = logic.question(_inv(), "t1", 2, "Where were you?", 5)
     assert g["acted"] == [1]
     g = logic.share(g, "t2", own_clue_ids(g, 2)[0], 6)
     assert sorted(g["acted"]) == [1, 2]
@@ -426,23 +443,38 @@ def test_dw11_secrets_kept_lists_innocents_without_suspicious_entry():
 
 
 # ================================================================ DW12
-def test_dw12_investigation_ends_when_all_online_players_acted():
+def _everybody_asks(g, pids, now):
+    """Every player in pids makes a move: shares a clue (a question would make the round
+    wait for its answer, see test_rounds_and_map.py)."""
+    for pid in pids:
+        clue = next(c["id"] for c in logic.private_view(g, token_of(g, pid))["clues"] if not c["shared"])
+        g = logic.share(g, token_of(g, pid), clue, now)
+    return g
+
+
+def test_dw12_a_round_ends_when_all_online_players_acted():
     g = started_in("INVESTIGATION")
-    for i, pid in enumerate(pids_of(g)[:4]):
-        g = logic.search(g, token_of(g, pid), LOC[i], 10)
-    assert logic.tick(g, ON5, 10)["phase"] == "INVESTIGATION"
-    g = logic.search(g, "t5", LOC[4], 10)
+    g = _everybody_asks(g, pids_of(g)[:4], 10)
+    assert logic.tick(g, ON5, 10)["round"] == 1          # one player has not acted yet
+    g = _everybody_asks(g, [5], 10)
+    g = logic.tick(g, ON5, 10)
+    assert g["phase"] == "INVESTIGATION" and g["round"] == 2
+    assert g["acted"] == [] and g["phase_started"] == 10 and g["deadline"] == 310
+
+
+def test_dw12_the_investigation_ends_after_the_last_round_when_all_acted():
+    g = to_last_round(started_in("INVESTIGATION"))
+    g = _everybody_asks(g, pids_of(g), 10)
     g = logic.tick(g, ON5, 10)
     assert g["phase"] == "DISCUSSION"
-    assert g["phase_started"] == 10 and g["deadline"] == 70
+    assert g["phase_started"] == 10 and g["deadline"] == 190
 
 
 def test_dw12_offline_player_who_has_not_acted_does_not_block_investigation():
     g = started_in("INVESTIGATION")
-    for i in range(4):
-        g = logic.search(g, "t%d" % (i + 1), LOC[i], 10)
+    g = _everybody_asks(g, [1, 2, 3, 4], 10)
     g = logic.tick(g, {1, 2, 3, 4}, 10)
-    assert g["phase"] == "DISCUSSION"
+    assert g["round"] == 2                               # player 5 is offline and does not block
 
 
 def test_dw12_vote_ends_when_all_online_players_voted():
@@ -528,7 +560,8 @@ def _vote_with_vote():
 
 
 def _inv_searched():
-    return logic.search(_inv(), "t1", LOC[0], 5)
+    g = _inv()
+    return logic.search(g, "t1", open_places(g)[0], 5)
 
 
 def _inv_planted():
@@ -554,7 +587,9 @@ REJECTED_CALLS = {
     "end_phase_non_host": (lambda: make_started(5), lambda g: logic.end_phase(g, "t2", ON5, 1)),
     "search_second_action": (_inv_searched, lambda g: logic.search(g, "t1", LOC[1], 6)),
     "search_wrong_phase": (lambda: started_in("DISCUSSION"), lambda g: logic.search(g, "t1", LOC[0], 6)),
-    "search_already_searched": (_inv_searched, lambda g: logic.search(g, "t2", LOC[0], 6)),
+    "search_already_searched": (_inv_searched, lambda g: logic.search(g, "t2", g["searched"][0], 6)),
+    "question_too_short": (_inv, lambda g: logic.question(g, "t1", 2, "Why?", 5)),
+    "search_locked_place": (_inv, lambda g: logic.search(g, "t1", locked_places(g)[0], 5)),
     "question_to_self": (_inv, lambda g: logic.question(g, "t1", 1, "Hi", 5)),
     "question_empty": (_inv, lambda g: logic.question(g, "t1", 2, "", 5)),
     "question_141": (_inv, lambda g: logic.question(g, "t1", 2, "x" * 141, 5)),
@@ -601,6 +636,7 @@ def test_plant_marks_location_as_searched():
     spot = plant_spot(g)
     g = logic.plant(g, murderer_token(g), innocent_pids(g)[0], spot, 5)
     assert spot in g["searched"]
+    # The planted note covers the real clue: nobody can search there any more.
     assert_rejected_unchanged(lambda x: logic.search(x, innocent_token(x, 0), spot, 6), g)
 
 

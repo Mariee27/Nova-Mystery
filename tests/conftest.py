@@ -88,6 +88,24 @@ def own_clue_ids(game, pid):
     return [c["id"] for c in character(game, pid)["clues"]]
 
 
+def open_places(game):
+    """Places that can be searched for the first time right now (not locked, not searched)."""
+    return [p["name"] for p in logic.map_view(game)["places"] if p["state"] == "open"]
+
+
+def locked_places(game):
+    """Places that are still locked in the current round."""
+    return [p["name"] for p in logic.map_view(game)["places"] if p["state"] == "locked"]
+
+
+def to_last_round(game, online=None, now=0):
+    """Advance an investigation (host ends rounds) to its last round."""
+    online = online if online is not None else online_all(game)
+    while game["phase"] == "INVESTIGATION" and game["round"] < logic.ROUNDS:
+        game = logic.end_phase(game, host_token(game), online, now)
+    return game
+
+
 def plant_spot(game):
     """A location where the murderer may plant a clue in this game."""
     return logic.plant_locations(game)[0]
@@ -101,7 +119,7 @@ def advance_to(game, phase, online=None, now=0):
     """Call logic.end_phase with the host token until `phase` is reached."""
     if online is None:
         online = online_all(game)
-    for _ in range(10):
+    for _ in range(10 + logic.ROUNDS):   # the investigation has ROUNDS rounds
         if game["phase"] == phase:
             return game
         assert game["phase"] in ("REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE"), (

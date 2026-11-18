@@ -60,20 +60,29 @@ THEMES = [
 VICTIM_LETTERS = [ch for ch in string.ascii_uppercase if ch not in "QXYZ"]
 
 
-def user_prompt(rng=random):
+def pick_places(rng=random):
+    """The 5 places of a new case: real places of the NOVA campus, so the map can show them."""
+    return rng.sample(list(content.PLACES), logic.NUMBER_OF_LOCATIONS)
+
+
+def user_prompt(rng=random, places=None):
     theme = rng.choice(THEMES)
     letter = rng.choice(VICTIM_LETTERS)
-    return USER_PROMPT.replace("<THEME>", theme).replace("<LETTER>", letter)
+    places = places or pick_places(rng)
+    return (USER_PROMPT.replace("<THEME>", theme).replace("<LETTER>", letter)
+            .replace("<PLACES>", ", ".join(places)))
 
 
 USER_PROMPT = f"""Write a brand-new case. Facts every case shares:
 - At night on the campus of NOVA University in Lisbon, Portugal.
-- The victim died at {content.MURDER_TIME} at one of the campus locations. The body was then moved to a
+- The victim died at {content.MURDER_TIME} at one of the 5 places below. The body was then moved to a
   different, locked place (the "found_place") and found there at {content.FOUND_TIME}.
 - Every suspect had a motive against the victim and hides a harmless but embarrassing secret
   that has nothing to do with the crime. Nothing may hint at who did it.
 
-This case happens during <THEME>: build the victim, the suspects, the places and the mood around it.
+This case happens during <THEME>: build the victim, the suspects and the mood around it.
+The 5 places of this case are fixed, real buildings and spots of the NOVA SBE campus in Carcavelos:
+<PLACES>. Use exactly these names, each once.
 The victim's last name starts with the letter <LETTER>.
 
 Style: English, atmospheric, short sentences, a little dark humour is welcome. Invent every name:
@@ -81,15 +90,14 @@ no real NOVA staff, students or famous people. Be original: avoid the obvious ch
 (no title starting with "Midnight", no "Night Porter", no "Rooftop Garden").
 
 Rules (the game checks them, a case that breaks one is thrown away):
-1. Exactly 7 suspects and exactly 6 locations, all with different names.
+1. Exactly 7 suspects with different names, and exactly the 5 places above.
 2. Role names start with "The" and describe a person on campus, max 40 characters.
-   Location names are 1-3 words without "the", max 30 characters.
-   No name may be part of another name (not "The Librarian" together with "Library").
+   No role name may contain a place name or another role name.
 3. A rumor starts with the exact role name followed by " was seen " and hints at that suspect's secret.
    It names no other suspect and no location. Max 140 characters.
 4. A trace is a small object that suspect could lose, with one detail ("a brass key on a red thread").
    It names no person and no location. Max 80 characters.
-5. Neutral clues and "You noticed ..." observations point at nobody: no role name, no location name,
+5. Neutral clues and "You noticed ..." observations point at nobody: no role name, no place name,
    and never the words "was seen", "belongs to", "hurrying" or "no entry".
 6. Never use the words "murderer" or "killer" in traces, rumors, secrets or clues.
 7. The 6 intro lines are short like a film trailer, max 50 characters each. Line 4 is
@@ -108,7 +116,8 @@ The JSON shape (replace every description with your text):
   "intro_lines": ["line 1: a place in Lisbon", "line 2: a time", "line 3: a detail of the night",
                   "line 4", "4 to 6 suspects.", "line 6: a hook"],
   "locations": [
-    {{"name": "location name", "icon": "one emoji", "flavor": "one atmospheric sentence about it tonight",
+    {{"name": "one of the 5 places, written exactly as above",
+      "flavor": "one atmospheric sentence about it tonight",
       "neutral_clue": "one harmless observation there"}}
   ],
   "suspects": [
@@ -175,13 +184,14 @@ def write_story(api_key, model=DEFAULT_MODEL, client=None):
     client is only passed in by the tests (a fake that never goes online).
     """
     client = client or _client(api_key)
+    places = pick_places()
     messages = [{"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt()}]
+                {"role": "user", "content": user_prompt(places=places)}]
     story = None
     for _ in range(MAX_REQUESTS):
         text = _ask(client, model, messages)
         try:
-            story = parse_story(text)
+            story = parse_story(text, places)
             problems = logic.validate_story(story)
         except AIError:
             problems = ["The answer was not one valid JSON object of the requested shape."]
@@ -214,8 +224,11 @@ def _ask(client, model, messages):
         raise AIError(_reason(problem)) from problem
 
 
-def parse_story(text):
-    """Turn the AI's answer (JSON text) into a story dict like content.DEFAULT_STORY."""
+def parse_story(text, places=None):
+    """Turn the AI's answer (JSON text) into a story dict like content.DEFAULT_STORY.
+
+    places: the 5 campus places the AI was asked to write about. Without them (tests),
+    the places are taken from the answer itself."""
     if not isinstance(text, str):
         raise AIError("the AI answer was empty")
     # Models sometimes wrap the JSON in ```json ... ``` or add a sentence: keep the {...} part.
@@ -224,7 +237,7 @@ def parse_story(text):
         raise AIError("the AI answer was not readable")
     try:
         data = json.loads(text[start:end + 1])
-        story = _tidy(_to_story(data))
+        story = _tidy(_to_story(data, places))
     except (ValueError, TypeError, KeyError, AttributeError) as problem:
         raise AIError("the AI answer was not readable") from problem
     return story
@@ -327,11 +340,6 @@ def _place_name(value):
     return name[:1].upper() + name[1:]
 
 
-def _icon(value):
-    value = str(value or "").strip()
-    return value if 1 <= len(value) <= 4 else DEFAULT_ICON
-
-
 def _first_unique(items, name_of, count):
     """The first `count` items whose names are all different (we asked for spares)."""
     seen, kept = set(), []
@@ -365,11 +373,38 @@ def _endings(data):
     return result
 
 
-def _to_story(data):
-    locations = _first_unique(data["locations"], lambda loc: _place_name(loc["name"]),
-                              logic.NUMBER_OF_LOCATIONS)
+def _place_key(name):
+    return _clean(name).casefold().removeprefix("the ")
+
+
+def _campus_name(name):
+    """The official spelling of a campus place ('the library' -> 'Library'), else the name tidied."""
+    known = {_place_key(place): place for place in content.PLACES}
+    return known.get(_place_key(name), _place_name(name))
+
+
+def _match_places(entries, places):
+    """The AI's texts for each place, in the order of `places`. A place is found by its name;
+    an entry with an unknown name fills the next free place (models sometimes shorten names)."""
+    entries = [entry for entry in entries if isinstance(entry, dict)]
+    if places is None:   # no places given: take them from the answer
+        places = [_campus_name(e["name"]) for e in
+                  _first_unique(entries, lambda e: _campus_name(e["name"]), logic.NUMBER_OF_LOCATIONS)]
+    wanted = {_place_key(place) for place in places}
+    by_name = {_place_key(e.get("name", "")): e for e in entries}
+    leftovers = [e for e in entries if _place_key(e.get("name", "")) not in wanted]
+    matched = []
+    for place in places:
+        entry = by_name.get(_place_key(place)) or (leftovers.pop(0) if leftovers else None)
+        if entry is None:
+            raise KeyError(place)
+        matched.append(entry)
+    return list(places), matched
+
+
+def _to_story(data, places=None):
+    names, locations = _match_places(data["locations"], places)
     suspects = _first_unique(data["suspects"], lambda s: _clean(s["role"]), logic.NUMBER_OF_ROLES)
-    names = [_place_name(loc["name"]) for loc in locations]
     return {
         "source": "ai",
         "case_number": "AI",   # replaced by the room code in logic.ai_case_ready
@@ -381,7 +416,7 @@ def _to_story(data):
         "intro_lines": [_clean(line) for line in data["intro_lines"]],
         "locations": names,
         "location_flavor": {name: _clean(loc["flavor"]) for name, loc in zip(names, locations)},
-        "location_icons": {name: _icon(loc.get("icon")) for name, loc in zip(names, locations)},
+        "location_icons": {name: content.PLACES.get(name, {}).get("icon", DEFAULT_ICON) for name in names},
         "neutral_location_clues": {name: _clean(loc["neutral_clue"])
                                    for name, loc in zip(names, locations)},
         "roles": {
