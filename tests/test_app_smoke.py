@@ -101,6 +101,31 @@ class FakeStreamlit(types.ModuleType):
         return record
 
 
+def tap(phone, **params):
+    """A tap on a card, pin, row or chip: its link reloads the page with ?step=...
+    (see app.move_link). handle_move_links stores the selection and cleans the address."""
+    phone.st.query_params.update({key: str(value) for key, value in params.items()})
+    return phone.run()
+
+
+def tap_on_map(phone, conn, code):
+    """Choose 'Search a place', tap the first open pin, then press 'Search <place>'."""
+    place = next(p["name"] for p in logic.map_view(db.load(conn, code))["places"] if p["state"] == "open")
+    tap(phone, step="search", place=place)
+    phone.run(press=[f"Search {place}"])
+    return place
+
+
+def end_investigation(host, conn, code):
+    """The host ends every round of the investigation."""
+    while db.load(conn, code)["phase"] == "INVESTIGATION":
+        host.run(press=["End phase (host)"])
+
+
+def token_of_phone(phone):
+    return phone.st.query_params["t"]
+
+
 class Browser:
     """One browser tab: keeps its link (query params) and its session."""
 
@@ -175,15 +200,23 @@ def test_full_game_through_the_screens(game_db):
         host.run(press=["End phase (host)"])
         assert phase() == "INVESTIGATION"
 
-        phones[1].run(press=["Search this location"])
+        tap_on_map(phones[1], conn, code)
+        assert "step" not in phones[1].st.query_params        # a reload does not search twice
+        assert "Move made." in phones[1].run()
         # free text arrives escaped on the page
         asked_pid = 4
-        phones[2].run(press=["Ask in public"], **{"Ask": asked_pid, "Your question": "<b>x</b>"})
+        tap(phones[2], step="question", ask=asked_pid)
+        phones[2].run(press=["Ask in public"], **{"Your question": "<b>x</b>"})
         phones[3].run(press=["Answer"], **{"Your answer (you may lie)": "I was *not* there"})
-        phones[4].run(press=["Make this clue public"])
+        game = db.load(conn, code)
+        clue = logic.private_view(game, token_of_phone(phones[4]))["clues"][0]["id"]
+        tap(phones[4], step="share", clue=clue)
+        phones[4].run(press=["Share with everyone"])
         murderer_phone = phones[murderer_pid - 1]
         target = 1 if murderer_pid != 1 else 2
-        murderer_phone.run(press=["Plant it"], **{"Blame": target})
+        spot = logic.plant_locations(db.load(conn, code))[0]
+        tap(murderer_phone, step="plant", blame=target, place=spot)
+        murderer_phone.run(press=["Plant it"])
         game = db.load(conn, code)
         assert game["planted"] is True
         assert sorted(game["acted"]) == [2, 3, 5]
@@ -196,7 +229,7 @@ def test_full_game_through_the_screens(game_db):
         assert "planted" not in page                 # the fake clue does not stand out
         assert "acted" not in page                   # no "acted" marks that give it away
 
-        host.run(press=["End phase (host)"])
+        end_investigation(host, conn, code)                  # all rounds
         assert phase() == "DISCUSSION"
         host.run(press=["End phase (host)"])
         assert phase() == "VOTE"
@@ -243,18 +276,24 @@ def test_play_a_demo_seats_you_with_four_demo_suspects(game_db):
         conn.close()
 
 
-def test_board_pins_evidence_to_a_cork_wall_and_phones_keep_the_list(game_db):
+def test_board_shows_the_evidence_board_and_the_phone_the_move_made(game_db):
     phone = Browser()
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"], **{"Use the fixed demo case": True})
     phone.run(press=["End phase (host)"])                     # on to INVESTIGATION
-    phone.run(press=["Search this location"])
+    conn = db.connect(game_db)
+    try:
+        place = tap_on_map(phone, conn, code)
+    finally:
+        conn.close()
     board = Browser(room=code, view="board")
     page = board.run()
-    assert 'class="cork"' in page and "pin photo" in page     # the exhibit is a polaroid
+    assert 'class="ebs"' in page and "Exhibit 1" in page       # the evidence board, newest first
+    assert 'class="plan2 board"' in page and "Just now" in page
     phone_page = phone.run()
-    assert "Exhibit 1" in phone_page and 'class="cork"' not in phone_page
+    assert "Move made." in phone_page and "Logged" in phone_page and place in phone_page
+    assert 'class="ebs"' not in phone_page
 def test_demo_link_starts_a_demo_without_the_intro(game_db):
     home = Browser()
     assert 'class="intro"' in home.run()                 # a normal first visit plays the intro
@@ -294,9 +333,9 @@ def test_phone_shows_the_most_important_thing_first(game_db):
         phone.run(press=["End phase (host)"])
         assert db.load(conn, code)["phase"] == "INVESTIGATION"
         page = phone.run()
-        assert page.index("Your move") < page.index("Your card") < page.index("Evidence &amp; statements")
+        assert page.index("Your move.") < page.index("Your card") < page.index("Evidence &amp; statements")
 
-        phone.run(press=["End phase (host)"])
+        end_investigation(phone, conn, code)                  # all rounds
         phone.run(press=["End phase (host)"])
         assert db.load(conn, code)["phase"] == "VOTE"
         page = phone.run()
@@ -325,3 +364,59 @@ def test_reveal_shows_a_sealed_envelope_that_stays_open_during_the_session(game_
     assert 'class="dossier' in again and ' play"' not in again and 'class="envelope"' not in again
     guilty = game["case"]["murderer"] == 1                # pid 1 is the human "Detective"
     assert ("unseal guilty" in again) == guilty
+
+
+def test_only_the_murderer_sees_the_murderer_stamp_and_the_board_never(game_db):
+    board = Browser()
+    board.run(press=["Create room"])
+    code = board.st.query_params["room"]
+    phones = []
+    for name in ["Ana", "Ben", "Caro", "Dev", "Eli"]:
+        phone = Browser(room=code)
+        phone.run(press=["Join"], **{"Your name": name})
+        phones.append(phone)
+    phones[0].run(press=["Start game"], **{"Use the fixed demo case": True})
+    conn = db.connect(game_db)
+    try:
+        murderer = db.load(conn, code)["case"]["murderer"]
+    finally:
+        conn.close()
+
+    for pid, phone in enumerate(phones, start=1):
+        card = phone.run(press=["Open your file"])            # REVEAL: the file comes out of the envelope
+        if pid == murderer:
+            assert 'class="dstamp murderer slam"' in card and "MURDERER</div>" in card
+            again = phone.run()                                # the stamp lands only once per session
+            assert 'class="dstamp murderer"' in again and "dstamp murderer slam" not in again
+        else:
+            assert 'class="dstamp innocent"' in card and "MURDERER</div>" not in card
+            assert 'class="dstamp murderer' not in card
+
+    for _ in range(3):                                         # REVEAL → INVESTIGATION → DISCUSSION → VOTE
+        page = board.run()
+        assert 'class="dstamp' not in page                     # the board never shows a stamp
+        phones[0].run(press=["End phase (host)"])
+    assert 'class="dstamp' not in board.run()
+
+
+def test_the_phone_guides_through_one_move_and_explains_mistakes(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+    phone.run(press=["End phase (host)"])                     # on to INVESTIGATION
+    page = phone.run()
+    assert "Your move." in page and page.count('class="act') >= 3
+    page = tap(phone, step="question")
+    assert "Interrogate" in page and "Change action" in page
+    assert "Choose who you want to ask." in phone.run(press=["Ask in public"], **{"Your question": "Where were you?"})
+    tap(phone, step="question", ask=2)
+    assert "at least 5 characters" in phone.run(press=["Ask in public"], **{"Your question": "Why"})
+    assert "Your move." in tap(phone, step="home")            # "Change action" goes back
+    tap(phone, step="share")
+    assert "Choose a clue to share." in phone.run(press=["Share with everyone"])
+    conn = db.connect(game_db)
+    try:
+        assert db.load(conn, code)["acted"] == []             # no mistake used up the move
+    finally:
+        conn.close()

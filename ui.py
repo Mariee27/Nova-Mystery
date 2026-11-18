@@ -94,9 +94,9 @@ def teaser():
         ("Players", "4 to 6, each on their own phone"),
         ("Board", "One shared screen – laptop or projector"),
         ("Your file", "Role, alibi, secret and two private clues"),
-        ("Your move", "One action: search, interrogate or share"),
+        ("Your move", "One per round: search, interrogate or share"),
         ("The goal", "Name the culprit – and where it happened"),
-        ("Duration", "About 5 minutes"),
+        ("Duration", "5 rounds, 15 to 30 minutes"),
     ]
     brief = ("One of you is the murderer, and only that player knows. Everybody may lie. "
              "Collect evidence, compare alibis, and accuse together before the clock runs out.")
@@ -215,18 +215,283 @@ def suspect_list(players, phase, me_pid=None):
     return f'<div class="slist" role="list" aria-label="Suspects">{"".join(rows)}</div>'
 
 
-def campus_map(searched, scene=None, story=None):
+# ---------------------------------------------------------------- the campus plan
+#
+# NOVA SBE, floor 0, seen from above: buildings are rectangles, every value is percent of
+# the map (content.BUILDINGS, content.PLACES), so phone and board draw the same plan.
+# The pins are HTML on top of it, so on the phone they can be links.
+
+STATE_LABELS = {"open": "Not searched yet", "done": "Searched", "locked": "Locked"}
+ICONS = {
+    "lock": '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    "check": '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    "search": '<circle cx="11" cy="11" r="6"/><path d="M15.5 15.5L20 20"/>',
+    "question": ('<path d="M4 12a8 8 0 1 1 3.2 6.4L4 20l1-3.6A7.9 7.9 0 0 1 4 12z"/>'
+                 '<path d="M9.8 9.8a2.3 2.3 0 1 1 3.2 2.1c-.6.3-1 .8-1 1.4v.4"/><path d="M12 16.6v.1"/>'),
+    "share": ('<rect x="6" y="3" width="12" height="18" rx="1.5"/><path d="M9 8h6M9 12h6M9 16h4"/>'),
+    "plant": '<path d="M5 19l6-6M14 4l6 6-8 8H6v-6z"/>',
+    "back": '<path d="M14 6l-6 6 6 6"/>',
+}
+
+
+def icon(name):
+    return f'<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">{ICONS[name]}</svg>'
+
+
+def _spot(name, index):
+    """Where a place's pin stands (percent of the map) and its letter. A place that is not on
+    the campus plan (games from before the plan) gets a spot on a row along the bottom."""
+    place = content.PLACES.get(name)
+    if place is None:
+        return 12 + index * 18, 92, name[:1]
+    return place["x"], place["y"], place["letter"]
+
+
+def _plan_ground():
+    left, top, width, height = content.BEACH
+    parts = [f'<div class="beach" style="left:{left}%;top:{top}%;width:{width}%;height:{height}%"></div>']
+    for label, (left, top, width, height) in content.BUILDINGS.items():
+        parts.append(f'<div class="bld" style="left:{left}%;top:{top}%;width:{width}%;height:{height}%">'
+                     f'<span>{h(label)}</span></div>')
+    return "".join(parts)
+
+
+def campus_map(searched, scene=None, story=None, view=None, links=None, active=True,
+               selected=None, board=False):
+    """The campus plan with a pin for every place of this case.
+
+    view: logic.map_view(game), the state of every place (open, done, locked).
+          Without it, a place is "done" when it is in `searched`, else "open".
+    links: {place: url} makes pins tappable (only on the player's own phone).
+    active: False greys the plan out (the player has already moved this round).
+    selected: the place whose paper card is open on the phone (gets a gold ring).
+    board: True adds a second line under each name (opens in round …, just now).
+    scene: the crime scene, marked on the result screen.
+    """
     story = _story(story)
-    tiles = []
-    for location in story["locations"]:
-        classes = "loc"
-        if location in searched:
-            classes += " done"
-        if scene == location:
-            classes += " scene"
-        icon = h(story["location_icons"].get(location, ""))
-        tiles.append(f'<div class="{classes}"><span class="i">{icon}</span>{h(location)}</div>')
-    return f'<div class="map">{"".join(tiles)}</div>'
+    if view is None:
+        view = {"round": 0, "places": [{"name": place, "state": "done" if place in searched else "open",
+                                         "opens_in": None, "found_in": None}
+                                        for place in story["locations"]]}
+    links = links or {}
+    this_round = view.get("round")
+    pins = []
+    for index, item in enumerate(view["places"]):
+        name, state = item["name"], item["state"]
+        x, y, letter = _spot(name, index)
+        found_in = item.get("found_in")
+        just_now = state == "done" and found_in is not None and found_in == this_round
+        face = icon("lock") if state == "locked" else icon("check") if state == "done" else h(letter)
+        sub = ""
+        if board and state == "locked":
+            sub = f"Opens round {item['opens_in']}"
+        elif board and state == "done":
+            sub = "Just now" if just_now else (f"Round {found_in}" if found_in else "Searched")
+        sub_html = f'<span class="ps">{h(sub)}</span>' if sub else ""
+        css = (f"pin2 {state}" + (" sel" if name == selected else "") + (" scene" if name == scene else "")
+               + (" now" if board and just_now else ""))
+        inner = f'<span class="pc">{face}</span><span class="pl"><span class="pn">{h(name)}</span>{sub_html}</span>'
+        style = f"left:{x}%;top:{y}%"
+        label = f"{name}: {STATE_LABELS.get(state, '')}"
+        href = links.get(name)
+        if href:
+            pins.append(f'<a class="{css}" href="{h(href)}" target="_self" style="{style}" '
+                        f'aria-label="{h(label)}">{inner}</a>')
+        else:
+            pins.append(f'<div class="{css}" style="{style}" aria-label="{h(label)}">{inner}</div>')
+    css = "plan2" + ("" if active else " off") + (" board" if board else "")
+    return (f'<div class="{css}" role="group" aria-label="Campus map">{_plan_ground()}{"".join(pins)}'
+            f'<div class="plan-foot">NOVA SBE Carcavelos · Floor 0</div></div>')
+
+
+def place_card(name, item=None, entries=(), story=None):
+    """The paper card under the plan on the phone: the selected place and what it holds."""
+    if name is None or item is None:
+        return ('<div class="paper"><div class="pk">No place selected</div>'
+                '<div class="pb">Grey pins were searched already. Dashed pins open later in the game.</div></div>')
+    state = item["state"]
+    icon_text = _story(story)["location_icons"].get(name, content.PLACES.get(name, {}).get("icon", ""))
+    title = f'<div class="pt"><span class="pi">{h(icon_text)}</span>{h(name)}</div>'
+    if state == "locked":
+        return (f'<div class="paper"><div class="pk">Locked</div>{title}'
+                f'<div class="pb">This place opens in round {h(item["opens_in"])}.</div></div>')
+    if state == "open":
+        return (f'<div class="paper"><div class="pk red">Not searched yet</div>{title}'
+                '<div class="pb">Searching uses your move for this round. '
+                'Whatever you find goes on the board.</div></div>')
+    when = f" · round {item['found_in']}" if item.get("found_in") else ""
+    found = "".join(f'<div class="pe"><span class="pk">Exhibit {h(e["id"])}</span>'
+                    f'<div class="pb">{h(e["text"])}</div></div>' for e in entries)
+    return f'<div class="paper"><div class="pk">Searched{h(when)}</div>{title}{found}</div>'
+
+
+# ---------------------------------------------------------------- the phone's move, step by step
+
+def action_cards(cards):
+    """'Your move.': one big card per action. cards: dicts with href, icon, title, text, info."""
+    rows = []
+    for card in cards:
+        css = "act" + (" off" if not card.get("href") else "") + (" " + card["css"] if card.get("css") else "")
+        inner = (f'<span class="ai">{icon(card["icon"])}</span><span class="ab">'
+                 f'<span class="at">{h(card["title"])}</span><span class="ad">{h(card["text"])}</span>'
+                 f'<span class="ax">{h(card["info"])}</span></span>')
+        if card.get("href"):
+            rows.append(f'<a class="{css}" href="{h(card["href"])}" target="_self">{inner}</a>')
+        else:
+            rows.append(f'<div class="{css}" aria-disabled="true">{inner}</div>')
+    return f'<div class="acts">{"".join(rows)}</div>'
+
+
+def back_link(href):
+    return f'<a class="back" href="{h(href)}" target="_self">{icon("back")}Change action</a>'
+
+
+def step_head(title, text=""):
+    sub = f'<div class="sh-s">{h(text)}</div>' if text else ""
+    return f'<div class="sh"><div class="sh-t">{h(title)}</div>{sub}</div>'
+
+
+def label(text):
+    return f'<div class="lbl">{h(text)}</div>'
+
+
+def pick_rows(rows):
+    """Players to tap, one row each: (href, name, role, selected)."""
+    out = []
+    for href, name, role, selected in rows:
+        css = "pick sel" if selected else "pick"
+        out.append(f'<a class="{css}" href="{h(href)}" target="_self" role="radio" '
+                   f'aria-checked="{"true" if selected else "false"}">'
+                   f'<span class="face">{initial(name)}</span><span class="who"><span class="n">{h(name)}</span>'
+                   f'<span class="r">{h(role or "")}</span></span><span class="radio"></span></a>')
+    return f'<div class="picks" role="radiogroup">{"".join(out)}</div>'
+
+
+def chips(items):
+    """Public evidence to tap: (href, text, selected). Tapping a selected chip deselects it."""
+    if not items:
+        return '<div class="muted small">No public evidence yet.</div>'
+    out = []
+    for href, text, selected in items:
+        short = text if len(text) <= 42 else text[:40].rstrip() + "…"
+        css = "chip sel" if selected else "chip"
+        out.append(f'<a class="{css}" href="{h(href)}" target="_self" title="{h(text)}">{h(short)}</a>')
+    return f'<div class="chips">{"".join(out)}</div>'
+
+
+def clue_cards(items):
+    """The player's own private clues as paper cards: (href or None, number, text, selected)."""
+    out = []
+    for href, number, text, selected in items:
+        css = "paper clue" + (" sel" if selected else "") + (" used" if href is None else "")
+        kicker = f"Private clue {number}" + (" · already shared" if href is None else "")
+        inner = f'<div class="pk">{h(kicker)}</div><div class="pq">{h(text)}</div>'
+        if href:
+            out.append(f'<a class="{css}" href="{h(href)}" target="_self">{inner}</a>')
+        else:
+            out.append(f'<div class="{css}">{inner}</div>')
+    return "".join(out)
+
+
+def move_made(kicker, title, text):
+    """'Move made.': the paper card of the move with a LOGGED stamp."""
+    title_html = f'<div class="pt">{h(title)}</div>' if title else ""
+    return (f'<div class="paper made fade-up"><div class="logged">Logged</div>'
+            f'<div class="pk red">{h(kicker)}</div>{title_html}<div class="pb">{h(text)}</div></div>')
+
+
+def waiting_list(players, me_pid):
+    """Who has moved this round and who is still choosing. Public: never which action."""
+    online = [p for p in players if p.get("online")]
+    waiting = sum(1 for p in online if not p.get("acted"))
+    rows = []
+    for player in players:
+        if not player.get("online"):
+            state, css = "offline", "off"
+        elif player.get("acted"):
+            state, css = "done", "done"
+        else:
+            state, css = "choosing…", "wait"
+        you = " (you)" if player["pid"] == me_pid else ""
+        rows.append(f'<div class="wl-row"><span class="wd {css}"></span>'
+                    f'<span class="wn">{h(player["name"])}{you}</span><span class="ws">{h(state)}</span></div>')
+    head = f"Waiting for {waiting} player{'s' if waiting != 1 else ''}" if waiting else "Everybody has moved"
+    return f'<div class="box wl"><div class="lbl">{h(head)}</div>{"".join(rows)}</div>'
+
+
+# ---------------------------------------------------------------- the board during the rounds
+
+def board_head(code, round_no, rounds, left):
+    """Room code, 'Round X of 3' and the big timer (the logo stands above it, ui.brand)."""
+    left = max(0, int(left or 0))
+    low = " low" if left <= 10 else ""
+    rnd = (f'<div class="hbox"><div class="hk">Investigation</div><div class="hv">Round {h(round_no)} of {h(rounds)}</div></div>'
+           if round_no else "")
+    return (f'<div class="bhead"><div class="bh-boxes">'
+            f'<div class="hbox"><div class="hk">Room</div><div class="hv">{h(code)}</div></div>{rnd}'
+            f'<div class="hbox clock{low}" role="timer" aria-label="{left} seconds left">'
+            f'{left // 60}:{left % 60:02d}</div></div></div>')
+
+
+def detectives(players):
+    """The board's player list: name, role and whether they have moved (never which action)."""
+    online = [p for p in players if p.get("online")]
+    moved = sum(1 for p in online if p.get("acted"))
+    rows = []
+    for player in players:
+        if not player.get("online"):
+            state, css = "Offline", "off"
+        elif player.get("acted"):
+            state, css = "Moved", "done"
+        else:
+            state, css = "Choosing…", "wait"
+        rows.append(f'<div class="dt-row"><span class="face">{initial(player["name"])}</span>'
+                    f'<span class="dn">{h(player["name"])}</span><span class="dr">{h(player.get("role") or "")}</span>'
+                    f'<span class="ds {css}">{h(state)}</span></div>')
+    return (f'<div class="box dt"><div class="lbl">Detectives<span>{moved} of {len(online)} moved</span></div>'
+            f'{"".join(rows)}</div>')
+
+
+def evidence_board(log, name_of, story=None):
+    """All public evidence, newest first: search results (no finder) and shared clues."""
+    icons = _story(story)["location_icons"]
+    cards = []
+    for entry in reversed(log):
+        tag = f'R{entry["round"]}' if entry.get("round") else ""
+        if entry["kind"] == "search":
+            place = entry.get("location", "")
+            title = f'{icons.get(place, "")} {place}'.strip()
+        elif entry["kind"] == "share":
+            title = f"Shared by {name_of(entry['by'])}"
+        else:
+            continue
+        cards.append(f'<div class="eb"><span class="eb-r">{h(tag)}</span><div class="eb-c">'
+                     f'<div class="eb-t">Exhibit {h(entry["id"])} · {h(title)}</div>'
+                     f'<div class="eb-b">{h(entry["text"])}</div></div></div>')
+    if not cards:
+        cards.append('<div class="muted small">Nothing has been found yet.</div>')
+    return f'<div class="lbl">Evidence board</div><div class="ebs">{"".join(cards)}</div>'
+
+
+def interrogation(log, name_of, role_of):
+    """The latest interrogation: who asks whom, with which evidence, the question and the answer."""
+    asked = next((e for e in reversed(log) if e["kind"] == "question"), None)
+    if asked is None:
+        return ""
+    by_id = {e["id"]: e for e in log}
+    reply = next((e for e in log if e["kind"] == "answer" and e.get("question_id") == asked["id"]), None)
+    who = f'{name_of(asked["by"])} ({role_of(asked["by"])}) asks {name_of(asked["target"])} ({role_of(asked["target"])})'
+    evidence = by_id.get(asked.get("evidence"))
+    confront = f", confronting them with Exhibit {evidence['id']}" if evidence else ""
+    if reply is not None:
+        answer = f'<div class="iv-a">“{h(reply["text"])}”</div>'
+    elif asked.get("answered"):
+        answer = f'<div class="iv-w">{h(name_of(asked["target"]))} gave no answer.</div>'
+    else:
+        answer = f'<div class="iv-w">{h(name_of(asked["target"]))} is typing an answer…</div>'
+    live = "Live" if reply is None and not asked.get("answered") else "Latest"
+    return (f'<div class="box iv"><div class="lbl red">Interrogation · {live}</div>'
+            f'<div class="iv-h">{h(who + confront)}:</div><div class="iv-q">“{h(asked["text"])}”</div>{answer}</div>')
 
 
 # ---------------------------------------------------------------- evidence feed
@@ -338,7 +603,16 @@ def evidence_wall(log, name_of, story=None):
 
 # ---------------------------------------------------------------- private card (phone)
 
-def dossier(me):
+def file_stamp(guilty, slam=False):
+    """The rubber stamp on the private card. Only private_view knows is_murderer, so this
+    stamp can only ever reach the player's own phone. slam=True plays the stamp landing once."""
+    if guilty:
+        play = " slam" if slam else ""
+        return f'<div class="dstamp murderer{play}" aria-label="Stamp: murderer">MURDERER</div>'
+    return '<div class="dstamp innocent" aria-label="Stamp: innocent">INNOCENT</div>'
+
+
+def dossier(me, slam=False):
     guilty = me["is_murderer"]
     rows = [f'<div class="row">{h(me["intro"])}</div>']
     if guilty:
@@ -353,7 +627,7 @@ def dossier(me):
         state = "shared" if clue["shared"] else "only you know"
         slips.append(f'<div class="slip"><span class="k">{h(state.upper())}</span>{h(clue["text"])}</div>')
     css = "dossier guilty" if guilty else "dossier"
-    return (f'<div class="{css}"><span class="lbl">Personal file</span>'
+    return (f'<div class="{css}">{file_stamp(guilty, slam)}<span class="lbl">Personal file</span>'
             f'<div class="role">{h(me["role"])}</div>{"".join(rows)}'
             f'<div class="row"><span class="lbl">What you know</span>{"".join(slips)}</div></div>')
 
@@ -367,15 +641,15 @@ def envelope(name, story=None):
             f'CONFIDENTIAL – for {h(name)} only</div></div>')
 
 
-def opened_file(me, animate):
+def opened_file(me, animate, slam=False):
     """The opened envelope with the dossier inside. animate=True plays the opening once:
     the flap folds back, the seal breaks, the file slides out (pure CSS, see style.css).
-    The murderer's file gets a subtle red tint."""
+    The murderer's file gets a subtle red tint. slam=True lets the stamp land once."""
     guilty = " guilty" if me["is_murderer"] else ""
     play = " play" if animate else ""
     back = ('<div class="env-back" aria-hidden="true"><div class="flap"></div>'
             '<div class="seal">N</div></div>') if animate else ""
-    return f'<div class="unseal{guilty}{play}">{back}<div class="file">{dossier(me)}</div></div>'
+    return f'<div class="unseal{guilty}{play}">{back}<div class="file">{dossier(me, slam)}</div></div>'
 
 
 # ---------------------------------------------------------------- the reveal

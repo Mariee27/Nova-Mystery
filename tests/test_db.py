@@ -6,7 +6,7 @@ import pytest
 
 import db
 import logic
-from conftest import LOC
+from conftest import LOC, locked_places, open_places  # noqa: F401
 
 ALPHABET = set("ABCDEFGHJKLMNPQRSTUVWXYZ")
 ON5 = {1, 2, 3, 4, 5}
@@ -149,12 +149,12 @@ def test_dw16_apply_rolls_back_when_fn_raises_rejected_after_changing_game(conn)
 
 def test_dw16_rejected_game_action_in_started_room_leaves_raw_state(conn):
     code, _ = room_in_investigation(conn)
-    db.apply(conn, code, lambda g: logic.search(g, "t1", LOC[0], 5))
+    db.apply(conn, code, lambda g: logic.search(g, "t1", open_places(g)[0], 5))
     before = db.raw_state(conn, code)
     with pytest.raises(logic.Rejected):
-        db.apply(conn, code, lambda g: logic.search(g, "t1", LOC[1], 6))  # second action
+        db.apply(conn, code, lambda g: logic.search(g, "t1", open_places(g)[0], 6))  # second action
     with pytest.raises(logic.Rejected):
-        db.apply(conn, code, lambda g: logic.search(g, "t2", LOC[0], 6))  # already searched
+        db.apply(conn, code, lambda g: logic.search(g, "t2", locked_places(g)[0], 6))  # still locked
     assert db.raw_state(conn, code) == before
 
 
@@ -200,7 +200,8 @@ def test_dw19_two_concurrent_searches_of_same_location_exactly_one_succeeds(path
     try:
         for r in range(8):
             code, _ = room_in_investigation(main)
-            loc = LOC[r % len(LOC)]
+            places = open_places(db.load(main, code))       # locked places cannot be searched
+            loc = places[r % len(places)]
             outcome = _race(path, code, loc, r)
             assert sorted(outcome.values()) == ["ok", "rejected"], outcome
             game = db.load(main, code)

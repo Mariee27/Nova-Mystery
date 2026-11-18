@@ -24,7 +24,7 @@ If fewer than 3 players are online during the game, the game ends with a message
 The game continues normally. They can be voted for and are revealed at the end.
 
 **… the app restarts?**
-Locally everything is kept, because the game state is stored in an SQLite file (DW 21). On free hosting the file can be lost on a restart. Then you need a new room. We decided this on purpose: a game lasts 5 minutes.
+Locally everything is kept, because the game state is stored in an SQLite file (DW 21). On free hosting the file can be lost on a restart. Then you need a new room. We decided this on purpose: a game lasts 15 to 30 minutes.
 
 **… someone reloads the page?**
 Nothing is lost. The game state lives on the server, not in the browser.
@@ -62,7 +62,7 @@ They don't have the button, and the rules reject it as well. (DW 5)
 At the end of the discussion the log states that no answer came. (DW 8)
 
 **… nobody does anything?**
-The timers advance the phases: 30 s cards, 90 s investigation, 60 s discussion, 30 s vote. (DW 6)
+The timers advance the phases: 30 s cards, 3 investigation rounds of up to 5 minutes each (a round ends early when everybody has moved and every question of the round is answered), 3 min discussion, 1 min vote. (DW 6)
 
 ## Security
 
@@ -131,3 +131,29 @@ Yes: the case file, board header, map, suspects' dossiers, the vote question, th
 
 **What if the AI case arrives after the host already started?**
 It is ignored; the running game is never changed. (`test_an_ai_case_that_arrives_after_the_start_is_ignored`)
+
+## Rounds and the campus map
+
+**What if I tap a locked place?**
+Nothing happens to your move: the paper card under the map says when the place opens, there is no search button, and the server refuses a search there anyway ("This place is locked. It opens in round 3."). (`test_refused_searching_a_locked_place`)
+
+**What if I try to search twice in one round?**
+Refused, on the server; after your move the phone shows "Move made." and who is still choosing. Next round you get a new move. (`test_refused_a_second_move_in_the_same_round`, `test_allowed_a_new_move_in_the_next_round`)
+
+**What if two players tap the same place at the same moment?**
+Exactly one of them finds the clue; the other is told "This place has already been searched. Pick another one." and keeps their move. (DW 19, `test_refused_searching_a_place_that_was_already_searched`)
+
+**What if I reload the page after tapping a place?**
+Nothing is searched: a tap only selects a place. Searching needs the "Search <place>" button, and a second move in the same round would be refused anyway.
+
+**What if I ask a question and nobody answers?**
+The round waits for answers to its questions, but never longer than its timer. A player who is offline is not waited for. Unanswered questions can still be answered in the discussion. (`test_refused_ending_a_round_early_while_a_question_of_this_round_is_unanswered`)
+
+**What if the timer runs out before I choose?**
+Your move for that round is lost; the next round starts and you get a new one. (`test_allowed_a_player_who_misses_the_timer_simply_loses_the_move`)
+
+**What if I press "Ask in public" without choosing someone, or with a very short question?**
+The screen says "Choose who you want to ask." or "Write a question first (at least 5 characters)." and your move is not used up.
+
+**Can the map give the solution away?**
+No. It shows which places are open, searched or locked – public facts. The crime scene is always one of the two locked places at the start, so that the hunt has a middle; which of the two it is, the map does not say. (`test_the_map_never_gives_the_solution_away`)

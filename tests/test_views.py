@@ -16,7 +16,7 @@ PUBLIC_KEYS = {"code", "phase", "deadline", "players", "log", "searched",
 PUBLIC_PLAYER_KEYS = {"pid", "name", "role", "online", "is_host", "acted", "voted"}
 PRIVATE_KEYS = {"pid", "name", "is_host", "phase", "acted", "voted", "role", "intro",
                 "alibi", "secret", "is_murderer", "clues", "can_plant", "plant_locations",
-                "open_questions"}
+                "open_questions", "last_move"}
 # "role" is intentionally NOT forbidden: roles are public from REVEAL on.
 FORBIDDEN_KEYS = {"token", "murderer", "is_murderer", "secret", "intro", "alibi",
                   "clues", "implicates", "clue_kind", "planted", "case",

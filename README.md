@@ -1,6 +1,6 @@
 # Murder at NOVA
 
-A five-minute multiplayer murder mystery for 4 to 6 players, built with Python and Streamlit.
+A multiplayer murder mystery for 4 to 6 players (15 to 30 minutes), built with Python and Streamlit.
 One screen (the projector) shows the public board. Every player joins on their own phone, gets a
 secret role card, and together the group has to find out who committed the murder before time runs out.
 Every room can get a brand-new story written by an AI; case #001 "The Last Lecture" is always there as the fallback.
@@ -38,9 +38,31 @@ different every time.
 | Phase | Time | What happens |
 |---|---|---|
 | Reveal | 30 s | Everybody reads their card. |
-| Investigation | 90 s | Each player has exactly **one** action: search a location, ask someone a public question, or make one of their clues public. The murderer may additionally plant one fake clue. |
-| Discussion | 60 s | Players talk and answer open questions (lying is allowed). |
-| Vote | 30 s | Everybody votes for a suspect. |
+| Investigation | 3 rounds, each up to 5 min | Each round every player has exactly **one** action: search a place on the **campus map**, interrogate someone in public, or share one of their clues. A round ends early when everybody has moved and every question of the round is answered. The murderer may additionally plant one fake clue. |
+| Discussion | 3 min | Players talk and answer open questions (lying is allowed). |
+| Vote | 1 min | Everybody votes for a suspect and the crime scene. |
+
+**The round, step by step.** The phone first shows "Your move." with three big action cards
+(a fourth, "Plant a false clue", only on the murderer's phone). Each card leads to its own screen with a
+"Change action" link back: *Search a place* (tap a pin on the campus plan, read the paper card, press
+"Search <place>"), *Interrogate* (tap a player, optionally an exhibit to confront them with, write the
+question, "Ask in public") or *Share a clue* (tap one of your private clues, "Share with everyone").
+Afterwards "Move made." shows your move with a LOGGED stamp and who is still choosing.
+
+**The campus map.** A simplified plan of NOVA SBE Carcavelos, floor 0, seen from above: buildings are
+rectangles, all positions are percent of the map (`content.BUILDINGS`, `content.PLACES`), so phone and
+board draw the same plan. Every case happens at 5 of 8 places (Library, Horizon Hall, Auditorium,
+Main Deck, ICA Canteen, Santander Hall, Beach, Parking). Each place holds exactly one clue. Pins are
+red (open), grey with a tick (searched) or dashed with a lock (locked). Two places are locked at the
+start – the crime scene and one other – and open in rounds 2 and 3. The board names the round a place
+was searched in, never who searched it, so the murderer's planted clue does not stand out.
+
+**The board during the rounds** shows room code, round and a big timer; the campus plan; the detectives
+(moved or still choosing, never which action); the evidence board (newest first) and the latest
+interrogation with its answer. It never shows private cards, private clues or the solution.
+Every rule (one move per round, locked or searched places, questions of at least 5 characters, only your
+own clues, only players of your room) is checked on the server, with a test for the allowed and the
+refused case (`tests/test_rounds_and_map.py`).
 | Result | – | The murderer and all cards are revealed. Detectives win only if the murderer got strictly the most votes. |
 
 Phases end early when everybody is done, and the host can skip ahead.
