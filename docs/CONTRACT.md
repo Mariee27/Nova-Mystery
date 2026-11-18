@@ -14,7 +14,10 @@ Rules live in `logic.py`, storage in `db.py`, case building in `generator.py`, t
 ## Constants in `logic`
 ```
 PHASES = ["LOBBY","REVEAL","INVESTIGATION","DISCUSSION","VOTE","RESULT","ABORTED"]
-DURATIONS = {"REVEAL": 30, "INVESTIGATION": 90, "DISCUSSION": 60, "VOTE": 30}
+DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
+ROUNDS = 3            # INVESTIGATION has 3 rounds; DURATIONS["INVESTIGATION"] is the length of one round
+LOCKED_PLACES = 2     # locked at the start: the crime scene and one other place
+MIN_QUESTION = 5      # a question needs at least 5 characters
 OFFLINE_AFTER = 20      # seconds; online means now - last_seen <= 20
 MIN_PLAYERS = 4; MAX_PLAYERS = 6; MIN_ONLINE = 3
 MAX_TEXT = 140; MAX_NAME = 20; MAX_CLUE_TEXT = 200
@@ -30,7 +33,8 @@ DEMO_SEED = 2026
  "host": None | pid, "next_pid": 1,
  "players": [{"pid": 1, "name": "Anna", "token": "...", "joined_at": 0}],
  "case": None | case,
- "acted": [pid, ...],          # players who used their one action this game
+ "acted": [pid, ...],          # players who used their one action in the current round
+ "round": 1..3,                # only during the investigation; log entries of a round carry it too
  "searched": [location, ...],
  "planted": False,
  "log": [entry, ...], "next_log_id": 1,
@@ -169,3 +173,27 @@ different names (the request asks for 7 and 6), removes a leading "the" from pla
 the form "<role> was seen ...", takes suspects and places out of neutral clues and traces, replaces intro
 lines that do not fit by a standard intro, and fills in generic endings if some are missing. Every request
 gets a random theme and a random first letter for the victim, so rooms get different cases.
+
+## Rounds, locked places and the campus map
+
+- The investigation has `ROUNDS` rounds. A round ends at its deadline, or early as soon as every online
+  player has made one move and every question asked in this round to an online player is answered
+  (`logic.unanswered_this_round`). The host's `end_phase` also ends a round. After the last round comes
+  DISCUSSION. Each new round clears `acted` and sets a new deadline. Answering is not a move.
+- The case has `"locked": {location: round}`: two places, the crime scene always one of them, opening in
+  rounds 2 and 3. The place of the false alibi is never locked, so a strong clue is open from round 1.
+- Every place holds exactly one clue. `search`: refused outside INVESTIGATION, for a second move in the
+  same round, for an unknown place, for a place that is still locked, and for a place that was already
+  searched (or where the murderer planted a clue). `plant` only targets unlocked, unsearched places.
+- `question`: the text needs at least `MIN_QUESTION` characters ("Write a question first (at least 5
+  characters)."); never yourself, only players of this room; evidence must already be public.
+- `logic.map_view(game) -> {"round", "rounds", "places": [{"name", "state", "opens_in", "found", "found_in"}]}`;
+  state is `open`, `done` or `locked`; `found_in` is the round of the search. Never who searched.
+- `private_view(...)["last_move"]`: the player's own search, question or share of the current round
+  (for "Move made."), or None.
+- `content.BUILDINGS` (label -> left, top, width, height in percent), `content.BEACH` and `content.PLACES`
+  (8 places with pin centre `x`, `y` in percent, icon and letter) describe the plan. Every story's
+  locations must be places of `content.PLACES`.
+- On the phone every tap is a link: `?step=search|question|share|plant` plus the selection
+  (`place`, `ask`, `ev`, `clue`, `blame`). `app.handle_move_links` copies them into
+  `session_state["move"]` and removes them from the address; only the buttons call `logic`.

@@ -44,23 +44,54 @@ BRIEFING = (
     "Every one of them had a reason to hate him. Only one of them knows where it really happened."
 )
 
-LOCATIONS = ["Research Laboratory", "Main Library", "Server Room", "Underground Archive", "Security Office"]
+# ---------------------------------------------------------------- the campus map
+#
+# The NOVA SBE campus in Carcavelos, floor 0, seen from above and simplified to
+# rectangles (see ui.campus_map). Phone and board draw the same data. All values are
+# percent of the map area; the map is 1.25 times as wide as it is high.
+#
+# BUILDINGS: label -> (left, top, width, height). The beach is an area, not a building.
+BUILDINGS = {
+    "G": (33, 6, 17, 11),
+    "F": (58, 4, 20, 13),
+    "H": (15, 20, 15, 12),
+    "E": (72, 30, 24, 10),
+    "I": (45, 27, 11, 12),
+    "3": (29, 38, 13, 11),     # the ICA canteen
+    "D": (56, 45, 40, 13),
+    "C": (47, 62, 13, 10),
+    "A": (3, 52, 25, 36),
+    "B": (27, 75, 46, 15),
+    "16": (3, 36, 10, 11),     # the parking
+}
+BEACH = (80, 0, 20, 24)
+MAP_RATIO = 1.25
+
+# Every case happens at 5 of these 8 places. x, y: the centre of the place's pin, in
+# percent of the map. letter: what the pin shows.
+PLACES = {
+    "Library": {"letter": "H", "icon": "📚", "x": 22.5, "y": 26},
+    "Horizon Hall": {"letter": "G", "icon": "🖥️", "x": 41.5, "y": 11.5},
+    "Auditorium": {"letter": "F", "icon": "🎭", "x": 68, "y": 10.5},
+    "Main Deck": {"letter": "I", "icon": "🌉", "x": 50.5, "y": 33},
+    "ICA Canteen": {"letter": "K", "icon": "🍽️", "x": 35.5, "y": 43.5},
+    "Santander Hall": {"letter": "D", "icon": "🧪", "x": 76, "y": 51.5},
+    "Beach": {"letter": "B", "icon": "🌊", "x": 91, "y": 10},
+    "Parking": {"letter": "P", "icon": "🅿️", "x": 8, "y": 41.5},
+}
+
+# Case #001 happens at these five places.
+LOCATIONS = ["Santander Hall", "Library", "Horizon Hall", "Auditorium", "Main Deck"]
 
 LOCATION_FLAVOR = {
-    "Research Laboratory": "Centrifuges tick as they cool down. A whiteboard still shows Vale's handwriting, half wiped away.",
-    "Main Library": "Green reading lamps glow over empty desks. Somewhere between the shelves, a radiator knocks like a slow heartbeat.",
-    "Server Room": "Cold air, blinking lights and the hum of forty machines. One rack door is open that should be locked.",
-    "Underground Archive": "Concrete stairs lead down to rows of grey boxes. The air smells of dust, paper and old secrets.",
-    "Security Office": "Twelve camera screens, two of them black. A cold coffee sits next to tonight's patrol log.",
+    "Santander Hall": "Vale's lab on the second floor. Centrifuges tick as they cool down; a whiteboard still shows his handwriting, half wiped away.",
+    "Library": "Green reading lamps glow over empty desks. Somewhere between the shelves, a radiator knocks like a slow heartbeat.",
+    "Horizon Hall": "The server room in the basement: cold air, blinking lights and the hum of forty machines. One rack door is open that should be locked.",
+    "Auditorium": "Rows of red seats in the dark. The stage light is still warm, as if someone switched it off a minute ago.",
+    "Main Deck": "The guard's booth on the deck: twelve camera screens, two of them black, and a cold coffee next to tonight's patrol log.",
 }
 
-LOCATION_ICONS = {
-    "Research Laboratory": "🧪",
-    "Main Library": "📚",
-    "Server Room": "🖥️",
-    "Underground Archive": "🗄️",
-    "Security Office": "📹",
-}
+LOCATION_ICONS = {place: PLACES[place]["icon"] for place in LOCATIONS}
 
 # Every role: a public dossier (everybody may read it), and private texts only the player sees.
 ROLES = {
@@ -89,7 +120,7 @@ ROLES = {
         "rumor": "The IT Technician was seen pulling a camera cable out of the wall, then plugging it back in.",
     },
     "The Night Librarian": {
-        "dossier": "Keeps the Main Library and the Underground Archive open after midnight.",
+        "dossier": "Keeps the Library and its archive open after midnight.",
         "intro": "You are The Night Librarian. Vale wanted the archive closed and your night shifts cut. "
                  "Without them you cannot pay your rent.",
         "trace": "a brass archive key on a red thread",
@@ -97,7 +128,7 @@ ROLES = {
         "rumor": "The Night Librarian was seen carrying a blanket and a pillow into the reading room after closing.",
     },
     "The Security Guard": {
-        "dossier": "Night guard of the research building. Found the body at 23:47 and raised the alarm.",
+        "dossier": "Night guard of the academic halls. Found the body at 23:47 and raised the alarm.",
         "intro": "You are The Security Guard. Vale complained that you sleep on duty. "
                  "One more complaint and you lose the job.",
         "trace": "a torch with a cracked lens",
@@ -115,11 +146,11 @@ ROLES = {
 }
 
 NEUTRAL_LOCATION_CLUES = {
-    "Research Laboratory": "A rack of test tubes stands in perfect order. The fridge log shows nothing unusual tonight.",
-    "Main Library": "A returned book about Lisbon trams lies on the counter. Its due date was three weeks ago.",
-    "Server Room": "A backup job finished at 22:00 as planned. The status lights are all green.",
-    "Underground Archive": "Dust lies evenly on the boxes of row C. Nobody has touched them for months.",
-    "Security Office": "The lost-and-found box holds two umbrellas, one glove and a forgotten student card.",
+    "Santander Hall": "A rack of test tubes stands in perfect order. The fridge log shows nothing unusual tonight.",
+    "Library": "A returned book about Lisbon trams lies on the counter. Its due date was three weeks ago.",
+    "Horizon Hall": "A backup job finished at 22:00 as planned. The status lights are all green.",
+    "Auditorium": "A forgotten programme from last week's concert lies on seat F12, folded into a paper boat.",
+    "Main Deck": "The lost-and-found box holds two umbrellas, one glove and a forgotten student card.",
 }
 
 NEUTRAL_PRIVATE_CLUES = [
@@ -174,7 +205,7 @@ ENDINGS = {
 HOW_TO_PLAY = """Each player is one of 4 to 6 suspects. One of you killed the victim – and only that player knows.
 
 1. **Read your card:** your role, your alibi, your secret and two clues only you know.
-2. **Investigate:** take **one** action: search a location, interrogate someone (you may confront them with evidence), or share a clue.
+2. **Investigate – 3 rounds:** each round you take **one** action: search a place on the campus map, interrogate someone (you may confront them with evidence), or share a clue. Some places are locked until a later round.
 3. **Discuss:** answer questions and argue. Everybody may lie.
 4. **Accuse:** vote for a suspect **and** for the place where the victim really died. Name both correctly for the full truth.
 """

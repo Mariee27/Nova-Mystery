@@ -124,6 +124,12 @@ def build_case(pids, seed, story=None):
             "clues": clues,
         })
 
+    # --- rounds: two places start locked. The crime scene is always one of them; the
+    # other is never the false alibi's place, so a strong clue is open from round 1.
+    locked_place = rng.choice(innocent_locations)
+    first, second = rng.sample([2, 3], 2)
+    locked = {murder_location: first, locked_place: second}
+
     return {
         "seed": seed,
         "murderer": murderer,
@@ -131,6 +137,7 @@ def build_case(pids, seed, story=None):
         "murder_time": content.MURDER_TIME,
         "characters": characters,
         "location_clues": location_clues,
+        "locked": locked,
     }
 
 

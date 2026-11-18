@@ -197,11 +197,13 @@ def test_a_guilty_bot_does_not_search_its_own_traces():
 def test_bots_vote_by_the_evidence_they_can_read():
     g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=1)
     g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+    # The crime scene is locked at first: the host ends rounds until it opens.
+    while g["round"] < g["case"]["locked"][g["case"]["murder_location"]]:
+        g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
     # The human searches the crime scene: the trace there names the culprit's role.
     g = logic.search(g, "t1", g["case"]["murder_location"], 0)
-    g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
-    g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
-    assert g["phase"] == "VOTE"
+    while g["phase"] != "VOTE":
+        g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
     g = logic.bot_moves(g, g["phase_started"] + 1000)
     m = g["case"]["murderer"]
     for voter, target in g["votes"].items():
@@ -214,7 +216,7 @@ def test_a_demo_game_with_one_human_plays_to_the_end_by_itself():
     g = demo_lobby(1, 3)
     g = logic.start(g, "t1", logic.with_bots(g, {1}), 0, seed=logic.DEMO_SEED)
     now = 0
-    for _ in range(400):            # only timers and bots, the human does nothing
+    for _ in range(1200):           # only timers and bots, the human does nothing (5 rounds)
         if g["phase"] == "RESULT":
             break
         now += 2

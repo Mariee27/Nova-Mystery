@@ -27,15 +27,15 @@ FAKE_ANSWER = {
     "intro_lines": ["Lisbon, Portugal.", "23:47.", "Rain over the river.", "Dr. Costa is dead.",
                     "Six suspects.", "Nobody saw anything."],
     "locations": [
-        {"name": "Rooftop Garden", "icon": "🌿", "flavor": "Wet leaves glitter under the lamps.",
+        {"name": "Library", "icon": "🌿", "flavor": "Wet leaves glitter under the lamps.",
          "neutral_clue": "A watering can stands full next to the tomatoes."},
-        {"name": "Old Gym", "icon": "🏀", "flavor": "Basketballs sleep in a cage by the door.",
+        {"name": "Auditorium", "icon": "🏀", "flavor": "Basketballs sleep in a cage by the door.",
          "neutral_clue": "The scoreboard still shows last week's final score."},
-        {"name": "Print Shop", "icon": "🖨️", "flavor": "Warm paper and toner hang in the air.",
+        {"name": "Main Deck", "icon": "🖨️", "flavor": "Warm paper and toner hang in the air.",
          "neutral_clue": "A stack of exam covers waits to be stapled."},
-        {"name": "Boathouse", "icon": "🚣", "flavor": "Oars drip onto the wooden floor.",
+        {"name": "Beach", "icon": "🚣", "flavor": "Oars drip onto the wooden floor.",
          "neutral_clue": "A life jacket hangs on its hook, perfectly dry."},
-        {"name": "Glass Atrium", "icon": "🏛️", "flavor": "Rain drums on the glass roof.",
+        {"name": "ICA Canteen", "icon": "🏛️", "flavor": "Rain drums on the glass roof.",
          "neutral_clue": "A vending machine hums with a full row of water bottles."},
     ],
     "suspects": [
@@ -162,11 +162,11 @@ def test_an_unreadable_answer_raises_ai_error(answer):
         ai.parse_story(answer)
 
 
-def test_a_bad_icon_is_replaced_by_the_default_icon():
+def test_icons_come_from_the_campus_map_not_from_the_ai():
     answer = copy.deepcopy(FAKE_ANSWER)
     answer["locations"][0]["icon"] = "a whole sentence instead of an emoji"
     story = ai.parse_story(json.dumps(answer))
-    assert story["location_icons"]["Rooftop Garden"] == ai.DEFAULT_ICON
+    assert story["location_icons"]["Library"] == content.PLACES["Library"]["icon"]
 
 
 def test_write_story_uses_the_client_and_never_goes_online():
@@ -212,20 +212,20 @@ BROKEN_STORIES = {
     "too_few_roles": lambda s: s["roles"].pop("The Tutor"),
     "too_many_locations": lambda s: s["locations"].append("Car Park"),
     "name_inside_name": lambda s: s["roles"].update(
-        {"The Old Gym Coach": s["roles"].pop("The Tutor")}),
+        {"The Auditorium Coach": s["roles"].pop("The Tutor")}),
     "rumor_without_role": lambda s: s["roles"]["The Dean"].update(
         rumor="Somebody was seen hiding a brochure."),
     "rumor_names_another": lambda s: s["roles"]["The Dean"].update(
         rumor="The Dean was seen talking to The Chef."),
     "trace_names_a_place": lambda s: s["roles"]["The Chef"].update(
-        trace="a spoon from the Print Shop"),
+        trace="a spoon from the Main Deck"),
     "neutral_clue_points": lambda s: s["neutral_location_clues"].update(
-        {"Boathouse": "A jacket that belongs to somebody hangs here."}),
+        {"Beach": "A jacket that belongs to somebody hangs here."}),
     "too_long": lambda s: s.update(case_title="x" * 81),
     "missing_ending": lambda s: s["endings"].pop("escaped"),
     "too_few_private_clues": lambda s: s.update(neutral_private_clues=["You noticed rain."]),
-    "missing_flavor": lambda s: s["location_flavor"].pop("Old Gym"),
-    "intro_names_a_place": lambda s: s["intro_lines"].__setitem__(2, "Blood in the Boathouse."),
+    "missing_flavor": lambda s: s["location_flavor"].pop("Auditorium"),
+    "intro_names_a_place": lambda s: s["intro_lines"].__setitem__(2, "Blood in the Beach."),
     "intro_names_a_suspect": lambda s: s["intro_lines"].__setitem__(5, "The Dean knows more."),
     "too_few_intro_lines": lambda s: s["intro_lines"].pop(),
     "intro_line_too_long": lambda s: s["intro_lines"].__setitem__(0, "x" * 61),
@@ -350,8 +350,8 @@ def test_the_ai_case_texts_reach_the_screens():
     g = start(lobby_with_ai())
     story = logic.story_view(g)
     assert "The Silent Regatta" in ui.case_file(story)
-    assert "Glass Atrium" in ui.campus_map([], story=story)
-    assert "Rooftop Garden" in ui.campus_map([], story=story)
+    assert "ICA Canteen" in ui.campus_map([], story=story)
+    assert "Library" in ui.campus_map([], story=story)
 
 
 # ---------------------------------------------------------------- the bots can play it
@@ -363,7 +363,7 @@ def test_demo_suspects_play_an_ai_case_to_the_end():
     g = logic.ai_case_ready(logic.ai_case_writing(g, 0), fake_story(), 1)
     g = logic.start(g, "t1", logic.with_bots(g, {1}), 0, seed=3)
     now = 0
-    for _ in range(400):
+    for _ in range(1200):
         if g["phase"] == "RESULT":
             break
         now += 2
@@ -508,17 +508,17 @@ def test_rumors_are_brought_into_the_fixed_form(written, expected):
 
 def test_a_neutral_clue_that_names_someone_is_made_neutral():
     answer = copy.deepcopy(FAKE_ANSWER)
-    answer["neutral_private_clues"][0] = "You noticed The Dean leaving the Boathouse early."
+    answer["neutral_private_clues"][0] = "You noticed The Dean leaving the Beach early."
     answer["locations"][1]["neutral_clue"] = "The Chef left a towel here."
     story = ai.parse_story(json.dumps(answer))
     assert story["neutral_private_clues"][0] == "You noticed someone leaving a nearby building early."
-    assert story["neutral_location_clues"]["Old Gym"] == "someone left a towel here."
+    assert story["neutral_location_clues"]["Auditorium"] == "someone left a towel here."
     assert logic.validate_story(story) == []
 
 
 def test_every_neutral_clue_naming_someone_is_still_made_neutral():
     answer = copy.deepcopy(FAKE_ANSWER)
-    answer["neutral_private_clues"] = ["You noticed The Dean was seen near the Old Gym."] * 8
+    answer["neutral_private_clues"] = ["You noticed The Dean was seen near the Auditorium."] * 8
     story = ai.parse_story(json.dumps(answer))
     assert logic.validate_story(story) == []
 
@@ -534,7 +534,7 @@ def test_length_hints_copied_from_the_request_are_removed():
 
 @pytest.mark.parametrize("change", [
     lambda lines: lines.__setitem__(0, "x" * 61),
-    lambda lines: lines.__setitem__(2, "Blood in the Boathouse."),
+    lambda lines: lines.__setitem__(2, "Blood in the Beach."),
     lambda lines: lines.pop(),
 ])
 def test_intro_lines_that_do_not_fit_are_replaced_by_a_standard_intro(change):
@@ -553,12 +553,12 @@ def test_a_rumor_that_names_another_suspect_points_only_at_its_own_suspect():
     assert logic.validate_story(story) == []
 
 
-def test_location_names_lose_a_leading_the():
+def test_place_names_get_their_official_spelling():
     answer = copy.deepcopy(FAKE_ANSWER)
-    answer["locations"][0]["name"] = "the rooftop garden"
+    answer["locations"][0]["name"] = "the library"
     story = ai.parse_story(json.dumps(answer))
-    assert story["locations"][0] == "Rooftop garden"
-    assert "Rooftop garden" in story["location_flavor"]
+    assert story["locations"][0] == "Library"
+    assert "Library" in story["location_flavor"]
     assert logic.validate_story(story) == []
 
 
@@ -617,7 +617,7 @@ def test_missing_or_broken_endings_are_replaced_by_generic_ones():
 
 def test_a_trace_that_names_someone_is_made_neutral():
     answer = copy.deepcopy(FAKE_ANSWER)
-    answer["suspects"][2]["trace"] = "a spoon from the Print Shop"
+    answer["suspects"][2]["trace"] = "a spoon from the Main Deck"
     story = ai.parse_story(json.dumps(answer))
     assert story["roles"]["The Chef"]["trace"] == "a spoon from a nearby building"
     assert logic.validate_story(story) == []
@@ -625,7 +625,7 @@ def test_a_trace_that_names_someone_is_made_neutral():
 
 def test_the_request_asks_for_spares_and_has_no_bracket_hints():
     prompt = ai.user_prompt()
-    assert "Exactly 7 suspects and exactly 6 locations" in prompt
+    assert "Exactly 7 suspects" in prompt and "exactly the 5 places above" in prompt
     assert "[60]" not in prompt and "[40]" not in prompt
 
 
@@ -636,3 +636,30 @@ def test_every_request_gets_a_theme_and_a_letter_for_the_victim():
     assert any(theme in prompt for theme in ai.THEMES)
     themes = {next(t for t in ai.THEMES if t in ai.user_prompt(random.Random(seed))) for seed in range(40)}
     assert len(themes) > 5                                   # rooms really get different themes
+
+
+
+# ---------------------------------------------------------------- places on the campus map
+
+def test_the_ai_writes_about_five_given_campus_places():
+    import random
+    places = ai.pick_places(random.Random(3))
+    assert len(places) == 5 and all(place in content.PLACES for place in places)
+    prompt = ai.user_prompt(random.Random(3), places=places)
+    assert ", ".join(places) in prompt and "<PLACES>" not in prompt
+
+
+def test_answer_texts_are_matched_to_the_given_places_by_name_or_order():
+    places = ["Library", "Auditorium", "Main Deck", "Beach", "ICA Canteen"]
+    answer = copy.deepcopy(FAKE_ANSWER)
+    answer["locations"].reverse()                       # any order
+    answer["locations"][0]["name"] = "Canteen"          # a shortened name
+    story = ai.parse_story(json.dumps(answer), places)
+    assert story["locations"] == places
+    assert logic.validate_story(story) == []
+
+
+def test_a_place_that_is_not_on_the_campus_map_is_refused():
+    story = fake_story()
+    story["locations"][0] = "Moon Base"
+    assert any("not a place on the campus map" in p for p in logic.validate_story(story))

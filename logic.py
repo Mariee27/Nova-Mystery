@@ -14,7 +14,13 @@ import content
 import generator
 
 PHASES = ["LOBBY", "REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE", "RESULT", "ABORTED"]
-DURATIONS = {"REVEAL": 30, "INVESTIGATION": 90, "DISCUSSION": 60, "VOTE": 30}
+DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
+# The investigation has ROUNDS rounds. Each round lasts at most DURATIONS["INVESTIGATION"]
+# seconds and ends early when every online player has made their one move and every
+# question asked in this round has been answered.
+ROUNDS = 3
+LOCKED_PLACES = 2      # places that are locked at the start (the crime scene is always one)
+MIN_QUESTION = 5       # a question needs at least this many characters
 NEXT_PHASE = {
     "REVEAL": "INVESTIGATION",
     "INVESTIGATION": "DISCUSSION",
@@ -84,6 +90,8 @@ def _character(game, pid):
 
 def _add_log(game, kind, by, text, **extra):
     entry = {"id": game["next_log_id"], "kind": kind, "by": by, "text": text}
+    if game["phase"] == "INVESTIGATION":
+        entry["round"] = game.get("round", 1)   # the board shows when it happened
     entry.update(extra)
     game["log"].append(entry)
     game["next_log_id"] += 1
@@ -213,8 +221,48 @@ def _enter_phase(game, phase, now):
     game["phase"] = phase
     game["phase_started"] = now
     game["deadline"] = now + DURATIONS[phase] if phase in DURATIONS else None
+    if phase == "INVESTIGATION":
+        game["round"] = 1
+        game["acted"] = []
     if phase == "RESULT":
         game["result"] = _compute_result(game)
+
+
+def _advance(game, now):
+    """End the current step of an already copied game: the next investigation round,
+    or after the last round (and in every other phase) the next phase."""
+    if game["phase"] == "INVESTIGATION" and game.get("round", 1) < ROUNDS:
+        game["round"] = game.get("round", 1) + 1
+        game["acted"] = []                  # everybody gets a new move
+        game["phase_started"] = now
+        game["deadline"] = now + DURATIONS["INVESTIGATION"]
+        return
+    _enter_phase(game, NEXT_PHASE[game["phase"]], now)
+
+
+def current_round(game):
+    """1..ROUNDS during the investigation; 0 before it, ROUNDS + 1 after it."""
+    if game["phase"] in ("LOBBY", "REVEAL"):
+        return 0
+    if game["phase"] == "INVESTIGATION":
+        return game.get("round", 1)
+    return ROUNDS + 1
+
+
+def locked_until(game, location):
+    """The round in which a place opens, or None if it is open now."""
+    if game["case"] is None:
+        return None
+    opens = game["case"].get("locked", {}).get(location)
+    if opens is None or current_round(game) >= opens:
+        return None
+    return opens
+
+
+def unanswered_this_round(game, online):
+    """Questions of the current round that an online player has not answered yet."""
+    return [e for e in game["log"] if e["kind"] == "question" and not e["answered"]
+            and e.get("round") == game.get("round") and e["target"] in online]
 
 
 def _name(game, pid):
@@ -230,7 +278,7 @@ def end_phase(game, token, online, now):
     if player["pid"] != game["host"]:
         raise Rejected("Only the host can end a phase.")
     game = copy.deepcopy(game)
-    _enter_phase(game, NEXT_PHASE[game["phase"]], now)
+    _advance(game, now)
     return game
 
 
@@ -265,6 +313,8 @@ def tick(game, online, now):
             return new
         # 3. Timer, 4. early end.
         everyone_acted = all(pid in game["acted"] for pid in online_players)
+        if game["phase"] == "INVESTIGATION" and unanswered_this_round(game, online):
+            everyone_acted = False      # the round waits for the answers (not longer than the timer)
         everyone_voted = all(str(pid) in game["votes"] for pid in online_players)
         if (
             now >= game["deadline"]
@@ -272,7 +322,7 @@ def tick(game, online, now):
             or (game["phase"] == "VOTE" and everyone_voted)
         ):
             new = new or copy.deepcopy(game)
-            _enter_phase(new, NEXT_PHASE[game["phase"]], now)
+            _advance(new, now)
     return new or game
 
 
@@ -288,11 +338,19 @@ def _begin_action(game, token):
 
 
 def search(game, token, location, now):
+    """Search a place and find its one clue.
+
+    Not allowed: outside the investigation, a second move in the same round, an unknown
+    place, a place that is still locked, or a place that has already been searched.
+    """
     player = _begin_action(game, token)
     if location not in story_of(game)["locations"]:
         raise Rejected("Unknown location.")
+    opens = locked_until(game, location)
+    if opens is not None:
+        raise Rejected(f"This place is locked. It opens in round {opens}.")
     if location in game["searched"]:
-        raise Rejected("This location has already been searched. Pick another one.")
+        raise Rejected("This place has already been searched. Pick another one.")
     clue = next(c for c in game["case"]["location_clues"] if c["location"] == location)
     game = copy.deepcopy(game)
     game["searched"].append(location)
@@ -314,7 +372,11 @@ def question(game, token, target_pid, text, now, evidence_id=None):
         raise Rejected("You cannot question yourself.")
     if target_pid not in _player_ids(game):
         raise Rejected("Unknown player.")
+    if not isinstance(text, str) or len(text.strip()) < MIN_QUESTION:
+        raise Rejected(f"Write a question first (at least {MIN_QUESTION} characters).")
     text = clean_text(text, MAX_TEXT)
+    if len(text) < MIN_QUESTION:
+        raise Rejected(f"Write a question first (at least {MIN_QUESTION} characters).")
     if evidence_id is not None and not any(
             e["id"] == evidence_id and e["kind"] in EVIDENCE_KINDS for e in game["log"]):
         raise Rejected("You can only confront someone with evidence that is already public.")
@@ -370,6 +432,7 @@ def plant_locations(game):
     return [
         clue["location"] for clue in game["case"]["location_clues"]
         if clue["location"] not in game["searched"]
+        and locked_until(game, clue["location"]) is None
         and not (clue["implicates"] == murderer and clue["kind"] in STRONG_KINDS)
     ]
 
@@ -531,19 +594,27 @@ def _bot_scene(game, pid):
 
 def _bot_investigate(game, bot, index, now):
     pid = bot["pid"]
-    free = [loc for loc in story_of(game)["locations"] if loc not in game["searched"]]
+    places = [loc for loc in story_of(game)["locations"] if locked_until(game, loc) is None]
+    free = [loc for loc in places if loc not in game["searched"]]
     if pid == game["case"]["murderer"]:
         # A guilty bot does not search where its own traces are.
         mine = {c["location"] for c in game["case"]["location_clues"]
                 if c["implicates"] == pid and c["kind"] in STRONG_KINDS}
         free = [loc for loc in free if loc not in mine]
+    # Places are scarce (one clue each): a bot leaves the last open place to a human
+    # player who has not moved yet.
+    humans_waiting = any(not p.get("bot") and p["pid"] not in game["acted"] for p in game["players"])
+    if humans_waiting and len(free) <= 1:
+        free = []
     if free:
         return search(game, bot["token"], free[index % len(free)], now)
     public = {e.get("clue_id") for e in game["log"]}
     clue = next((c for c in _character(game, pid)["clues"] if c["id"] not in public), None)
-    if clue is None:
-        return game
-    return share(game, bot["token"], clue["id"], now)
+    if clue is not None:
+        return share(game, bot["token"], clue["id"], now)
+    # Nothing left to search or share: ask someone, so the round can still end early.
+    others = [p for p in _player_ids(game) if p != pid]
+    return question(game, bot["token"], others[index % len(others)], "Where were you at 23:30?", now)
 
 
 def bot_moves(game, now):
@@ -641,6 +712,7 @@ def private_view(game, token):
         "can_plant": False,
         "plant_locations": [],
         "open_questions": [],
+        "last_move": None,
     }
     if game["case"] is None:
         return view
@@ -666,8 +738,22 @@ def private_view(game, token):
             for e in game["log"]
             if e["kind"] == "question" and e["target"] == pid and not e["answered"]
         ],
+        "last_move": last_move(game, pid),
     })
     return view
+
+
+def last_move(game, pid):
+    """The player's own move in the current round (for the 'Move made.' screen), or None.
+    Only this player's own entry: who searched stays hidden from everybody else."""
+    if game["phase"] != "INVESTIGATION":
+        return None
+    for entry in reversed(game["log"]):
+        if (entry["by"] == pid and entry["kind"] in ("search", "question", "share")
+                and entry.get("round") == game.get("round")):
+            return {key: entry[key] for key in ("id", "kind", "text", "location", "target", "evidence")
+                    if key in entry}
+    return None
 
 
 # ---------------------------------------------------------------- case validator
@@ -733,6 +819,20 @@ def validate_case(case, pids, story=None):
     for character in characters:
         if len(character["clues"]) != 2:
             problems.append(f"Player {character['pid']} must have exactly 2 private clues.")
+    # 7. rounds: locked places (cases built before the rounds have none)
+    locked = case.get("locked") or {}
+    if locked:
+        if case.get("murder_location") not in locked:
+            problems.append("The crime scene must be locked at the start.")
+        if len(locked) != LOCKED_PLACES:
+            problems.append(f"Exactly {LOCKED_PLACES} places must be locked at the start.")
+        for location, opens in locked.items():
+            if location not in story["locations"] or not 2 <= opens <= ROUNDS:
+                problems.append(f"{location} must open in a round from 2 to {ROUNDS}.")
+        if not any(c["implicates"] == murderer and c["kind"] in STRONG_KINDS
+                   and c["location"] not in locked for c in location_clues):
+            problems.append("No strong clue against the murderer is open in round 1.")
+
     ids = [c["id"] for c in all_clues]
     if len(ids) != len(set(ids)):
         problems.append("Clue ids must be unique.")
@@ -807,6 +907,27 @@ def story_view(game):
     ai = game.get("ai_case")
     view["pending"] = (game["case"] is None and ai is not None and ai["status"] == "writing")
     return view
+
+
+def map_view(game):
+    """The campus map for every screen: for each place of this case, whether it is open,
+    searched or still locked, and in which round it was searched. Only public facts:
+    what was searched is in the log anyway, and locks are shown openly. Never who
+    searched, so that the murderer's planted clue does not stand out."""
+    places = []
+    for location in story_of(game)["locations"]:
+        opens = locked_until(game, location)
+        found = [e for e in game["log"] if e["kind"] == "search" and e.get("location") == location]
+        if opens is not None:
+            state = "locked"
+        elif found or location in game["searched"]:
+            state = "done"
+        else:
+            state = "open"
+        places.append({"name": location, "state": state, "opens_in": opens,
+                       "found": [e["id"] for e in found],
+                       "found_in": found[0].get("round") if found else None})
+    return {"round": current_round(game), "rounds": ROUNDS, "places": places}
 
 
 def host_note(game, token):
@@ -922,6 +1043,8 @@ def validate_story(story):
     icons = story.get("location_icons") or {}
     neutral_at = story.get("neutral_location_clues") or {}
     for location in locations:
+        if location and location not in content.PLACES:
+            problems.append(f"{location} is not a place on the campus map.")
         check_text(flavor.get(location), "flavor", f"The description of {location}")
         icon = icons.get(location)
         if not isinstance(icon, str) or not 1 <= len(icon) <= 4:
