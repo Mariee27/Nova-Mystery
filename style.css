@@ -545,3 +545,33 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .iv-q { font-family: var(--serif); font-weight: 800; font-size: 1.5rem; margin: .4rem 0; color: var(--ivory); }
 .iv-a { font-family: var(--serif); font-size: 1.15rem; color: var(--paper); }
 .iv-w { font-family: var(--serif); font-style: italic; color: var(--muted); }
+
+/* ---------- discussion: alibi check on the board ---------- */
+.ac-row { display: grid; grid-template-columns: minmax(9rem, 14rem) minmax(7rem, 11rem) 1fr auto; gap: .5rem 1rem;
+  align-items: center; padding: .6rem 0; border-top: 1px solid var(--line); font-family: var(--sans); }
+.ac-who { display: flex; gap: .6rem; align-items: center; }
+.ac-who .face { flex: none; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
+  background: var(--paper); color: var(--ink); font: 700 .85rem var(--mono); }
+.ac-role { display: block; font: .62rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--gold); }
+.ac-says { color: #B9BFCC; }
+.ac-says b { color: var(--ivory); }
+.ac-facts { display: flex; flex-wrap: wrap; gap: .35rem; }
+.ac-fact { font: .78rem var(--mono); padding: .2rem .5rem; border-radius: 3px; border: 1px solid var(--line); color: #B9BFCC; }
+.ac-fact.yes { border-color: #3F7F45; color: #8FD694; }
+.ac-fact.no { border-color: var(--act); color: var(--act-text); }
+.ac-none { color: var(--muted); font-size: .85rem; font-style: italic; }
+.ac-flag { font: 700 .75rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--act-text);
+  animation: acPulse 1.6s ease-in-out infinite alternate; }
+.ac-row.clash .ac-who b { color: var(--act-text); }
+@keyframes acPulse { from { opacity: .55; } to { opacity: 1; } }
+@media (max-width: 640px) {     /* phone width: one fact block under the name */
+  .ac-row { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) { .ac-flag { animation: none; } }
+
+/* ---------- phone: private notebook ---------- */
+.nb-sum { border-left: 3px solid var(--gold); background: var(--surface); padding: .6rem .9rem; margin: .4rem 0 .8rem;
+  font-family: var(--sans); border-radius: 0 6px 6px 0; }
+.nb-sum .lh { font: .62rem var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); margin-bottom: .25rem; }
+.nb-sum .bad { color: var(--act-text); font-weight: 700; }
+.nb-sum .ok { color: #8FD694; font-weight: 700; }

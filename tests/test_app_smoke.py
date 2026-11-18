@@ -420,3 +420,31 @@ def test_the_phone_guides_through_one_move_and_explains_mistakes(game_db):
         assert db.load(conn, code)["acted"] == []             # no mistake used up the move
     finally:
         conn.close()
+
+
+def test_discussion_shows_the_alibi_check_on_the_board_and_the_notebook_only_on_phones(game_db):
+    board = Browser()
+    board.run(press=["Create room"])
+    code = board.st.query_params["room"]
+    phones = []
+    for name in ["Ana", "Ben", "Caro", "Dev"]:
+        phone = Browser(room=code)
+        phone.run(press=["Join"], **{"Your name": name})
+        phones.append(phone)
+    phones[0].run(press=["Start game"], **{"Use the fixed demo case": True})
+    conn = db.connect(game_db)
+    try:
+        phones[0].run(press=["End phase (host)"])             # REVEAL → INVESTIGATION
+        end_investigation(phones[0], conn, code)               # → DISCUSSION
+        assert db.load(conn, code)["phase"] == "DISCUSSION"
+    finally:
+        conn.close()
+
+    page = board.run()
+    assert "Alibi check" in page and 'class="ac-row' in page
+    assert "Your notebook" not in page                         # the board never shows a notebook
+
+    phone_page = phones[1].run()
+    assert "Your notebook · only on this phone" in phone_page
+    assert "Possible crime scenes" in phone_page
+    assert "Alibi check" not in phone_page                    # the phone stays simple

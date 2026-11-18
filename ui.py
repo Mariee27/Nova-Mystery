@@ -724,3 +724,104 @@ def bars(counts, labels, hit=None):
                     f'<div class="fill" style="width:{count / most * 100:.0f}%"></div></div>'
                     f'<div class="c">{count}</div></div>')
     return f'<div class="bars">{"".join(rows)}</div>'
+
+
+# ---------------------------------------------------------------- discussion: alibi check
+
+# How the public clues talk about where someone was (the wording of content.TEMPLATES).
+# Checked in this order: "hurrying toward" also contains "you saw".
+FACT_PHRASES = (
+    ("no entry by", "not", "keycard: not at"),
+    ("belongs to", "trace", "trace found at"),
+    ("hurrying toward", "going", "seen hurrying to"),
+    ("you saw", "seen", "seen at"),
+)
+
+
+def _place_in(text, places):
+    """The place named in a text (the longest name wins, so 'Main Library' beats 'Library')."""
+    found = [place for place in places if place in text]
+    return max(found, key=len) if found else None
+
+
+def claimed_place(pid, log, places):
+    """Where a player says they were: the place in their latest answer, or None."""
+    for entry in reversed(log):
+        if entry["kind"] == "answer" and entry["by"] == pid:
+            place = _place_in(entry["text"], places)
+            if place:
+                return place
+    return None
+
+
+def facts_about(role, log, places):
+    """What the public evidence says about where one role was: [(kind, label, place, exhibit)].
+    Only search results and shared clues count; texts in other wording are skipped."""
+    facts = []
+    for entry in log:
+        if entry["kind"] not in ("search", "share") or role not in entry["text"]:
+            continue
+        place = _place_in(entry["text"], places)
+        if place is None:
+            continue
+        for phrase, kind, label in FACT_PHRASES:
+            if phrase in entry["text"]:
+                facts.append((kind, label, place, entry["id"]))
+                break
+    return facts
+
+
+def clashes(kind, place, claim):
+    """True when a fact does not fit the place someone claims."""
+    if claim is None:
+        return False
+    if kind == "not":
+        return place == claim       # "no entry at X" but they say they were at X
+    return place != claim           # seen or traced somewhere else
+
+
+def alibi_check(players, log, places):
+    """The board during the discussion: for every suspect what they say and what the
+    public evidence says. Uses only public data (answers, search results, shared clues)."""
+    rows, bad = [], 0
+    for player in players:
+        role = player.get("role") or ""
+        claim = claimed_place(player["pid"], log, places)
+        facts = facts_about(role, log, places) if role else []
+        chips, clash = [], False
+        for kind, label, place, exhibit in facts:
+            wrong = clashes(kind, place, claim)
+            clash = clash or wrong
+            css = "no" if wrong else ("yes" if claim else "")
+            chips.append(f'<span class="ac-fact {css}">{h(label)} {h(place)} · Ex. {h(exhibit)}</span>')
+        bad += clash
+        says = f'Says: <b>{h(claim)}</b>' if claim else '<i>No statement yet</i>'
+        facts_html = "".join(chips) or '<span class="ac-none">No evidence about them yet</span>'
+        flag = '<span class="ac-flag">⚠ Doesn’t add up</span>' if clash else ""
+        rows.append(f'<div class="ac-row{" clash" if clash else ""}">'
+                    f'<div class="ac-who"><span class="face">{initial(player["name"])}</span>'
+                    f'<span><b>{h(player["name"])}</b><span class="ac-role">{h(role)}</span></span></div>'
+                    f'<div class="ac-says">{says}</div><div class="ac-facts">{facts_html}</div>{flag}</div>')
+    summary = f'{bad} {"story doesn’t" if bad == 1 else "stories don’t"} add up'
+    return (f'<div class="box ac"><div class="lbl">Alibi check · what they say vs. the evidence'
+            f'<span>{summary}</span></div>{"".join(rows)}</div>')
+
+
+# ---------------------------------------------------------------- phone: private notebook
+
+NOTE_MARKS = ("?", "Suspicious", "Cleared")
+
+
+def notebook_summary(players, marks, scenes):
+    """One line above the vote form: what the player noted in their own notebook.
+    marks: pid -> one of NOTE_MARKS; scenes: places they ticked as possible crime scenes."""
+    parts = []
+    for mark, css in (("Suspicious", "bad"), ("Cleared", "ok")):
+        names = [h(p["name"]) for p in players if marks.get(p["pid"]) == mark]
+        if names:
+            parts.append(f'<span class="{css}">{mark}:</span> {", ".join(names)}')
+    if scenes:
+        parts.append(f'<span class="ok">Possible scene:</span> {", ".join(h(s) for s in scenes)}')
+    if not parts:
+        return ""
+    return f'<div class="nb-sum"><div class="lh">📓 Your notebook</div>{" · ".join(parts)}</div>'

@@ -144,6 +144,13 @@ def name_of(public, pid):
     return "Someone"
 
 
+def role_of(public, pid):
+    for player in public["players"]:
+        if player["pid"] == pid:
+            return player["role"] or ""
+    return ""
+
+
 def player_label(public, pid):
     for player in public["players"]:
         if player["pid"] == pid:
@@ -411,6 +418,9 @@ def board_live(code):
     if phase == "RESULT":
         show_result(public)
         return
+    if phase == "DISCUSSION":
+        board_discussion(public)
+        return
     if phase == "LOBBY":
         left, right = st.columns([2, 3])
         with left:
@@ -465,6 +475,21 @@ def board_round(code, public):
         show(ui.interrogation(public["log"], lambda pid: name_of(public, pid),
                               lambda pid: next((p.get("role") or "" for p in public["players"]
                                                 if p["pid"] == pid), "")))
+
+
+def board_discussion(public):
+    """DISCUSSION on the board: the alibi check gets the full width so the room argues
+    about it; below it the latest interrogation, the briefing and the evidence wall."""
+    story = public["story"]
+    show(ui.alibi_check(public["players"], public["log"], story["locations"]))
+    left, right = st.columns([2, 3])
+    with left:
+        show(ui.interrogation(public["log"], lambda pid: name_of(public, pid),
+                              lambda pid: role_of(public, pid)))
+        st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
+    with right:
+        st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
+        show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid), story=story))
 
 
 def board_screen(code):
@@ -525,6 +550,50 @@ def player_log(code):
 def show_card(me, expanded):
     with st.expander(f"Your card: {me['role']}", expanded=expanded):
         show(ui.dossier(me))
+
+
+def remember(key, default):
+    """Streamlit forgets a widget's value in a run where the widget is not drawn (for example
+    when the phase changes). A copy under 'saved_<key>' brings the value back."""
+    if key not in st.session_state:
+        st.session_state[key] = st.session_state.get("saved_" + key, default)
+    return key
+
+
+def keep(key):
+    st.session_state["saved_" + key] = st.session_state.get(key)
+
+
+def notebook_keys(code, me):
+    prefix = f"nb_{code}_{me['pid']}"
+    return prefix + "_scenes", prefix + "_text", lambda pid: f"{prefix}_{pid}"
+
+
+def notebook(code, public, me, expanded):
+    """The player's private notebook. It lives only in this browser (st.session_state) and is
+    never sent to the server, so nobody else – not even the board – can see it."""
+    scenes_key, text_key, mark_key = notebook_keys(code, me)
+    others = [p for p in public["players"] if p["pid"] != me["pid"]]
+    with st.expander("📓 Your notebook · only on this phone", expanded=expanded):
+        st.caption("Mark who looks suspicious. Nothing here is shared. A reload clears it.")
+        for player in others:
+            key = remember(mark_key(player["pid"]), "?")
+            st.segmented_control(player_label(public, player["pid"]), ui.NOTE_MARKS, key=key)
+            keep(key)
+        st.pills("Possible crime scenes", public["story"]["locations"], selection_mode="multi",
+                 key=remember(scenes_key, []))
+        keep(scenes_key)
+        st.text_area("Notes", key=remember(text_key, ""), height=90,
+                     placeholder="e.g. Rui says Library – keycard says no.")
+        keep(text_key)
+
+
+def notebook_summary(code, public, me):
+    """The notebook in one line, shown above the vote form."""
+    scenes_key, _, mark_key = notebook_keys(code, me)
+    others = [p for p in public["players"] if p["pid"] != me["pid"]]
+    marks = {p["pid"]: st.session_state.get("saved_" + mark_key(p["pid"])) for p in others}
+    return ui.notebook_summary(others, marks, st.session_state.get("saved_" + scenes_key) or [])
 
 
 def sealed_card(code, me, story):
@@ -855,13 +924,17 @@ def player_screen(code, token):
     elif phase == "INVESTIGATION":
         answer_forms(code, token, public, me)    # the round waits for your answer
         investigation_actions(code, token, public, me)
+        notebook(code, public, me, expanded=False)
         show_card(me, expanded=False)
     elif phase == "DISCUSSION":
         answer_forms(code, token, public, me)
         st.info("Talk to each other. Compare the alibis. Who is lying?")
+        notebook(code, public, me, expanded=True)
         show_card(me, expanded=False)
     elif phase == "VOTE":
+        show(notebook_summary(code, public, me))
         vote_form(code, token, public, me)
+        notebook(code, public, me, expanded=False)
         show_card(me, expanded=False)
 
     if phase in logic.DURATIONS:                 # REVEAL, INVESTIGATION, DISCUSSION, VOTE
