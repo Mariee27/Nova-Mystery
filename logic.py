@@ -12,6 +12,7 @@ import secrets
 
 import content
 import generator
+import minigames
 
 PHASES = ["LOBBY", "REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE", "RESULT", "ABORTED"]
 DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
@@ -105,7 +106,8 @@ def _require_phase(game, *phases):
 
 # ---------------------------------------------------------------- lobby
 
-def new_game(code, now):
+def new_game(code, now, minigames=False):
+    """minigames=True seals every place's clue behind a puzzle (see minigames.py)."""
     return {
         "code": code,
         "phase": "LOBBY",
@@ -124,6 +126,7 @@ def new_game(code, now):
         "scene_votes": {},   # str(pid of voter) -> location where they think Vale died
         "result": None,
         "abort_reason": None,
+        "minigames": bool(minigames),
     }
 
 
@@ -337,11 +340,13 @@ def _begin_action(game, token):
     return player
 
 
-def search(game, token, location, now):
+def search(game, token, location, now, proof=None):
     """Search a place and find its one clue.
 
     Not allowed: outside the investigation, a second move in the same round, an unknown
     place, a place that is still locked, or a place that has already been searched.
+    In a room with mini-games, a human player must also send a `proof` that solves the
+    place's puzzle (checked by minigames.verify); demo bots search without one.
     """
     player = _begin_action(game, token)
     if location not in story_of(game)["locations"]:
@@ -351,6 +356,8 @@ def search(game, token, location, now):
         raise Rejected(f"This place is locked. It opens in round {opens}.")
     if location in game["searched"]:
         raise Rejected("This place has already been searched. Pick another one.")
+    if minigames.enabled(game) and not player.get("bot") and not minigames.verify(game, location, proof):
+        raise Rejected("The evidence is still sealed. Solve the puzzle first.")
     clue = next(c for c in game["case"]["location_clues"] if c["location"] == location)
     game = copy.deepcopy(game)
     game["searched"].append(location)
@@ -594,6 +601,11 @@ def _bot_scene(game, pid):
 
 def _bot_investigate(game, bot, index, now):
     pid = bot["pid"]
+    # With mini-games a human needs 30 to 90 seconds to open a place. Demo bots wait until
+    # every human has made their move, so they never snatch a place from someone solving it.
+    if minigames.enabled(game) and any(not p.get("bot") and p["pid"] not in game["acted"]
+                                       for p in game["players"]):
+        return game
     places = [loc for loc in story_of(game)["locations"] if locked_until(game, loc) is None]
     free = [loc for loc in places if loc not in game["searched"]]
     if pid == game["case"]["murderer"]:
@@ -713,6 +725,7 @@ def private_view(game, token):
         "plant_locations": [],
         "open_questions": [],
         "last_move": None,
+        "puzzles": {},
     }
     if game["case"] is None:
         return view
@@ -739,6 +752,9 @@ def private_view(game, token):
             if e["kind"] == "question" and e["target"] == pid and not e["answered"]
         ],
         "last_move": last_move(game, pid),
+        # The sealed exhibits of this case (mini-games). Never contains an answer.
+        "puzzles": ({p["location"]: p for p in minigames.specs(game)}
+                    if game["phase"] == "INVESTIGATION" else {}),
     })
     return view
 

@@ -92,6 +92,33 @@ Phases end early when everybody is done, and the host can skip ahead.
 - **Timers** on every phase, so the game always ends.
 - **Host tools:** start the game, end a phase early, remove strangers from the lobby.
 
+### Evidence mini-games – play to unlock
+
+In every room created by the app, each place's clue is a **sealed exhibit**. Tap a pin, press
+*Search &lt;place&gt;*, and solve that place's puzzle on your phone; solving it is your move for the round.
+
+| Game | What you do | Solvable from |
+|---|---|---|
+| 🔐 Crack the code | Tap a 4-digit code on a keypad | The case timeline: death ≈ 23:30, body found 23:47 (e.g. 17 minutes, then 23 → `1723`) |
+| 🕵️ Rub to reveal | Rub a blank notepad page (finger or mouse) to raise the pressed-in writing | Just rubbing: 55 % of the page |
+| 🧩 Reconstruct the still | Tap two pieces to swap them (9 or 6 pieces of a camera still) | The picture: camera number, place name, timestamp |
+| 🧠 Decode the note | Turn a cipher wheel until the shifted-letter note reads | The note is signed with the victim's name |
+
+- **Checked in Python, never on the phone.** The phone only reports what the player did (digits, rubbed cells,
+  swaps, wheel setting). `minigames.verify` checks it against data the phone never gets (the code, the cipher
+  key) or cannot change (the seeded starting order), and `logic.search` refuses to hand out the clue without a
+  valid proof. Each place still has exactly one clue, so evidence is awarded exactly once.
+- **Hints** on request, one by one (nudge → stronger hint → almost the answer), plus contextual feedback after a
+  wrong attempt ("that is just one time from the case file …"). Wrong answers cost nothing but time.
+- **Reward:** "🔓 ACCESS GRANTED · NEW EVIDENCE DISCOVERED · Evidence #0N – …", the clue, the case progress and a
+  link to the evidence log. It stays until *Continue*, even if the round ends in that very second.
+- **Phone first:** one custom Streamlit component (`st.components.v2`, no new package), pointer events for touch and
+  mouse, tap targets of at least 48 px, no horizontal scrolling at 320 px. Sound is off by default (🔇/🔊 in the
+  puzzle header) and only starts after a tap, as mobile browsers require. Reduced motion is respected.
+- Every puzzle is built from the case seed and the story, so it works for case #001 and AI-written cases, and
+  every player in a room gets the same puzzle for the same place. Demo bots skip the puzzles and wait until every
+  human has moved, so they never snatch a place from someone who is solving it.
+
 ## 4. Run it locally
 
 Requirements: Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
@@ -174,6 +201,8 @@ together with a check of all dependencies for known vulnerabilities.
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
 | `tests/test_views.py` | 19 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card. |
 | `tests/test_db.py` | 13 | Storage: transactions, rollback on rejection, two players acting at the same moment, heartbeats, room codes, room limit. |
+| `tests/test_minigames.py` | 85 | The four puzzles: solvable from the story, the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
+| `tests/test_minigame_screen.py` | 7 | The puzzles on the phone: seal on the place card, wrong code unlocks nothing, hints one by one, reward until *Continue* (also after the round ends), progress survives reruns, "Too late." |
 | `tests/test_app_smoke.py` | 2 | Plays a whole game through every screen with a stand-in for Streamlit, including escaped user input and invalid room codes. |
 
 The appearance in a real browser is checked by hand.
@@ -273,9 +302,11 @@ generator.py            case generator
 content.py              story texts of case #001 and the clue templates
 ai.py                   asks an AI (via OpenRouter) for a new story
 db.py                   SQLite storage
+minigames.py            evidence mini-games: puzzles, hints and the Python-side check
+minigame_ui.py          the mini-games on the phone (HTML fragments and one custom component)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (179 tests)
+tests/                  pytest suite (492 tests)
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip / Streamlit Cloud
