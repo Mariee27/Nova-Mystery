@@ -92,6 +92,40 @@ Phases end early when everybody is done, and the host can skip ahead.
 - **Timers** on every phase, so the game always ends.
 - **Host tools:** start the game, end a phase early, remove strangers from the lobby.
 
+### Voice Forensics Lab – the experimental lie detector
+
+A single-player side feature for case #001: an audio forensics lab with the suspects' recordings.
+Open it with **🎧 Voice Forensics Lab** on the home page (`?lab=1`), with `?lab=demo` for the guided
+demo (9 steps, about 80 seconds), or from a phone during a case #001 investigation (it opens in a new tab,
+so the seat in the game stays online).
+
+- **Evidence locker** with five recordings of the Security Guard, the Night Librarian and the IT Technician,
+  plus your own **WAV upload** (PCM, max 5 MB and 60 s, analysed in memory only; no microphone, nothing is sent anywhere).
+- **INITIATE FORENSIC SCAN** runs the real analysis stage by stage and then reveals an interactive player
+  (glowing waveform, playhead, click-to-seek, pauses marked), energy-over-time and spectrum charts, all measured values and a report.
+- **Measured from the signal** (`forensics.py`, NumPy only): waveform, RMS energy, volume variation,
+  silences and pauses, spectral centroid / roll-off / dominant frequency / flatness / band energy, and the
+  approximate speech rate *only when a typed transcript is given* – there is no speech recognition.
+  A metric that cannot be measured reliably is shown as unavailable.
+- **Fictional tension score (0–100):** a deterministic, fully explained weighted sum of normalised volume
+  variation, pause share, pause frequency and speech-rate deviation. Silent or too short recordings get no score.
+  Always shown with: *"Experimental gameplay simulation. Voice analysis cannot reliably determine deception, guilt, or nervousness."*
+- **Voice comparison:** two decks on one synchronized timeline (shared axis, linked hover cursor and playheads),
+  both gauges, and a table of measured differences – explicitly not proof of lying.
+- **Audio evidence:** the guard's radio check-in is logged at 23:30, but a bell rings behind the voice.
+  Isolating the 3.6–5.8 kHz band (a real FFT band-pass you can listen to) counts **eleven strikes** – the
+  23:00 bell from the case's witness notes. Connecting it exposes a false patrol-log entry. It uses only
+  canonical case #001 facts (the 23:00 bell, the guard's secret about invented patrols) and never points
+  at the murderer, who is drawn anew in every game.
+- **Detective notebook** (per browser session) with saved reports, comparisons and the clue; reports and the
+  notebook download as Markdown.
+- **No new dependencies:** NumPy, pandas and Altair already come with Streamlit (pinned in `uv.lock` and `requirements.txt`).
+
+The bundled recordings are **synthetic samples**, generated deterministically in `recordings.py`
+(voiced syllables with formants, pauses, room tone, a struck bell) and labelled as such. The lab's own
+notebook is separate from the game's evidence board: the board's rules are server-checked and shared by all
+players, and the lab must not change the balance of a running game.
+
 ## 4. Run it locally
 
 Requirements: Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
@@ -174,6 +208,8 @@ together with a check of all dependencies for known vulnerabilities.
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
 | `tests/test_views.py` | 19 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card. |
 | `tests/test_db.py` | 13 | Storage: transactions, rollback on rejection, two players acting at the same moment, heartbeats, room codes, room limit. |
+| `tests/test_forensics.py` | 40 | Voice Forensics analysis: WAV decoding and limits, silent/empty/short/noisy input, pause detection, levels, spectrum, speech rate, the fictional score (deterministic, bounded, no score without signal), comparison, bell-strike counting, band-pass, and that the audio clue only uses canonical case facts. |
+| `tests/test_lab_screen.py` | 20 | The lab screen through `app.py`: entry and exit, scan and reveal, every recording, uploads (valid, invalid, silent), comparison, connecting the clue, notebook, the guided demo, the phone link, HTML escaping. |
 | `tests/test_app_smoke.py` | 2 | Plays a whole game through every screen with a stand-in for Streamlit, including escaped user input and invalid room codes. |
 
 The appearance in a real browser is checked by hand.
@@ -273,9 +309,13 @@ generator.py            case generator
 content.py              story texts of case #001 and the clue templates
 ai.py                   asks an AI (via OpenRouter) for a new story
 db.py                   SQLite storage
+lab.py                  Voice Forensics Lab screen
+lab_ui.py, lab.css      the lab's HTML building blocks, interactive players and styles
+forensics.py            audio signal analysis and the fictional score (NumPy)
+recordings.py           synthetic case #001 recordings, the bell clue and its evidence
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (179 tests)
+tests/                  pytest suite (460 tests)
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip / Streamlit Cloud
