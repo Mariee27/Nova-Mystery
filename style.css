@@ -545,3 +545,8 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .iv-q { font-family: var(--serif); font-weight: 800; font-size: 1.5rem; margin: .4rem 0; color: var(--ivory); }
 .iv-a { font-family: var(--serif); font-size: 1.15rem; color: var(--paper); }
 .iv-w { font-family: var(--serif); font-style: italic; color: var(--muted); }
+
+/* ---------- link to the Voice Forensics Lab (phone, case #001) ---------- */
+.vf-lablink { display: inline-block; margin: .4rem 0; font-family: var(--mono); font-size: .74rem; letter-spacing: .14em;
+  text-transform: uppercase; color: #22D3EE !important; border: 1px solid rgba(34,211,238,.45); padding: .35rem .7rem;
+  border-radius: 2px; text-decoration: none !important; }

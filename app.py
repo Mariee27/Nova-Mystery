@@ -22,6 +22,7 @@ import streamlit as st
 import ai
 import content
 import db
+import lab
 import logic
 import ui
 
@@ -320,6 +321,10 @@ def home_screen():
         if st.button("Play a demo", use_container_width=True,
                      help="Presentation mode: you play together with 4 demo suspects."):
             start_demo()
+        if st.button("🎧 Voice Forensics Lab", use_container_width=True,
+                     help="Analyse the suspects' recordings of case #001. Includes a guided demo."):
+            st.query_params["lab"] = "1"
+            st.rerun()
         with st.form("goto"):
             code = st.text_input("Room code", max_chars=4, placeholder="ABCD")
             if st.form_submit_button("Join room", use_container_width=True):
@@ -811,6 +816,15 @@ def vote_form(code, token, public, me):
         act(code, lambda g, on, now: logic.vote(g, token, suspect, now, scene=scene))
 
 
+def lab_link(public):
+    """Case #001 has an audio archive: the Voice Forensics Lab opens in a new tab, so this
+    phone stays in the game (and online) while the player listens."""
+    if public["story"].get("source") != "fixed":
+        return   # an AI-written case has other suspects; the archive belongs to case #001
+    st.markdown('<a class="vf-lablink" href="?lab=1" target="_blank" rel="noopener">'
+                '🎧 Open the audio archive (Voice Forensics Lab) ↗</a>', unsafe_allow_html=True)
+
+
 def player_screen(code, token):
     handle_move_links()
     public, me = sync(code, token)
@@ -856,6 +870,7 @@ def player_screen(code, token):
         answer_forms(code, token, public, me)    # the round waits for your answer
         investigation_actions(code, token, public, me)
         show_card(me, expanded=False)
+        lab_link(public)
     elif phase == "DISCUSSION":
         answer_forms(code, token, public, me)
         st.info("Talk to each other. Compare the alibis. Who is lying?")
@@ -880,7 +895,9 @@ def main():
     code = st.query_params.get("room", "").strip().upper()
     token = st.query_params.get("t", "")
     view = st.query_params.get("view", "")
-    if not code:
+    if st.query_params.get("lab"):
+        lab.lab_screen(st)       # the Voice Forensics Lab (?lab=1, or ?lab=demo for the guided demo)
+    elif not code:
         home_screen()
     elif not valid_code(code):
         # Never echo an unchecked code: it could carry links or other Markdown.
