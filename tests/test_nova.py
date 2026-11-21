@@ -205,7 +205,7 @@ def test_h_escapes_html_quotes_and_math():
 
 def test_log_cards_escape_player_text():
     shared = {"id": 2, "kind": "share", "by": 1, "text": EVIL}
-    html = ui.log_entry(shared, lambda pid: EVIL, {})
+    html = ui.log_entry(shared, lambda pid: EVIL)
     assert "<script>" not in html and "Witness statement" in html
 
 
@@ -214,16 +214,16 @@ def test_question_and_answer_entries_of_old_games_still_show_as_plain_notes():
     old = [{"id": 1, "kind": "question", "by": 1, "target": 2, "text": EVIL, "answered": False},
            {"id": 2, "kind": "answer", "by": 2, "text": EVIL, "question_id": 1}]
     for entry in old:
-        assert "<script>" not in ui.log_entry(entry, lambda pid: EVIL, {})
+        assert "<script>" not in ui.log_entry(entry, lambda pid: EVIL)
     assert "<script>" not in ui.evidence_wall(old, lambda pid: EVIL)
 
 
 def test_no_card_leaks_a_forgery_before_the_result():
     hidden = {"id": 1, "kind": "search", "by": None, "text": "A note.", "location": content.LOCATIONS[0]}
-    html = ui.log_entry(hidden, str, {})
+    html = ui.log_entry(hidden, str)
     assert "planted" not in html.lower() and "Forged" not in html and "Unverified" in html
     revealed = dict(hidden, planted=True, clue_kind="suspicious", implicates=2)
-    assert "planted by the murderer" in ui.log_entry(revealed, str, {})
+    assert "planted by the murderer" in ui.log_entry(revealed, str)
 
 
 def test_evidence_wall_pins_every_kind_escaped_with_a_fixed_tilt():
@@ -258,7 +258,7 @@ def test_suspect_cards_and_dossier_escape_names():
 
 def test_html_blocks_have_no_blank_lines():
     """A blank line would end the HTML block and let Markdown change the rest."""
-    for block in (ui.intro(), ui.case_file(), ui.banner("a", "b"), ui.timer(5, 30),
+    for block in (ui.intro(), ui.sealed_file(), ui.banner("a", "b"), ui.timer(5, 30),
                   ui.campus_map([content.LOCATIONS[0]])):
         assert "\n\n" not in block
 

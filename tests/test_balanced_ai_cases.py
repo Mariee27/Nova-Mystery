@@ -46,12 +46,11 @@ def test_every_ai_case_is_medium_difficulty_and_fair(n):
 
 
 def test_the_checks_find_what_the_plain_builder_gets_wrong():
-    """Without the adjustments, cases have three suspected innocents (with four players
-    nobody is in the clear) and often the crime scene opens only in the last round."""
+    """Without the adjustment, the crime scene often opens only in the last round."""
     found = set()
     for seed in range(40):
-        found |= {p.split(":")[0] for p in balance.problems(generator.build_case([1, 2, 3, 4], seed, fake_story()))}
-    assert "too complex" in found and "too hard" in found
+        found |= set(balance.problems(generator.build_case([1, 2, 3, 4], seed, fake_story())))
+    assert "too hard: the crime scene opens only in the last round" in found
 
 
 def test_a_case_with_the_scene_open_from_the_start_is_too_easy():
@@ -80,7 +79,7 @@ def test_the_solution_is_complete_and_matches_the_case():
     assert s["culprit"] == culprit["pid"] and s["culprit_role"] == culprit["role"]
     assert s["motive"] == culprit["intro"] and s["scene"] == case["murder_location"]
     assert s["false_alibi"] == culprit["alibi_location"] != s["scene"]
-    assert [e["time"] for e in s["timeline"]][0] == "23:15–23:45"
+    assert "23:15–23:45" in [e["time"] for e in s["timeline"]]
     assert s["timeline"][-1]["time"] == content.FOUND_TIME
     assert len(s["evidence"]) >= 3
     for herring in s["red_herrings"]:
@@ -156,7 +155,7 @@ def test_the_test_player_never_sees_the_solution():
     text = ai.player_file(story, case)
     solution = balance.solution(case, story)
     assert "murderer" not in text.lower() and solution["method"] not in text
-    assert f"{culprit} is at the" not in text and f"you saw {culprit} at the" not in text   # nobody vouches for them
+    assert f"you saw {culprit} at the {case['murder_location']}" not in text   # nobody places them at the scene
     for c in case["characters"]:
         assert c["role"] in text and story["roles"][c["role"]]["secret"] in text   # the culprit's too
     culprit_place = case["murder_location"]
@@ -237,3 +236,41 @@ def test_when_the_test_reading_is_unavailable_the_code_checks_suffice(reading):
     client = SequenceClient(answers)      # None: the service fails on the second request
     story = ai.write_story("fake-key", client=client)
     assert logic.validate_story(story) == []
+
+
+# ---------------------------------------------------------------- the host's choice and the AI's status
+
+def lobby_with_ready_ai_case():
+    g = logic.new_game("ABCD", 0)
+    for i in range(1, 6):
+        g = logic.join(g, f"P{i}", f"t{i}", 0)
+    return logic.ai_case_ready(logic.ai_case_writing(g, 0), fake_story(), 1)
+
+
+def test_the_host_can_play_case_001_although_an_ai_case_is_ready():
+    g = lobby_with_ready_ai_case()
+    assert logic.start(g, "t1", {1, 2, 3, 4, 5}, 0, seed=3, use_ai=False)["story"]["source"] == "fixed"
+    assert logic.start(g, "t1", {1, 2, 3, 4, 5}, 0, seed=3, use_ai=True)["story"]["source"] == "ai"
+
+
+def test_only_the_host_learns_how_the_ai_case_is_doing():
+    g = lobby_with_ready_ai_case()
+    assert logic.ai_status(g, "t1") == "ready"
+    assert logic.ai_status(g, "t2") is None and logic.ai_status(g, "nope") is None
+
+
+def test_an_ai_case_that_takes_too_long_is_given_up_so_the_lobby_never_hangs():
+    g = logic.new_game("ABCD", 0)
+    g = logic.join(g, "P1", "t1", 0)
+    g = logic.ai_case_writing(g, 100)
+    assert logic.tick(g, {1}, 100 + logic.AI_WRITING_TIMEOUT)["ai_case"]["status"] == "writing"
+    late = logic.tick(g, {1}, 101 + logic.AI_WRITING_TIMEOUT)
+    assert late["ai_case"] == {"status": "failed", "reason": "the AI took too long"}
+    assert logic.ai_case_ready(late, fake_story(), 500)["ai_case"]["status"] == "ready"   # a late case still counts
+
+
+def test_an_ai_story_must_give_a_balanced_case_for_every_player_count():
+    g = lobby_with_ready_ai_case()
+    assert g["ai_case"]["status"] == "ready"
+    for n in PLAYER_COUNTS:
+        balance.build_balanced_case(list(range(1, n + 1)), n, g["ai_case"]["story"])

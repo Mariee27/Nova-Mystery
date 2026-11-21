@@ -79,6 +79,10 @@ pillow==13.0.0
     #   streamlit
 protobuf==7.36.2
     # via streamlit
+psycopg==3.2.9
+    # via nova-mystery
+psycopg-binary==3.2.9 ; implementation_name != 'pypy'
+    # via psycopg
 pyarrow==26.0.1
     # via streamlit
 pydantic==2.14.3
@@ -119,6 +123,7 @@ typing-extensions==4.16.0
     #   anyio
     #   httpx2
     #   openai
+    #   psycopg
     #   pydantic
     #   pydantic-core
     #   referencing
@@ -130,6 +135,7 @@ typing-inspection==0.4.5
 tzdata==2026.6
     # via
     #   pandas
+    #   psycopg
     #   python-dateutil
 urllib3==2.8.0
     # via requests

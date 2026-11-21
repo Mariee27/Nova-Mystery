@@ -44,6 +44,12 @@ DEMO_SEED = 2026
 HIDDEN_LOG_KEYS = ("implicates", "clue_kind", "planted")
 
 
+def max_minutes():
+    """The longest a game can take once it has started: the card, every round, discussion, vote."""
+    seconds = sum(DURATIONS.values()) + DURATIONS["INVESTIGATION"] * (ROUNDS - 1)
+    return -(-seconds // 60)
+
+
 class Rejected(Exception):
     """An action that the rules do not allow. The game stays unchanged."""
 
@@ -219,11 +225,12 @@ def kick(game, token, target_pid, now):
     return game
 
 
-def start(game, token, online, now, seed=None, fixed_case=False):
+def start(game, token, online, now, seed=None, fixed_case=False, use_ai=True):
     """Start the game. The story is the AI-written one if it is ready, otherwise case #001.
 
-    fixed_case=True always plays case #001 (the demo switch). If an AI case was
-    expected but cannot be used, the host gets a short note (see host_note).
+    fixed_case=True always plays case #001 with its fixed seed (rehearsal mode).
+    use_ai=False plays case #001 even if an AI case is ready (the host chose it). If an AI
+    case was expected but cannot be used, the host gets a short note (see host_note).
     """
     _require_phase(game, "LOBBY")
     player = _player_by_token(game, token)
@@ -236,7 +243,7 @@ def start(game, token, online, now, seed=None, fixed_case=False):
         seed = secrets.randbits(32)
     game = copy.deepcopy(game)
     game["players"] = copy.deepcopy(present)  # players who are offline in the lobby are dropped
-    story, note = _story_for_start(game, fixed_case)
+    story, note = _story_for_start(game, fixed_case or not use_ai)
     try:
         if story is content.DEFAULT_STORY:
             # Case #001 is handcrafted and is built exactly as it always was.
@@ -347,6 +354,11 @@ def tick(game, online, now):
 
     Order: host handover, abort, timer, early end. At most one phase change per call.
     """
+    ai = game.get("ai_case")
+    if (game["phase"] == "LOBBY" and ai and ai["status"] == "writing"
+            and now - ai.get("since", now) > AI_WRITING_TIMEOUT):
+        # The writing thread is gone (a server restart) or the AI hangs: stop waiting.
+        return ai_case_failed(game, "the AI took too long", now)
     if game["phase"] in ("RESULT", "ABORTED"):
         return game
     pids = _player_ids(game)
@@ -439,6 +451,25 @@ def share(game, token, clue_id, now):
     game["acted"].append(player["pid"])
     _add_log(game, "share", player["pid"], clue["text"], clue_id=clue_id,
              implicates=clue["implicates"], clue_kind=clue["kind"], planted=False)
+    return game
+
+
+MAX_WRONG_TRIES = 6   # wrong puzzle answers per player, place and round: no guessing all 10 000 codes
+
+
+def wrong_tries(game, pid, location):
+    """How often this player gave a wrong answer to this place's puzzle in this round."""
+    return game.get("wrong_tries", {}).get(f"{pid}|{location}|{game.get('round')}", 0)
+
+
+def note_wrong_try(game, token, location, now):
+    """Count one wrong puzzle answer. Kept in the game, so a new browser tab does not reset it."""
+    _require_phase(game, "INVESTIGATION")
+    player = _player_by_token(game, token)
+    game = copy.deepcopy(game)
+    tries = game.setdefault("wrong_tries", {})
+    key = f"{player['pid']}|{location}|{game.get('round')}"
+    tries[key] = tries.get(key, 0) + 1
     return game
 
 
@@ -1000,10 +1031,10 @@ def ai_case_ready(game, story, now):
         story = copy.deepcopy(story)
         story["source"] = "ai"
         story["case_number"] = game["code"]
-        # Every player count must give a fair, solvable case with this story.
+        # Every player count must give a fair, balanced case with this story.
         for count in range(MIN_PLAYERS, MAX_PLAYERS + 1):
             try:
-                generator.build_valid_case(list(range(1, count + 1)), count, story)
+                balance.build_balanced_case(list(range(1, count + 1)), count, story)
             except Rejected as problem:
                 problems.append(str(problem))
                 break
@@ -1014,6 +1045,17 @@ def ai_case_ready(game, story, now):
     else:
         game["ai_case"] = {"status": "ready", "story": story}
     return game
+
+
+AI_WRITING_TIMEOUT = 6 * 60   # seconds; then the lobby stops waiting (e.g. the server restarted)
+
+
+def ai_status(game, token):
+    """"writing", "ready", "failed" or None (never asked), for the host only; None for others."""
+    player = next((p for p in game["players"] if token and p["token"] == token), None)
+    if player is None or player["pid"] != game["host"] or game.get("ai_case") is None:
+        return None
+    return game["ai_case"]["status"]
 
 
 def ai_case_failed(game, reason, now):

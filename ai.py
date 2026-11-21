@@ -81,7 +81,7 @@ def user_prompt(rng=random, places=None):
 
 
 USER_PROMPT = f"""Write a brand-new case. Facts every case shares:
-- At night on the campus of NOVA University in Lisbon, Portugal.
+- At night on the NOVA SBE campus in Carcavelos, by the sea west of Lisbon, Portugal.
 - The victim died at {content.MURDER_TIME} at one of the 5 places below. The body was then moved to a
   different, locked place (the "found_place") and found there at {content.FOUND_TIME}.
 - Every suspect had a motive against the victim and hides a harmless but embarrassing secret
@@ -126,7 +126,7 @@ The JSON shape (replace every description with your text):
   "victim_short": "what people call the victim, usually the last name",
   "found_place": "place in lowercase that continues 'The body was found in ...'",
   "briefing": "3 to 5 sentences: who was found where and when, no accident, the body was moved",
-  "intro_lines": ["line 1: a place in Lisbon", "line 2: a time", "line 3: a detail of the night",
+  "intro_lines": ["line 1: Carcavelos or a place nearby", "line 2: a time", "line 3: a detail of the night",
                   "line 4", "4 to 6 suspects.", "line 6: a hook"],
   "locations": [
     {{"name": "one of the 5 places, written exactly as above",
@@ -314,6 +314,9 @@ def review_story(client, model, story):
     import logic as rules
 
     try:
+        # Every player count must give a balanced case; the test player reads the 5-player one.
+        for count in range(rules.MIN_PLAYERS, rules.MAX_PLAYERS + 1):
+            balance.build_balanced_case(list(range(1, count + 1)), REVIEW_SEED, story)
         case = balance.build_balanced_case(REVIEW_PLAYERS, REVIEW_SEED, story)
     except rules.Rejected as problem:
         return {"available": True, "ok": False, "problems": [str(problem)], "answer": None}
@@ -497,7 +500,7 @@ def _tidy(story):
 
 
 def standard_intro(victim):
-    return ["Lisbon, Portugal.", "23:47.", "NOVA University.", f"{victim} is dead.",
+    return ["Carcavelos, Portugal.", "23:47.", "NOVA University.", f"{victim} is dead.",
             "4 to 6 suspects.", "One of them is lying."]
 
 

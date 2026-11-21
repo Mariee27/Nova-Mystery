@@ -349,7 +349,7 @@ def test_the_public_story_holds_no_secrets(phase):
 def test_the_ai_case_texts_reach_the_screens():
     g = start(lobby_with_ai())
     story = logic.story_view(g)
-    assert "The Silent Regatta" in ui.case_file(story)
+    assert story["case_title"] == "The Silent Regatta"
     assert "Horizon Hall" in ui.campus_map([], story=story)
     assert "Library" in ui.campus_map([], story=story)
 

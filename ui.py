@@ -11,6 +11,7 @@ Functions that show story texts take the public story of the game (logic.story_v
 Without one they show case #001.
 """
 
+import functools
 import html
 import pathlib
 import re
@@ -26,8 +27,14 @@ def h(text):
     return html.escape(str(text), quote=True).replace("$", "&#36;")
 
 
+@functools.lru_cache(maxsize=1)
 def page_style():
-    return "<style>" + STYLE_FILE.read_text(encoding="utf-8") + "</style>"
+    """The stylesheet, read once per server process and without comments and extra spaces
+    (it is sent with every full redraw of a page)."""
+    css = re.sub(r"/\*.*?\*/", "", STYLE_FILE.read_text(encoding="utf-8"), flags=re.S)
+    css = re.sub(r"\s+", " ", css)
+    css = re.sub(r"\s*([{};,>])\s*", r"\1", css)
+    return "<style>" + css.strip() + "</style>"
 
 
 def _story(story):
@@ -105,7 +112,7 @@ def teaser():
         ("Your file", "Role, alibi, secret and two private clues"),
         ("Your move", "One per round: search or share – questions out loud"),
         ("The goal", "Name the culprit – and where it happened"),
-        ("Duration", f"{logic.ROUNDS} rounds, 15 to 30 minutes"),
+        ("Duration", f"{logic.ROUNDS} rounds, up to {logic.max_minutes()} minutes"),
     ]
     brief = ("One of you is the murderer, and only that player knows. Everybody may lie. "
              "Collect evidence, compare alibis, and accuse together before the clock runs out.")
@@ -124,25 +131,6 @@ def _file(stamp, number, name, rows, brief):
     return (f'<div class="casefile fade-up"><div class="stamp">{h(stamp)}</div>'
             f'<div class="no">{h(number)}</div><div class="name">{h(name)}</div>'
             f'<table>{table}</table><div class="brief">{h(brief)}</div></div>')
-
-
-def case_file(story=None):
-    story = _story(story)
-    rows = [
-        ("Case", f"#{story['case_number']}"),
-        ("Location", "NOVA University, Lisbon"),
-        ("Victim", story["victim"]),
-        ("Found", f"{content.FOUND_TIME}, {story['found_place']}"),
-        ("Initial classification", "Suspicious death"),
-        ("Suspects", "4 to 6"),
-    ]
-    if story["source"] == "ai":
-        rows.append(("Written by", "AI, new for this room"))
-    table = "".join(f"<tr><td>{h(k)}</td><td>{h(v)}</td></tr>" for k, v in rows)
-    return ('<div class="casefile fade-up"><div class="stamp">Active investigation</div>'
-            f'<div class="no">CASE FILE #{h(story["case_number"])}</div>'
-            f'<div class="name">{h(story["case_title"])}</div>'
-            f'<table>{table}</table><div class="brief">{h(story["briefing"])}</div></div>')
 
 
 # ---------------------------------------------------------------- phase and timer
@@ -262,9 +250,10 @@ def _points(points):
     return " ".join(f"{x},{y}" for x, y in points)
 
 
-def _plan_ground(pinned=()):
-    """The drawing under the pins: ground, roads, building outlines, building letters.
-    pinned: letters that a pin already shows; their building letter is left out."""
+def _plan_ground():
+    """The drawing under the pins: ground, roads, building outlines and road names.
+    No letters on the buildings: without a legend they would mean nothing to the players;
+    the places of a case carry their name on their pin."""
     shapes = [f'<polygon class="g-{css}" points="{_points(points)}"/>' for css, points in content.GROUNDS]
     shapes += [f'<polyline class="road" points="{_points(points)}"/>' for _, points, _ in content.ROADS]
     shapes += [f'<polygon class="b-{"spine" if label == "I" else "hall"}" points="{_points(item["shape"])}">'
@@ -272,11 +261,9 @@ def _plan_ground(pinned=()):
                for label, item in content.BUILDINGS.items()]
     svg = ('<svg class="ground" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">'
            f'{"".join(shapes)}</svg>')
-    tags = [f'<span class="btag" style="left:{x}%;top:{y}%">{h(label)}</span>'
-            for label, item in content.BUILDINGS.items() if label not in pinned for x, y in [item["tag"]]]
     roads = [f'<span class="rname" style="left:{points[1][0]}%;top:{points[1][1]}%;--rot:{angle}deg">'
              f'{h(name)}</span>' for name, points, angle in content.ROADS if name]
-    return svg + "".join(tags) + "".join(roads)
+    return svg + "".join(roads)
 
 
 def campus_map(searched, scene=None, story=None, view=None, links=None, active=True,
@@ -299,7 +286,6 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
     links = links or {}
     this_round = view.get("round")
     pins = []
-    pinned = {_spot(item["name"], index)[2] for index, item in enumerate(view["places"])}
     for index, item in enumerate(view["places"]):
         name, state = item["name"], item["state"]
         x, y, letter = _spot(name, index)
@@ -324,8 +310,8 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
         else:
             pins.append(f'<div class="{css}" style="{style}" aria-label="{h(label)}">{inner}</div>')
     css = "plan2" + ("" if active else " off") + (" board" if board else "")
-    return (f'<div class="{css}" role="group" aria-label="Campus map">{_plan_ground(pinned)}{"".join(pins)}'
-            f'<div class="compass" aria-label="North is to the upper left">↖ N</div>'
+    return (f'<div class="{css}" role="group" aria-label="Campus map">{_plan_ground()}{"".join(pins)}'
+            f'<div class="compass" aria-label="North"><span class="needle">↑</span>N</div>'
             f'</div>')
 
 
@@ -522,7 +508,7 @@ def _stamp(entry):
     return ""
 
 
-def log_entry(entry, name_of, entries_by_id, story=None):
+def log_entry(entry, name_of, story=None):
     """One entry of the public log as a card. name_of(pid) -> display name."""
     kind = entry["kind"]
     text = h(entry["text"])
@@ -765,16 +751,3 @@ def vote_table(result, players, name_of):
     summary = f'{right} of {len(votes)} ballots named the killer'
     return (f'<div class="ballots"><div class="sum">{h(summary)}</div>'
             f'<div class="ballot-grid">{"".join(cards)}</div></div>')
-
-
-def bars(counts, labels, hit=None):
-    """Vote bars. counts: key -> votes; labels: list of (key, label) in display order."""
-    most = max(counts.values(), default=0) or 1
-    rows = []
-    for key, label in labels:
-        count = counts.get(key, 0)
-        css = "bar hit" if key == hit else "bar"
-        rows.append(f'<div class="{css}"><div>{h(label)}</div><div class="track">'
-                    f'<div class="fill" style="width:{count / most * 100:.0f}%"></div></div>'
-                    f'<div class="c">{count}</div></div>')
-    return f'<div class="bars">{"".join(rows)}</div>'

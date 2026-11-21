@@ -11,17 +11,24 @@ def demo_round(game_db):
     phone = Browser()
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
-    phone.run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
+    phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     phone.run(press=["End phase (host)"])
     conn = db.connect(game_db)
     assert db.load(conn, code)["phase"] == "INVESTIGATION"
     return phone, code, conn
 
 
-def open_puzzle(phone, conn, code, kind):
+def open_puzzle(phone, conn, code, kind=None):
+    """Open the sealed exhibit of a place that can be searched now (of the given kind, if any).
+    If that kind's place is still locked, the host ends rounds until it opens."""
+    def candidates(game):
+        return [s["location"] for s in minigames.specs(game) if kind in (None, s["kind"])
+                and logic.locked_until(game, s["location"]) is None and s["location"] not in game["searched"]]
     game = db.load(conn, code)
-    place = next(s["location"] for s in minigames.specs(game) if s["kind"] == kind
-                 and logic.locked_until(game, s["location"]) is None and s["location"] not in game["searched"])
+    while not candidates(game):
+        phone.run(press=["End phase (host)"])
+        game = db.load(conn, code)
+    place = candidates(game)[0]
     tap(phone, step="search", place=place)
     page = phone.run(press=[f"Search {place}"])
     return place, page
@@ -84,7 +91,7 @@ def test_solving_unlocks_the_evidence_with_a_reward_and_continue(game_db):
 
 def test_the_reward_survives_the_end_of_the_round(game_db):
     phone, code, conn = demo_round(game_db)
-    place, _ = open_puzzle(phone, conn, code, "code")
+    place, _ = open_puzzle(phone, conn, code)
     phone.run(component={"submit": minigames.solve(db.load(conn, code), place)})
     phone.run(press=["End phase (host)"])                                    # round 2 starts
     assert db.load(conn, code)["round"] == 2
@@ -111,7 +118,7 @@ def test_puzzle_progress_survives_reruns(game_db):
 
 def test_too_late_when_someone_else_searched_first(game_db):
     phone, code, conn = demo_round(game_db)
-    place, _ = open_puzzle(phone, conn, code, "code")
+    place, _ = open_puzzle(phone, conn, code)
     game = db.load(conn, code)
     bot = next(p for p in game["players"] if p.get("bot"))
     db.apply(conn, code, lambda g: logic.search(g, bot["token"], place, 1))
@@ -126,4 +133,38 @@ def test_a_forged_proof_from_the_phone_is_rejected(game_db):
     place, _ = open_puzzle(phone, conn, code, "puzzle")
     phone.run(component={"submit": {"swaps": [], "solved": True, "order": list(range(9))}})
     assert place not in db.load(conn, code)["searched"]
+    conn.close()
+
+
+def test_wrong_answers_are_limited_per_round_also_in_a_new_browser_tab(game_db):
+    """No trying all 10 000 codes: after MAX_WRONG_TRIES wrong answers the seal holds until the
+    next round, and the count lives in the game, so a fresh tab does not reset it."""
+    phone, code, conn = demo_round(game_db)
+    place, _ = open_puzzle(phone, conn, code, "code")
+    right = minigames.solve(db.load(conn, code), place)
+    wrong = {"code": "0000" if right["code"] != "0000" else "1111"}
+    for _ in range(logic.MAX_WRONG_TRIES):
+        phone.run(component={"submit": wrong})
+    game = db.load(conn, code)
+    assert logic.wrong_tries(game, 1, place) == logic.MAX_WRONG_TRIES
+    phone.run(component={"submit": right})                       # even the right code waits now
+    assert place not in db.load(conn, code)["searched"]
+    assert "seal holds until the next round" in str(last_data(phone)["state"]["note"])
+    tab = Browser(room=code, t=phone.st.query_params["t"])          # a new tab, same seat
+    tap(tab, step="search", place=place)
+    tab.run(press=[f"Search {place}"])
+    tab.run(component={"submit": right})
+    assert place not in db.load(conn, code)["searched"]
+    conn.close()
+
+
+def test_an_answer_faster_than_a_person_could_solve_it_is_ignored(game_db, monkeypatch):
+    phone, code, conn = demo_round(game_db)
+    place, _ = open_puzzle(phone, conn, code)
+    kind = minigames.spec(db.load(conn, code), place)["kind"]
+    monkeypatch.setattr(minigames, "MIN_SECONDS", {kind: 60})
+    phone.run(component={"submit": minigames.solve(db.load(conn, code), place)})
+    assert place not in db.load(conn, code)["searched"]
+    assert "Not so fast" in str(last_data(phone)["state"]["note"])
+    assert logic.wrong_tries(db.load(conn, code), 1, place) == 0     # not counted as a wrong answer
     conn.close()
