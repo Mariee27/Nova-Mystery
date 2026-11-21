@@ -38,6 +38,10 @@ KIND_INFO = {
 SCRATCH_COLS, SCRATCH_ROWS = 10, 14     # the page is checked in this grid of cells
 SCRATCH_NEEDED = 0.55                   # share of the cells that must be rubbed
 MAX_SWAPS = 400
+# Faster than a person can solve it: an answer that comes sooner is ignored (seconds after the
+# puzzle opened). A puzzle that runs in the browser can always be faked by someone with the
+# browser's developer tools; this, and the limit on wrong answers, makes it slow and pointless.
+MIN_SECONDS = {"code": 3, "cipher": 3, "scratch": 4, "puzzle": 4}
 MAX_PROOF_ITEMS = SCRATCH_COLS * SCRATCH_ROWS
 
 

@@ -8,7 +8,6 @@ case is available (see ai.py). All its texts are collected in DEFAULT_STORY at t
 bottom of this file; an AI-written case has exactly the same shape.
 """
 
-GAME_TITLE = "NOVA MYSTERY"
 TAGLINE = "Everyone has a secret. Only one knows the truth."
 CASE_NUMBER = "001"
 CASE_TITLE = "The Last Lecture"
@@ -28,7 +27,7 @@ HOME_INTRO_LINES = [
 # The cinematic intro of case #001. It plays on the board and every phone at the start.
 # Line 4 (index 3) is shown in red. An AI case brings its own six lines.
 INTRO_LINES = [
-    "Lisbon, Portugal.",
+    "Carcavelos, Portugal.",
     "23:47.",
     "NOVA University.",
     "A professor is dead.",
@@ -59,29 +58,18 @@ BRIEFING = (
 #
 # Every value is percent of the map area (x of the width, y of the height), the same unit as
 # the pins, so phone and board draw the same plan. The map is 1.25 times as wide as it is high.
-MAP_RATIO = 1.25
 
-# BUILDINGS: letter of the official campus map -> its name, outline (polygon) and where the
-# letter sits.
+# BUILDINGS: letter of the official campus map -> its name and outline (polygon).
 BUILDINGS = {
-    "A": {"name": "Hovione Atrium", "tag": (15.2, 32.5),
-          "shape": [(12.8, 30), (26.4, 28.3), (27.2, 47), (13.6, 49)]},
-    "I": {"name": "Gallery / Main Deck", "tag": (71.5, 31.8),
-          "shape": [(26.8, 34.2), (75.0, 28.0), (75.8, 36.0), (27.6, 42.2)]},
-    "B": {"name": "Cascais Academic Hall", "tag": (37.0, 67.0),
-          "shape": [(32.0, 40.6), (37.6, 39.9), (40.0, 70.6), (34.4, 71.3)]},
-    "C": {"name": "CTT Student Hall", "tag": (49.0, 67.5),
-          "shape": [(44.0, 39.1), (49.6, 38.4), (52.0, 71.1), (46.4, 71.8)]},
-    "D": {"name": "Santander Academic Hall", "tag": (61.0, 66.0),
-          "shape": [(56.0, 37.6), (61.6, 36.9), (64.0, 69.6), (58.4, 70.3)]},
-    "E": {"name": "Ming C. Hsu Executive Hall", "tag": (73.0, 59.0),
-          "shape": [(68.0, 36.0), (73.6, 35.3), (76.0, 62.0), (70.4, 62.7)]},
-    "H": {"name": "Teresa e Alexandre Soares dos Santos Library", "tag": (53.0, 18.0),
-          "shape": [(51.2, 16), (61.6, 15), (62.4, 27.2), (52.0, 28.5)]},
-    "G": {"name": "Horizon Hall", "tag": (67.6, 12.0),
-          "shape": [(65.6, 10), (75.2, 9), (76.0, 25.4), (66.4, 26.5)]},
-    "F": {"name": "Jerónimo Martins Grand Auditorium", "tag": (79.6, 26.5),
-          "shape": [(77.6, 24), (87.2, 22), (88.8, 38), (79.2, 41)]},
+    "A": {"name": "Hovione Atrium", "shape": [(12.8, 30), (26.4, 28.3), (27.2, 47), (13.6, 49)]},
+    "I": {"name": "Gallery / Main Deck", "shape": [(26.8, 34.2), (75.0, 28.0), (75.8, 36.0), (27.6, 42.2)]},
+    "B": {"name": "Cascais Academic Hall", "shape": [(32.0, 40.6), (37.6, 39.9), (40.0, 70.6), (34.4, 71.3)]},
+    "C": {"name": "CTT Student Hall", "shape": [(44.0, 39.1), (49.6, 38.4), (52.0, 71.1), (46.4, 71.8)]},
+    "D": {"name": "Santander Academic Hall", "shape": [(56.0, 37.6), (61.6, 36.9), (64.0, 69.6), (58.4, 70.3)]},
+    "E": {"name": "Ming C. Hsu Executive Hall", "shape": [(68.0, 36.0), (73.6, 35.3), (76.0, 62.0), (70.4, 62.7)]},
+    "H": {"name": "Teresa e Alexandre Soares dos Santos Library", "shape": [(51.2, 16), (61.6, 15), (62.4, 27.2), (52.0, 28.5)]},
+    "G": {"name": "Horizon Hall", "shape": [(65.6, 10), (75.2, 9), (76.0, 25.4), (66.4, 26.5)]},
+    "F": {"name": "Jerónimo Martins Grand Auditorium", "shape": [(77.6, 24), (87.2, 22), (88.8, 38), (79.2, 41)]},
 }
 
 # The ground around the buildings, drawn below them in this order: (css class, outline).
@@ -108,11 +96,13 @@ PLACES = {
     "Library": {"letter": "H", "icon": "📚", "x": 55.5, "y": 20.5},
     "Horizon Hall": {"letter": "G", "icon": "🖥️", "x": 70.5, "y": 16},
     "Auditorium": {"letter": "F", "icon": "🎭", "x": 84.5, "y": 35},
-    "Main Deck": {"letter": "I", "icon": "🌉", "x": 40, "y": 36.5},
+    "Main Deck": {"letter": "I", "icon": "🌉", "x": 40, "y": 36.5, "open_air": True},
     "Hovione Atrium": {"letter": "A", "icon": "🏛️", "x": 20, "y": 38.5},
     "Santander Hall": {"letter": "D", "icon": "🧪", "x": 60, "y": 55},
-    "Beach": {"letter": "≈", "icon": "🌊", "x": 88, "y": 82},
+    "Beach": {"letter": "≈", "icon": "🌊", "x": 88, "y": 82, "open_air": True},
 }
+
+OPEN_AIR = {name for name, place in PLACES.items() if place.get("open_air")}   # no keycard reader there
 
 # Case #001 happens at these five places.
 LOCATIONS = ["Santander Hall", "Library", "Horizon Hall", "Auditorium", "Main Deck"]
@@ -203,9 +193,16 @@ NEUTRAL_PRIVATE_CLUES = [
 TEMPLATES = {
     "alibi": "I was at the {location} around 23:30.",
     "scene": "Found at the {location}: {trace}. It belongs to {role}.",
+    # Buildings have keycard readers; open-air places (OPEN_AIR) have a night camera instead.
     "alibi_broken": "The keycard log of the {location} shows no entry by {role} between 23:15 and 23:45.",
+    "alibi_broken_open_air": "The night camera at the {location} shows no entry by {role} between 23:15 and 23:45: "
+                             "nobody came or went.",
+    # Somebody who was alone all evening: the log or the camera of their place vouches for them.
+    "present": "The keycard log of the {location} shows {role} inside the whole time from 23:10 to 23:50.",
+    "present_open_air": "The night camera at the {location} shows {role} there the whole time from 23:10 to 23:50.",
     "witness": "At 23:25 you saw {role} hurrying toward the {location}.",
-    "confirms": "At 23:30 you saw {role} at the {location}.",
+    # A sighting is always of somebody at the observer's own place, at the time on the card.
+    "confirms": "At {time} you saw {role} at the {location}.",
     "knows_secret": "You heard a rumor: {rumor}",
     # Also used for the murderer's planted clue, so that it looks like a real one.
     "herring": "A note found at the {location}: {rumor}",
@@ -231,7 +228,7 @@ ENDINGS = {
     "escaped": {
         "title": "The Case Goes Cold",
         "text": "The room could not agree. The file is closed as 'inconclusive', "
-                "and the one who did it walks out into the Lisbon rain.",
+                "and the one who did it walks out into the Carcavelos rain.",
     },
 }
 

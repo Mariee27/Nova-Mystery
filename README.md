@@ -1,13 +1,13 @@
 # NOVA MYSTERY
 
-A multiplayer murder mystery for 4 to 6 players (15 to 30 minutes), built with Python and Streamlit.
+A multiplayer murder mystery for 4 to 6 players (up to 20 minutes once it starts), built with Python and Streamlit.
 One screen (the projector) shows the public board. Every player joins on their own phone, gets a
 secret role card, and together the group has to find out who committed the murder before time runs out.
-Every room can get a brand-new story written by an AI; case #001 "The Last Lecture" is always there as the fallback.
+The host plays the handcrafted case #001 "The Last Lecture" or asks an AI for a brand-new case.
 
 **Course:** Introduction to Programming, Nova SBE
 
-**Live app:** _add the Streamlit Community Cloud link here_
+**Live app:** not deployed yet – see [Deployment](#deployment). Run it locally in the meantime (section 4).
 
 ## Team
 
@@ -32,21 +32,33 @@ different every time.
 1. Someone opens the app on a laptop connected to a projector and clicks **Create room**. The board
    shows a 4-letter room code and a QR code.
 2. Every player scans the QR code (or enters the code) and picks a name. The first player is the host.
-3. The host starts the game. Each phone now shows a private card: a role, an alibi, a secret, and two
-   private clues. One player is secretly the murderer.
+3. The host picks the case (case #001 in rehearsal mode, case #001 with the roles shuffled, or a new
+   AI-written case) and starts the game. Each phone now shows a private file: a role, an alibi, a secret,
+   and two private cards. One player is secretly the murderer: their file carries a big red MURDERER
+   stamp (each phone is only seen by its owner).
+
+**The cards.** Every card is true and physically possible, and the kind of card gives nobody away. Every
+player, the murderer too, holds one sighting ("At 23:20 you saw … at the …", always of somebody at the
+observer's own place) or the witness account, and one more card: an observation, a rumor, or the witness
+account. The innocents spend the evening in pairs (three together if needed) who see each other around
+23:30; one or two of them are alone. So at the start the murderer is never the only one without an alibi:
+a lone innocent looks just as suspicious until the keycard log of their place (a night camera on the
+Beach or the Main Deck) is found and clears them. The murderer's claimed place has a log too – it shows
+they never came.
 
 | Phase | Time | What happens |
 |---|---|---|
 | Reveal | 30 s | Everybody reads their card. |
 | Investigation | 3 rounds, each up to 5 min | Each round every player has exactly **one** action in the app: search a place on the **campus map** or share one of their clues. Interrogations happen **out loud**: the players question each other face to face. A round ends early when everybody has moved or has nothing left to search or share. The murderer may additionally plant one fake clue. |
 | Discussion | 3 min | Players question each other in person and argue (lying is allowed). |
-| Vote | 1 min | Everybody votes for a suspect and the crime scene. |
+| Vote | 1 min | Everybody taps a suspect (nothing is chosen in advance) and, if they like, the crime scene, then *Vote*. |
 
 **The round, step by step.** The phone first shows "Your move." with two big action cards
 (a third, "Plant a false clue", only on the murderer's phone). Each card leads to its own screen with a
 "Change action" link back: *Search a place* (tap a pin on the campus plan, read the paper card, press
 "Search <place>") or *Share a clue* (tap one of your private clues, "Share with everyone").
 Afterwards "Move made." shows your move with a LOGGED stamp and who is still choosing.
+A solved exhibit first shows "Access granted" until the player taps *Continue*.
 There is no interrogation in the app: the players sit in one room and question, accuse and
 defend their alibis out loud. A player with nothing left to search or share is told so and is
 not waited for.
@@ -60,7 +72,9 @@ along the bottom into the roundabout below the campus and the big road passes it
 Carcavelos and the sea begin beyond that road, in the bottom right corner. The buildings carry the letters
 of the official campus map. There is no car park and no canteen on the plan. The drawing is one SVG of
 building outlines, roads and grounds; it and the pins use percent of the map (`content.BUILDINGS`,
-`GROUNDS`, `ROADS`, `PLACES`), so phone and board draw the same plan. Every case happens at 5 of 7 places
+`GROUNDS`, `ROADS`, `PLACES`), so phone and board draw the same plan. The buildings carry no letters (a
+legend would only crowd the phone); every place of a case has its name on its pin. The north arrow follows
+the satellite view: north is left and a little up. Every case happens at 5 of 7 places
 (Library, Horizon Hall, Auditorium, Main Deck, Hovione Atrium, Santander Hall, Beach). Each place holds exactly one clue. Pins are
 red (open), grey with a tick (searched) or dashed with a lock (locked). Two places are locked at the
 start – the crime scene and one other – and open in rounds 2 and 3. The board names the round a place
@@ -152,7 +166,8 @@ Optional environment variables:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `MURDER_DB` | `data/murder.db` | Where the SQLite file is stored. |
+| `DATABASE_URL` | not set | A `postgresql://` address. If set, rooms live in PostgreSQL and survive a restart of the app. |
+| `MURDER_DB` | `data/murder.db` | Where the SQLite file is stored when `DATABASE_URL` is not set. |
 | `APP_BASE_URL` | the page's own URL | Public address of the app, used for the QR code. Set it when deployed. |
 | `OPENROUTER_API_KEY` | not set | Key for AI-written cases. Without it, every game plays case #001. |
 | `OPENROUTER_MODEL` | `google/gemma-4-31b-it:free` | Which free OpenRouter model writes the stories. |
@@ -197,8 +212,12 @@ without buying credit, and both speak the same OpenAI format, so only the addres
 1. One team member creates a free account at openrouter.ai and creates an API key.
 2. Share the key only privately (password manager or direct message), never in a chat, issue or commit.
 3. Put it into `.streamlit/secrets.toml` as `OPENROUTER_API_KEY = "..."` and restart the app.
-4. Create a room: the host's phone shows "The AI is writing a new case for this room …" and, a little later,
-   "New AI case ready". The board shows the new case title.
+4. In the lobby the host picks "A new case written by the AI". Only then is the AI asked (creating rooms and
+   demos never uses the quota). The host's phone shows "The AI is writing your case …" and, a little later,
+   "New AI case ready"; *Start game* waits for it. If it fails or takes longer than 6 minutes, the host sees
+   why and can *Try again* or switch to case #001. *Write a different AI case* asks for another one. At most
+   5 AI cases per hour and 10 per day are written for the whole app (a case takes up to 5 requests, the free
+   plan allows 50 a day); raise `MAX_AI_CASES_PER_HOUR` / `_PER_DAY` in `db.py` if you buy credit.
 
 If a key ever leaks: revoke it on openrouter.ai immediately, create a new one, and update it locally and on
 Streamlit Cloud. Deleting the commit does not remove it from the history.
@@ -217,7 +236,17 @@ OPENROUTER_API_KEY = "<the OpenRouter key>"
 ```
 
 `APP_BASE_URL` makes the QR code point to the right address. Without `OPENROUTER_API_KEY` the app works
-the same, but always plays case #001.
+the same, but only offers case #001.
+
+**Keep the rooms over a restart.** Streamlit Community Cloud restarts the app after every new commit and
+after it slept, and a SQLite file is lost then, with every running game. For a presentation, create a free
+PostgreSQL database (for example on neon.tech or supabase.com) and add its address as a secret:
+
+```toml
+DATABASE_URL = "postgresql://user:password@host/database?sslmode=require"
+```
+
+The tables are created on the first visit. Nothing else changes; the same tests run on both databases.
 
 ## 5. Run the tests
 
@@ -225,20 +254,28 @@ the same, but always plays case #001.
 uv run pytest
 ```
 
-The same tests run automatically on GitHub for every push to `main` (see `.github/workflows/tests.yml`),
-together with a check of all dependencies for known vulnerabilities.
+The same tests run automatically on GitHub for every push to `main` and every pull request (see
+`.github/workflows/tests.yml`): on SQLite and on PostgreSQL, together with a check of all dependencies for known
+vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs`).
 
 | File | Tests | What it checks |
 |---|---|---|
-| `tests/test_rules.py` | 108 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, abort, planting rules, removing players. Rejected calls must leave the game unchanged. |
+| `tests/test_rules.py` | 132 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, abort, planting rules, removing players, names that only look like another one. Rejected calls must leave the game unchanged. |
+| `tests/test_ai_cases.py` | 118 | AI stories: reading the answer, the checks, the repair round, busy models, the story on every screen. |
+| `tests/test_minigames.py` | 85 | The four puzzles: solvable from the story, the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
+| `tests/test_rounds_and_map.py` | 52 | Rounds, locked places and the campus map: every pin in its building, pins far enough apart to tap, no car park. |
+| `tests/test_nova.py` | 38 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file). |
+| `tests/test_balanced_ai_cases.py` | 37 | AI cases: medium difficulty, the solution file, the test reading, the host's choice, the AI's status. |
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
 | `tests/test_views.py` | 20 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card. |
-| `tests/test_db.py` | 13 | Storage: transactions, rollback on rejection, two players acting at the same moment, heartbeats, room codes, room limit. |
-| `tests/test_minigames.py` | 85 | The four puzzles: solvable from the story, the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
-| `tests/test_minigame_screen.py` | 7 | The puzzles on the phone: seal on the place card, wrong code unlocks nothing, hints one by one, reward until *Continue* (also after the round ends), progress survives reruns, "Too late." |
-| `tests/test_app_smoke.py` | 14 | Plays a whole game through every screen with a stand-in for Streamlit, including escaped user input and invalid room codes. |
+| `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
+| `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
+| `tests/test_app_smoke.py` | 16 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input and invalid room codes. |
+| `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
+| `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
 
-The appearance in a real browser is checked by hand.
+The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
+`node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
 
 ## 6. How it is built
 
@@ -302,10 +339,10 @@ and advances the timers.
   Room codes from the URL must be exactly 4 valid letters. SQL always uses placeholders.
 - **Abuse limits:** at most 6 players per room, and the host can remove strangers from the lobby. At most 200 new
   rooms per hour; when that is reached, lobbies nobody was active in for 5 minutes are freed, so a flood of rooms
-  blocks new ones for minutes, not an hour. The AI is asked for at most 30 cases per hour, so a flood of rooms
-  cannot use up the AI quota; past that, new rooms play case #001. Both limits work without recognising visitors,
+  blocks new ones for minutes, not an hour. The AI is only asked when a host picks an AI case, and for at most
+  5 cases per hour and 10 per day; past that, the host is told why and plays case #001. Both limits work without recognising visitors,
   because behind the host's proxy their addresses are not reliable.
-- **Dependencies:** only three direct dependencies (`streamlit`, `qrcode[pil]`, and `openai` for the OpenRouter calls). All 42 packages are pinned to exact versions
+- **Dependencies:** four direct dependencies (`streamlit`, `qrcode[pil]`, `openai` for the OpenRouter calls, and `psycopg` for PostgreSQL). All 50 packages are pinned to exact versions
   in `uv.lock` and `requirements.txt` and checked against the OSV vulnerability database (no known vulnerabilities at the time of submission;
   the check runs again on every push).
 
@@ -313,8 +350,8 @@ More scenarios, each with the test that proves it, are in [`docs/WHAT_HAPPENS_IF
 
 ## 9. Limits
 
-- **Storage on free hosting:** Streamlit Community Cloud can restart the app and lose the SQLite file. A running game is then lost
-  and a new room is needed. We accepted this because a game lasts only about five minutes.
+- **Storage on free hosting:** with SQLite, Streamlit Community Cloud loses every room when it restarts the app. Set
+  `DATABASE_URL` to a free PostgreSQL database to keep them (see Deployment).
 - **One server process:** SQLite and polling are fine for a few rooms at a time, but not for hundreds of games at once.
 - **The link is the key:** whoever has a player's link (screenshot, browser history) can see that card. Coming back on another device
   is not possible without the link.
@@ -343,12 +380,12 @@ generator.py            case generator
 balance.py              medium difficulty for AI cases: adjustments, checks, the solution file
 content.py              story texts of case #001 and the clue templates
 ai.py                   asks an AI (via OpenRouter) for a new story
-db.py                   SQLite storage
+db.py                   storage: SQLite or PostgreSQL
 minigames.py            evidence mini-games: puzzles, hints and the Python-side check
 minigame_ui.py          the mini-games on the phone (HTML fragments and one custom component)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (471 tests)
+tests/                  pytest suite (576 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip / Streamlit Cloud

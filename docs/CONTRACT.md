@@ -58,7 +58,20 @@ Result: `{"winner": "detectives"|"murderer", "murderer": pid, "murder_location":
 }
 ```
 Clue: `{"id": str, "text": str, "implicates": pid | None, "kind": "scene"|"alibi_broken"|"suspicious"|"confirms"|"neutral"}`.
-Location clues also carry `"location": str`. Clue ids are unique within a case.
+Location clues also carry `"location": str`. Clue ids are unique within a case. A "confirms" clue also carries
+`"seen": pid, "at": location` and, on a private card, `"time": "HH:MM"` (who was seen where and when; never sent to a
+phone: `private_view` gives only `id`, `text`, `shared`).
+
+How `build_case` decides the night: the innocents are at the places other than the crime scene and the false alibi,
+in pairs (three together if needed) and one or two alone. Every player holds two cards in random order: a sighting
+(`confirms`, of somebody at the observer's own place, inside 23:15–23:45 for pairs; the murderer and the first lone
+innocent saw each other at 23:05 at that innocent's place) or the witness account (`scene`, "hurrying toward the
+scene" at 23:25, held by an innocent), plus an observation (`neutral`), a rumor (`suspicious`) or the witness account.
+The rumor is held by the murderer or by an innocent; if the murderer holds it, an innocent holds one too and no note is
+found at a place. Place clues: the trace at the scene (`scene`), the log of the false alibi's place showing no entry
+(`alibi_broken`), the log of each lone innocent's place showing them there 23:10–23:50 (`confirms`), a note with a
+rumor (`suspicious`) and neutral observations. Open-air places (`content.OPEN_AIR`: Beach, Main Deck) have a night
+camera instead of a keycard log. Locked: the crime scene and the first lone innocent's place.
 
 `generator.build_case(pids: list[int], seed: int, story: dict | None = None) -> case` is deterministic for the same arguments. Without a story it uses case #001 (`content.DEFAULT_STORY`).
 `generator.build_valid_case(pids, seed, story=None) -> case` tries seed, seed+1, ... (max 5) until `validate_case` passes, else raises `logic.Rejected`.
@@ -78,7 +91,11 @@ new_game(code, now) -> game
 online_ids(presence: dict[int, float], now) -> set[int]
 join(game, name, token, now) -> game                # new pid = game["next_pid"]; first player becomes host
 kick(game, token, target_pid, now) -> game          # host only, only in LOBBY
-start(game, token, online, now, seed=None, fixed_case=False) -> game  # host only
+start(game, token, online, now, seed=None, fixed_case=False, use_ai=True) -> game  # host only; use_ai=False plays case #001
+ai_status(game, token) -> "writing" | "ready" | "failed" | None   # host only, None for everybody else
+wrong_tries(game, pid, location) -> int            # wrong puzzle answers of this player at this place in this round
+note_wrong_try(game, token, location, now) -> game # counts one; app refuses answers after MAX_WRONG_TRIES (6)
+max_minutes() -> int                               # the longest a started game can take (20)
 end_phase(game, token, online, now) -> game         # host only, only in REVEAL/INVESTIGATION/DISCUSSION/VOTE
 tick(game, online, now) -> game                     # timers, early end, host handover, abort
 search(game, token, location, now) -> game
@@ -122,14 +139,15 @@ private_view(game, token) -> dict | None
   Before RESULT: log entries contain **no** `implicates`, `clue_kind`, `planted` keys; `result` is None; `characters` is None; and nowhere in the view is there a token, the murderer, a secret, an intro, an alibi or a private clue. In RESULT: full log, result, and `characters` (the case's characters with names).
 - `private_view(game, token)` → None for an unknown token. Otherwise `{"pid","name","is_host","phase","acted","voted","role","intro","alibi","secret","is_murderer","clues":[{"id","text","shared"}],"can_plant","plant_locations","last_move","puzzles"}`. Before the game starts, the case fields are None / empty. `plant_locations` is empty unless `can_plant`; `can_plant` is False when there is no location left to plant at. It never contains another player's card or token.
 
-## `db` functions (SQLite)
+## `db` functions (SQLite or PostgreSQL)
 ```
-connect(path) -> sqlite3.Connection        # creates tables if needed
+connect(target) -> connection              # a file path (SQLite) or a postgresql:// address; creates tables if needed
+shared(target) -> connection               # this thread's reused connection (made once); forget(target) drops it
+snapshot(conn, code, now, key="") -> (game, presence)   # one read per room and second for all screens;
+                                           # every write through apply() drops the room's snapshot
 create_room(conn, now) -> code             # 4 letters from "ABCDEFGHJKLMNPQRSTUVWXYZ", unused
                                            # at 200 rooms in the last hour, lobbies without activity for
                                            # IDLE_ROOM_SECONDS are deleted first; logic.Rejected if still 200
-claim_ai_case(conn, now) -> bool           # True and counted if fewer than MAX_AI_CASES_PER_HOUR (30) AI
-                                           # requests were made in the last hour
 load(conn, code) -> game | None
 apply(conn, code, fn) -> game              # runs game = fn(game) inside ONE write transaction and saves it.
                                            # If fn raises logic.Rejected: rollback, nothing saved, exception re-raised.
@@ -137,6 +155,7 @@ apply(conn, code, fn) -> game              # runs game = fn(game) inside ONE wri
 heartbeat(conn, code, pid, now) -> None
 presence(conn, code) -> dict[int, float]   # pid -> last_seen
 raw_state(conn, code) -> str | None        # the stored JSON text, for "unchanged" checks
+claim_ai_case(conn, now) -> bool           # True and counted while fewer than 5 AI cases this hour and 10 today
 ```
 
 ## Stories (case texts, optionally written by an AI)
@@ -167,16 +186,19 @@ balance.problems(case) -> list[str]              # "inconsistent:", "unfair:", "
 balance.analyze(case) -> dict                    # the numbers behind the checks
 ```
 
-- `start` builds case #001 with `generator.build_valid_case`, exactly as before. An AI story is built with
-  `balance.build_balanced_case`: `generator.build_case`, then `balance.adjust` (at most 2 innocents with a red
-  herring; crime scene opens in round 2, the other locked place in round 3, preferably one without a red
-  herring), then `validate_case` and `balance.problems`; the next seed is tried, up to 25. The case gets
-  `"balance"` (analyze) and `"solution"` (culprit, culprit_role, motive, method, scene, false_alibi, timeline,
-  evidence, red_herrings). Neither is in any view before RESULT; the result of an AI case has
-  `"red_herrings"`: [{"points_at", "explained_by", "cleared_by"}].
-- Suspicion model (`balance.suspicion`): trace at the scene 3, keycard log against the alibi 2, witness 2
-  (1 while the scene is still locked), note or rumor 1. Medium: culprit's lead after round 1 <= 2, with all
-  evidence >= 3; at least 3 independent strong sources incl. a place and a private card.
+- `start` builds case #001 with `generator.build_valid_case`. An AI story is built with
+  `balance.build_balanced_case`: `generator.build_case`, then `balance.adjust` (crime scene opens in round 2,
+  the other locked place in round 3), then `validate_case` and `balance.problems`; the next seed is tried, up to
+  40. The case gets `"balance"` (analyze) and `"solution"` (culprit, culprit_role, motive, method, scene,
+  false_alibi, timeline, evidence, red_herrings). Neither is in any view before RESULT; the result of an AI case
+  has `"red_herrings"`: [{"points_at", "explained_by", "cleared_by"}], lone innocents without an alibi included.
+- Suspicion model (`balance.suspicion`): trace at the scene 3, log against the alibi 2, witness 2 (1 while the
+  scene is still locked), note or rumor 1, no alibi 1 (nobody saw them at their place 23:15–23:45 and no log of
+  their place has been found). Medium: culprit's lead after round 1 <= 2, never the only one without an alibi
+  after round 1, the culprit's card kinds held by an innocent too, with all evidence lead >= 3, at least 3
+  independent strong sources incl. a place and a private card, every innocent cleared in the end.
+- `ai_case_ready` accepts a story only if a balanced case can be built for 4, 5 and 6 players. In the lobby,
+  `tick` gives up on an AI case after `AI_WRITING_TIMEOUT` (6 min) of writing ("the AI took too long").
 
 - `start` plays the AI story only if `game["ai_case"]["status"] == "ready"` and `fixed_case` is False.
   Otherwise it plays case #001. If an AI case was expected (writing or failed), `game["story_note"]`

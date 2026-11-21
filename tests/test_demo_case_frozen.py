@@ -1,6 +1,11 @@
-"""Case #001 is handcrafted and must never change: not its story, roles, culprit, clues,
-places or solution. These fingerprints were taken before AI cases got their difficulty
-balancing; balancing applies to AI-written stories only."""
+"""Case #001 is handcrafted and must not change by accident: not its story, roles, culprit,
+places or solution. These fingerprints guard it.
+
+They were set once more on purpose when the clue cards were repaired (the cards gave the
+culprit away by their kind, and some sightings were physically impossible). Story, roles,
+culprit, crime scene and false alibi stayed exactly the same; only the cards and the place
+clues changed. The story text changed in two words: the campus is in Carcavelos, not Lisbon. AI cases additionally get difficulty balancing (balance.py); case #001 never does.
+"""
 import hashlib
 import json
 
@@ -11,12 +16,20 @@ import generator
 import logic
 
 FINGERPRINTS = {
-    "demo-4": "ca73330b6af4664b", "demo-5": "29bb973c5b1a3d57", "demo-6": "ef5b03484005da3f",
-    "story001-4-1": "e05d5f9916bffa78", "story001-4-7": "c1132b743bdd54d0", "story001-4-12345": "9836cb185671be12",
-    "story001-5-1": "1e948ac03d43e65c", "story001-5-7": "59a066a2e0244d93", "story001-5-12345": "d95ef2d58795a928",
-    "story001-6-1": "e0d910bb42aaad9a", "story001-6-7": "0e255b35e410078c", "story001-6-12345": "e135009e60fbdc68",
+    "demo-4": "5ca9df2c6853a2c9",
+    "story001-4-1": "547b015e3ef4bc42",
+    "story001-4-7": "705795f9638bb913",
+    "story001-4-12345": "74971e2cfad399c0",
+    "demo-5": "5c96cfdaacc07f3a",
+    "story001-5-1": "7b7c7712562d9d83",
+    "story001-5-7": "bc081b9465c18175",
+    "story001-5-12345": "bba6e10794f49d0a",
+    "demo-6": "7b7514cff1592f55",
+    "story001-6-1": "ac2875708971b025",
+    "story001-6-7": "2022961f623c8c70",
+    "story001-6-12345": "9310613691b05d93",
 }
-STORY_FINGERPRINT = "dc68ddb572c94dc1"
+STORY_FINGERPRINT = "7d4dc5ce8c5e370e"   # "Carcavelos" instead of "Lisbon" in the intro and an ending
 
 
 def fingerprint(data):
@@ -45,3 +58,16 @@ def test_the_demo_switch_starts_exactly_the_same_game_as_before(n):
     assert game["story"] is content.DEFAULT_STORY or fingerprint(game["story"]) == STORY_FINGERPRINT
     assert fingerprint(game["case"]) == FINGERPRINTS[f"demo-{n}"]
     assert "solution" not in game["case"] and "balance" not in game["case"]
+
+
+# Who did it, where, and what they claim: the same as before the cards were repaired.
+FACTS_BEFORE_THE_REPAIR = {
+    4: (4, "Main Deck", "Santander Hall"), 5: (5, "Main Deck", "Santander Hall"), 6: (5, "Auditorium", "Main Deck"),
+}
+
+
+@pytest.mark.parametrize("n", [4, 5, 6])
+def test_the_demo_keeps_its_culprit_scene_and_false_alibi(n):
+    case = generator.build_valid_case(list(range(1, n + 1)), logic.DEMO_SEED, content.DEFAULT_STORY)
+    culprit = next(c for c in case["characters"] if c["pid"] == case["murderer"])
+    assert (case["murderer"], case["murder_location"], culprit["alibi_location"]) == FACTS_BEFORE_THE_REPAIR[n]

@@ -8,7 +8,7 @@ import logic
 from conftest import (
     LOC, advance_to, assert_rejected_unchanged, cast_votes, character, host_token,
     innocent_pids, innocent_token, make_lobby, make_started,
-    murderer_pid, murderer_token, online_all, own_clue_ids, pids_of, plant_spot,
+    murderer_pid, murderer_token, own_clue_ids, pids_of, plant_spot,
     started_in, token_of, open_places, locked_places, to_last_round)
 
 ON5 = {1, 2, 3, 4, 5}

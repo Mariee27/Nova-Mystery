@@ -326,7 +326,9 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .reveal.lost .w { color: #f87171; }
 .culprit { display: flex; gap: 1rem; align-items: center; justify-content: center; margin: 1rem auto; padding: 1rem 1.2rem; max-width: 560px;
   border: 1px solid var(--blood); background: rgba(185,28,28,.1); border-radius: 3px; animation: fadeUp .8s ease 1.6s both; }
-.culprit .face { width: 64px; height: 64px; font-size: 1.6rem; }
+.culprit .face { width: 64px; height: 64px; font-size: 1.6rem; box-shadow: 0 0 28px rgba(185,28,28,.45); }
+/* The circle is wrapped in a .suspect.guilty box for its colours: no square glow behind it. */
+.culprit .suspect { box-shadow: none; }
 .culprit .who { text-align: left; }
 .culprit .who .n { font-family: var(--serif); font-size: 1.5rem; font-weight: 700; }
 .culprit .who .r { font-family: var(--mono); font-size: .72rem; letter-spacing: .18em; color: #fca5a5; text-transform: uppercase; }
@@ -534,13 +536,15 @@ a.act:hover, a.act:focus { border-color: var(--act-text); transform: translateY(
 .plan2 .road { fill: none; stroke: #2B3346; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
 .plan2 .b-hall { fill: #1B2234; stroke: #3E4966; stroke-width: 1.2; stroke-linejoin: round; }
 .plan2 .b-spine { fill: #222B40; stroke: #59658A; stroke-width: 1.4; stroke-linejoin: round; }
-/* Letters of the official campus map on the buildings, road names, the north arrow. */
-.plan2 .btag { position: absolute; transform: translate(-50%, -50%); font: 700 .62rem var(--mono); color: #8A93A8;
-  pointer-events: none; }
-.plan2 .rname { position: absolute; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)); font: .5rem var(--mono);
+/* Road names and the north arrow. */
+.plan2 .rname { position: absolute; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)); font: .66rem var(--mono);
   letter-spacing: .2em; color: #4E586E; white-space: nowrap; pointer-events: none; }
-.plan2 .compass { position: absolute; left: 1.6%; top: 2.5%; font: 700 .6rem var(--mono); color: #7B8496;
-  letter-spacing: .1em; }
+/* North arrow. The plan is drawn like the architects' rendering: the main building runs
+   NNW–SSE on the satellite view and lies left to right here, so north points left and a
+   little up (about 20 degrees above the left edge). */
+.plan2 .compass { position: absolute; left: 1.8%; top: 2.5%; display: flex; align-items: center; gap: .15rem;
+  font: 700 .72rem var(--mono); color: #9AA3B5; }
+.plan2 .compass .needle { display: inline-block; transform: rotate(-70deg); font-size: .9rem; }
 .pin2 { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center;
   z-index: 2; text-decoration: none !important; }
 .pin2 .pc { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%;
