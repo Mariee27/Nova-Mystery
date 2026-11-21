@@ -129,7 +129,7 @@ the case's own words (see *Mini-games that fit the case* below).
 | 🕵️ Rub to reveal | Rub the dust (finger or mouse) off a find: a note, a printout, a phone screen or a photo | Just rubbing: 55 % of it |
 | 🧩 Reassemble the still | Tap two pieces to swap them (9 or 6 pieces of the night camera's still of the place) | The picture itself; the hints say where its parts are |
 | 🧠 Decode the note | Turn a cipher wheel until the victim's shifted-letter note reads | The note is signed with the victim's name |
-| 🗂️ Order the evening | Tap four torn diary entries in the order they happened | Their times, written in different ways ("quarter to eleven", "10:10 pm", "22:45") |
+| 🗂️ Order the evening | Tap four torn diary entries in the order they happened | Their times (24-hour clock) |
 
 - **Checked in Python, never on the phone.** The phone only reports what the player did (digits, rubbed cells,
   swaps, wheel setting). `minigames.verify` checks it against data the phone never gets (the code, the cipher

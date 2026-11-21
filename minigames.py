@@ -333,7 +333,7 @@ def spec(game, location):
         answer = _order_answer(start)
         base.update(
             story=_fill(words["story"], location, victim), items=items,
-            hints=["Write every time as a 24-hour clock first: “quarter to eleven” at night is 22:45.",
+            hints=["Look at the times: the earliest entry comes first.",
                    f"The evening starts with entry {LETTERS[answer[0]]}.",
                    "The right order: " + ", ".join(LETTERS[i] for i in answer) + "."])
     else:
@@ -353,33 +353,10 @@ def spec(game, location):
 # ---------------------------------------------------------------- the diary (order)
 
 LETTERS = "ABCDEFGH"
-HOURS = ["twelve", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"]
-PAST = {5: "five past", 10: "ten past", 15: "quarter past", 20: "twenty past", 25: "twenty-five past",
-        30: "half past", 35: "twenty-five to", 40: "twenty to", 45: "quarter to", 50: "ten to", 55: "five to"}
-
-
-def say_time(clock, style):
-    """'22:45' as written in the diary: 'digital' 22:45, 'pm' 10:45 pm, 'words' quarter to eleven."""
-    hours, minutes = _minutes(clock)
-    if style == "pm":
-        return f"{(hours - 1) % 12 + 1}:{minutes:02d} {'pm' if hours >= 12 else 'am'}"
-    if style == "words" and minutes % 5 == 0:
-        if minutes == 0:
-            return "midnight" if hours == 0 else f"{HOURS[hours % 12]} o'clock"
-        target = hours if minutes <= 30 else hours + 1
-        name = "midnight" if target % 24 == 0 else HOURS[target % 12]
-        return f"{PAST[minutes]} {name}"
-    return f"{hours:02d}:{minutes:02d}"
-
-
 def _order_events(game, location):
-    """[(time as written, text)] in the true order. Every entry's time is written another way."""
+    """[(time, text)] in the true order, times as 24-hour clock times."""
     victim = _story(game)["victim_short"]
-    events = piece(game, "order")["events"]
-    rng = _rng(game, location, "order-styles")
-    styles = ["words", "pm", "digital", "words"]
-    rng.shuffle(styles)
-    return [(say_time(clock, style), _fill(text, location, victim)) for (clock, text), style in zip(events, styles)]
+    return [(clock, _fill(text, location, victim)) for clock, text in piece(game, "order")["events"]]
 
 
 def _order_start(game, location):

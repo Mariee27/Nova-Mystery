@@ -191,17 +191,7 @@ def test_the_camera_still_shows_the_place_with_the_camera_overlay(place):
 
 # ---------------------------------------------------------------- order the evening
 
-@pytest.mark.parametrize("clock, style, said", [
-    ("22:45", "words", "quarter to eleven"), ("21:15", "words", "quarter past nine"),
-    ("23:30", "words", "half past eleven"), ("23:40", "words", "twenty to midnight"),
-    ("22:00", "words", "ten o'clock"), ("21:07", "words", "21:07"),
-    ("22:10", "pm", "10:10 pm"), ("21:05", "digital", "21:05"),
-])
-def test_times_are_written_in_different_ways(clock, style, said):
-    assert minigames.say_time(clock, style) == said
-
-
-def test_the_diary_is_shuffled_mixed_and_checked_on_the_server():
+def test_the_diary_is_shuffled_and_checked_on_the_server():
     g = game_with(seed=3)
     s = next(s for s in minigames.specs(g) if s["kind"] == "order")
     assert len(s["items"]) == 4 and [i["letter"] for i in s["items"]] == ["A", "B", "C", "D"]
@@ -217,10 +207,7 @@ def test_the_diary_is_shuffled_mixed_and_checked_on_the_server():
     assert len({i["when"] for i in s["items"]}) == 4
 
 
-def test_the_diary_tells_its_times_in_at_least_two_ways():
-    for seed in range(10):
-        g = game_with(seed=seed)
-        s = next(s for s in minigames.specs(g) if s["kind"] == "order")
-        styles = {"words" if " " in i["when"] and "pm" not in i["when"] else "pm" if "pm" in i["when"] else "digital"
-                  for i in s["items"]}
-        assert len(styles) >= 2
+def test_the_diary_shows_plain_24_hour_times():
+    g = game_with(seed=4)
+    s = next(s for s in minigames.specs(g) if s["kind"] == "order")
+    assert sorted(i["when"] for i in s["items"]) == [e[0] for e in content.CASE_MINIGAMES["order"]["events"]]
