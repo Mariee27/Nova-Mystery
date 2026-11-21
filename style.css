@@ -571,26 +571,21 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .intro .lineup { opacity: 0; animation: sceneIn .4s ease 10.5s forwards, sceneOut .4s ease 27.6s forwards; }
 .intro .lineup .lk { font: 700 1.1rem var(--mono); letter-spacing: .4em; text-transform: uppercase; color: var(--blood); margin-bottom: 1.4rem; }
 .intro .lu-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.1rem; max-width: 84rem; padding: 0 1rem; }
-.intro .lu { width: clamp(9rem, 12.5vw, 12.5rem); padding: .7rem .7rem 1rem; background: var(--paper); color: var(--ink);
-  text-align: center; box-shadow: 0 14px 30px rgba(0,0,0,.6); opacity: 0;
+.intro .lu { width: clamp(10rem, 14vw, 14rem); padding: .9rem 1rem 1.1rem; background: var(--paper); color: var(--ink);
+  text-align: left; border-top: 6px solid var(--act); box-shadow: 0 14px 30px rgba(0,0,0,.6); opacity: 0;
   animation: luIn .7s cubic-bezier(.25,1.35,.5,1) var(--in) forwards; }
-.intro .lu:nth-child(odd) { --tilt: -2deg; }
-.intro .lu:nth-child(even) { --tilt: 2deg; }
-.intro .photo { position: relative; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; background-color: #1b2233;
-  background-image: repeating-linear-gradient(0deg, transparent 0 14px, rgba(245,241,232,.22) 14px 16px); }  /* height chart */
-.intro .photo::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0;
-  animation: flash .5s ease-out calc(var(--in) + .35s); }    /* camera flash when the card lands */
-.intro .sil { position: absolute; bottom: 0; left: 8%; width: 84%; fill: #05070c; filter: drop-shadow(0 0 5px rgba(212,168,83,.5)); }
-.intro .photo .q { position: absolute; left: 0; right: 0; top: 40%; text-align: center; font: 800 clamp(1.6rem, 3vw, 2.6rem) var(--serif);
-  color: var(--blood); }
-.intro .photo .no { position: absolute; top: .4rem; left: .5rem; font: 700 .8rem var(--mono); color: var(--paper); letter-spacing: .1em; }
-.intro .lu .n { font-family: var(--serif); font-weight: 800; font-size: clamp(1.1rem, 1.8vw, 1.5rem); margin-top: .55rem; line-height: 1.1; }
-.intro .lu .r { font: 700 .66rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--act); margin-top: .25rem; }
-.intro .lu .bio { font-family: var(--serif); font-style: italic; font-size: clamp(.78rem, 1.05vw, .92rem); line-height: 1.35;
-  margin-top: .45rem; color: #3B342B; }
+.intro .lu:nth-child(odd) { --tilt: -1.5deg; }
+.intro .lu:nth-child(even) { --tilt: 1.5deg; }
+.intro .lu .top { display: flex; justify-content: space-between; align-items: center; }
+.intro .lu .no { font: 700 .7rem var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--act); }
+.intro .lu .face { width: 2.2rem; height: 2.2rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ink); color: var(--paper); font: 700 1rem var(--serif); }
+.intro .lu .n { font-family: var(--serif); font-weight: 800; font-size: clamp(1.3rem, 2.2vw, 1.85rem); margin-top: .5rem; line-height: 1.1; }
+.intro .lu .r { font: 700 .72rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: #6B5B3E;
+  margin: .3rem 0 .7rem; padding-bottom: .6rem; border-bottom: 1px dashed rgba(30,25,20,.35); }
+.intro .lu .bio { font-family: var(--serif); font-size: clamp(.95rem, 1.3vw, 1.15rem); line-height: 1.45; color: #2A241C; }
 @keyframes luIn { 0% { opacity: 0; transform: translateY(120px) rotate(12deg) scale(.7); }
   100% { opacity: 1; transform: rotate(var(--tilt)); } }
-@keyframes flash { 0% { opacity: .85; } 100% { opacity: 0; } }
 @keyframes sceneIn { from { opacity: 0; transform: scale(1.08); } to { opacity: 1; transform: none; } }
 @keyframes sceneOut { to { opacity: 0; filter: blur(8px); } }
 @keyframes siren {   /* red left + blue right, then swapped: like a police light bar */

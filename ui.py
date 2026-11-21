@@ -106,14 +106,9 @@ SUSPECTS_STEP = 3.0       # at most this many seconds between two cards (few pla
 SUSPECTS_UNTIL = 27.6     # the lineup fades out
 BOARD_INTRO_END = 28.0    # the whole intro fades out (style.css: .intro.long)
 
-# A head-and-shoulders silhouette for the mugshot (no image file needed).
-SILHOUETTE = ('<svg class="sil" viewBox="0 0 100 110" aria-hidden="true">'
-              '<circle cx="50" cy="36" r="21"/><path d="M6 110 C8 78 27 64 50 64 C73 64 92 78 94 110 Z"/></svg>')
-
-
 def lineup(players, story=None):
-    """The players as mugshot cards that fly in one after another and stay, so the room can read
-    them all: silhouette, name, role and the public dossier line. Only public facts (roles are
+    """The players as file cards that fly in one after another and stay, so the room can read
+    them all: number, name, role and the public dossier line. Only public facts (roles are
     public once the game runs); who did it stays secret."""
     if not players:
         return ""
@@ -124,7 +119,8 @@ def lineup(players, story=None):
         role = player.get("role") or ""
         cards.append(
             f'<div class="lu" style="--in:{SUSPECTS_FROM + i * step:.2f}s">'
-            f'<div class="photo">{SILHOUETTE}<span class="q">?</span><span class="no">#{i + 1}</span></div>'
+            f'<div class="top"><span class="no">Suspect #{i + 1}</span>'
+            f'<span class="face">{initial(player["name"])}</span></div>'
             f'<div class="n">{h(player["name"])}</div><div class="r">{h(role)}</div>'
             f'<div class="bio">{h(dossiers.get(role, ""))}</div></div>')
     return f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{"".join(cards)}</div></div>'
