@@ -33,6 +33,9 @@ DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free"
 FALLBACK_MODELS = ["google/gemma-4-31b-it:free", "nvidia/nemotron-3-ultra-550b-a55b:free"]
 TIMEOUT_SECONDS = 60        # per request; the lobby usually takes longer than this anyway
 MAX_REQUESTS = 2            # the first try, plus one round to repair what the checks found
+REVISIONS = 1               # after a failed test reading, the author may revise the case once
+REVIEW_SEED = 2027          # the sample case a test player reads (any fixed seed will do)
+REVIEW_PLAYERS = [1, 2, 3, 4, 5]
 DEFAULT_ICON = "📍"
 
 
@@ -40,9 +43,13 @@ class AIError(Exception):
     """The AI could not deliver a usable story. The message is shown to the host."""
 
 
-SYSTEM_PROMPT = """You are the author of NOVA MYSTERY, a party murder-mystery game that 4 to 6 friends
-play in 5 minutes on their phones. You write the texts of one new case. The game itself decides
-later who is guilty, so you write every suspect as equally suspicious.
+SYSTEM_PROMPT = """You are the author of NOVA MYSTERY, a party murder-mystery game that 4 to 6 students
+play together in one room: they question each other face to face, share clues from their phones and
+accuse one of them at the end. You write the texts of one new case: a psychological thriller,
+dark, creepy and believable, never gory and never supernatural.
+The game itself decides later who is guilty and builds the evidence from your texts. So every
+suspect needs a believable motive and must look equally suspicious: no single text may give anyone
+away, and every suspicious detail needs an innocent explanation in that suspect's secret.
 Answer with ONE valid JSON object and nothing else: no explanation, no markdown."""
 
 # The rules of the game are fixed, so the prompt explains exactly which texts we need.
@@ -85,7 +92,11 @@ The 5 places of this case are fixed, real buildings and spots of the NOVA SBE ca
 <PLACES>. Use exactly these names, each once.
 The victim's last name starts with the letter <LETTER>.
 
-Style: English, atmospheric, short sentences, a little dark humour is welcome. Invent every name:
+Style: English, short clear sentences that players understand at once, no long biographies.
+The mood is a psychological thriller: unsettling discoveries, tense relationships, messages that
+should not exist, lights left on where nobody should be. Creepy, never gory, never supernatural.
+A good case lets players suspect two or three people, argue about alibis, and in the end say:
+"Now everything makes sense, we could have figured that out." Invent every name:
 no real NOVA staff, students or famous people. Be original: avoid the obvious choices
 (no title starting with "Midnight", no "Night Porter", no "Rooftop Garden").
 
@@ -93,8 +104,10 @@ Rules (the game checks them, a case that breaks one is thrown away):
 1. Exactly 7 suspects with different names, and exactly the 5 places above.
 2. Role names start with "The" and describe a person on campus, max 40 characters.
    No role name may contain a place name or another role name.
-3. A rumor starts with the exact role name followed by " was seen " and hints at that suspect's secret.
-   It names no other suspect and no location. Max 140 characters.
+3. A rumor starts with the exact role name followed by " was seen " and describes something that
+   looks suspicious tonight, but is really explained by that suspect's secret (for example, someone
+   lies about where they were because of a secret meeting). It names no other suspect and no location.
+   Max 140 characters.
 4. A trace is a small object that suspect could lose, with one detail ("a brass key on a red thread").
    It names no person and no location. Max 80 characters.
 5. Neutral clues and "You noticed ..." observations point at nobody: no role name, no place name,
@@ -122,8 +135,8 @@ The JSON shape (replace every description with your text):
   ],
   "suspects": [
     {{"role": "The ...", "dossier": "one public sentence about this person",
-      "intro": "starts with 'You are <role>.' then the motive against the victim, in second person",
-      "trace": "small object with one detail", "secret": "starts with 'You', the embarrassing secret",
+      "intro": "starts with 'You are <role>.' then one believable motive against the victim, in second person",
+      "trace": "small object with one detail", "secret": "starts with 'You', the embarrassing secret that explains the rumor",
       "rumor": "<role> was seen ..."}}
   ],
   "neutral_private_clues": ["You noticed ...", "... 8 in total"],
@@ -187,16 +200,12 @@ def write_story(api_key, model=DEFAULT_MODEL, client=None):
     places = pick_places()
     messages = [{"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt(places=places)}]
-    story = None
+    story, text, problems = None, None, []
     for _ in range(MAX_REQUESTS):
         text = _ask(client, model, messages)
-        try:
-            story = parse_story(text, places)
-            problems = logic.validate_story(story)
-        except AIError:
-            problems = ["The answer was not one valid JSON object of the requested shape."]
+        story, problems = _read(text, places)
         if not problems:
-            return story
+            break
         messages += [
             {"role": "assistant", "content": text or ""},
             {"role": "user", "content": "Your answer has these problems:\n- " + "\n- ".join(problems[:10])
@@ -204,16 +213,191 @@ def write_story(api_key, model=DEFAULT_MODEL, client=None):
         ]
     if story is None:
         raise AIError("the AI answer was not readable")
-    return story   # still has problems: ai_case_ready will refuse it and case #001 is played
+    if problems:
+        return story   # still has problems: ai_case_ready will refuse it and case #001 is played
+
+    # A test player reads a sample case built from the story, without knowing the solution.
+    for revision in range(REVISIONS + 1):
+        verdict = review_story(client, model, story)
+        if not verdict["available"] or verdict["ok"]:
+            return story   # the test reading passed, or could not be done: the checks suffice
+        if revision == REVISIONS:
+            raise AIError("the AI case did not pass the test reading")
+        messages += [
+            {"role": "assistant", "content": text or ""},
+            {"role": "user", "content": REVISION_REQUEST.replace("<FINDINGS>", "\n- ".join(verdict["problems"][:8]))},
+        ]
+        text = _ask(client, model, messages)
+        story, problems = _read(text, places)
+        if story is None or problems:
+            raise AIError("the revised AI case broke the rules")
+    return story
 
 
-def _ask(client, model, messages):
-    """One request. Returns the answer text, or raises AIError."""
+def _read(text, places):
+    """(story or None, problems) for an answer of the author."""
+    try:
+        story = parse_story(text, places)
+    except AIError:
+        return None, ["The answer was not one valid JSON object of the requested shape."]
+    return story, logic.validate_story(story)
+
+
+# ---------------------------------------------------------------- the test reading
+#
+# The structure of every case (one culprit, three independent pieces of evidence, red
+# herrings that can be cleared, the revelation in round 2) is guaranteed by code: see
+# balance.py. What code cannot judge are the texts: a trace that gives someone away, a rumor
+# that sounds like a confession, a motive nobody believes, a sentence nobody understands.
+# So a second request plays the case like a player: it reads a sample case round by round,
+# WITHOUT the solution, and says whom it suspects when. The verdict comes from code
+# (judge), from what the test player answered, never from a score alone.
+
+REVIEW_SYSTEM_PROMPT = """You test-play murder-mystery cases for a party game before real players get them.
+You are a sharp but ordinary player: you only know what the players can know, never the solution.
+Read the case file round by round and say honestly what you would think at each point.
+Answer with ONE valid JSON object and nothing else: no explanation, no markdown."""
+
+REVIEW_QUESTION = """Read this case file as a player. Then answer with this JSON object:
+{
+  "after_round_1": {"top_suspect": "<exact role name>", "confidence": <1 to 5>,
+                    "plausible_suspects": ["<exact role names you would still consider>"]},
+  "after_all_rounds": {"culprit": "<exact role name>", "confidence": <1 to 5>,
+                       "key_reasoning": "<one sentence: which clues, combined, show it>"},
+  "needs_unreasonable_leap": <true if the solution needs a guess or knowledge players cannot have>,
+  "red_herrings_have_innocent_explanations": <true if every suspicious detail about an innocent-looking
+                                              person is explained by what they admit>,
+  "clarity": <1 to 5: are the texts easy to understand at a glance>,
+  "suspense": <1 to 5: is it eerie and exciting>,
+  "problems": ["<short, concrete problems with the TEXTS, e.g. a clue that gives someone away at once,
+                a rumor that sounds like a confession, a confusing sentence; at most 5>"]
+}
+Confidence: 1 = pure guess, 3 = likely, 5 = certain.
+
+CASE FILE
+"""
+
+REVISION_REQUEST = """A test player read a case built from your texts, without knowing the solution, and found:
+- <FINDINGS>
+Revise your texts so that the case is suspenseful but fair: several suspects look guilty at first,
+every suspicious detail of an innocent person is explained by their secret, nothing gives anyone
+away on its own, and every sentence is easy to understand. Keep every rule of the first request.
+Answer again with the complete JSON object only."""
+
+
+def player_file(story, case):
+    """What the players of a sample case can know, round by round. Never the solution: no
+    culprit, no true locations, and every suspect's secret is listed (in a game the culprit
+    has none, which would give them away here)."""
+    import logic as rules
+
+    lines = [f"Title: {story['case_title']}", f"Briefing: {story['briefing']}", "",
+             "Suspects (role - public dossier - where they say they were at 23:30):"]
+    for c in case["characters"]:
+        lines.append(f"- {c['role']} - {story['roles'][c['role']]['dossier']} - \"{c['alibi']}\"")
+    lines += ["", "Private cards (each suspect holds their own two and may share them at the table):"]
+    for c in case["characters"]:
+        lines.append(f"- {c['role']}: " + " | ".join(clue["text"] for clue in c["clues"]))
+    lines += ["", "What each suspect admits when pressed hard:"]
+    for c in case["characters"]:
+        lines.append(f"- {c['role']}: {story['roles'][c['role']]['secret']}")
+    for number in range(1, rules.ROUNDS + 1):
+        opened = [clue for clue in case["location_clues"] if case["locked"].get(clue["location"], 1) == number]
+        lines += ["", f"Round {number}: places that can be searched from now on:"]
+        lines += [f"- {clue['location']}: {clue['text']}" for clue in opened] or ["- (none)"]
+    return "\n".join(lines)
+
+
+def review_story(client, model, story):
+    """{"available": bool, "ok": bool, "problems": [str], "answer": dict | None}"""
+    import balance
+    import logic as rules
+
+    try:
+        case = balance.build_balanced_case(REVIEW_PLAYERS, REVIEW_SEED, story)
+    except rules.Rejected as problem:
+        return {"available": True, "ok": False, "problems": [str(problem)], "answer": None}
+    messages = [{"role": "system", "content": REVIEW_SYSTEM_PROMPT},
+                {"role": "user", "content": REVIEW_QUESTION + player_file(story, case)}]
+    try:
+        answer = _json_object(_ask(client, model, messages, temperature=0.2))
+    except AIError:
+        return {"available": False, "ok": False, "problems": [], "answer": None}
+    culprit_role = next(c["role"] for c in case["characters"] if c["pid"] == case["murderer"])
+    problems = judge(answer, culprit_role, [c["role"] for c in case["characters"]])
+    if problems is None:
+        return {"available": False, "ok": False, "problems": [], "answer": answer}
+    return {"available": True, "ok": not problems, "problems": problems, "answer": answer}
+
+
+def judge(answer, culprit_role, roles):
+    """What the test player's answer says about the case. [] means: medium and fair.
+    None means the answer cannot be used (then only the code checks count).
+    The findings never name the culprit: they go back to the author."""
+    def role(value):
+        value = str(value or "").strip().casefold()
+        return next((r for r in roles if r.casefold() == value), None)
+
+    def number(value):
+        return value if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 5 else None
+
+    try:
+        start, end = answer["after_round_1"], answer["after_all_rounds"]
+        top, sure_start = role(start["top_suspect"]), number(start["confidence"])
+        named, sure_end = role(end["culprit"]), number(end["confidence"])
+        plausible = {role(r) for r in start.get("plausible_suspects", [])} - {None}
+        leap = answer["needs_unreasonable_leap"]
+        explained = answer["red_herrings_have_innocent_explanations"]
+        clarity, suspense = number(answer["clarity"]), number(answer["suspense"])
+    except (KeyError, TypeError, AttributeError):
+        return None
+    if None in (sure_start, sure_end, clarity, suspense) or not isinstance(leap, bool) or not isinstance(explained, bool):
+        return None
+    problems = []
+    if named != culprit_role:
+        problems.append("too hard: even with all evidence the test player accused the wrong person")
+    elif sure_end < 3:
+        problems.append("too hard: with all evidence the test player was still unsure")
+    if top == culprit_role and sure_start >= 4:
+        problems.append("too easy: the test player was already sure after round 1")
+    if len(plausible) < 2:
+        problems.append("too easy: only one person looked suspicious at the start")
+    if leap:
+        problems.append("too hard: solving the case needs a guess or knowledge players cannot have")
+    if not explained:
+        problems.append("unfair: a suspicious detail about an innocent person has no innocent explanation in their secret")
+    if clarity < 3:
+        problems.append("unclear: some texts are hard to understand")
+    if suspense < 3:
+        problems.append("dull: the case is not eerie or exciting enough")
+    if problems:
+        notes = answer.get("problems") if isinstance(answer.get("problems"), list) else []
+        problems += [str(note)[:200] for note in notes[:5] if str(note).strip()]
+    return problems
+
+
+def _json_object(text):
+    if not isinstance(text, str):
+        raise AIError("the AI answer was empty")
+    start, end = text.find("{"), text.rfind("}")
+    try:
+        data = json.loads(text[start:end + 1]) if 0 <= start < end else None
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        raise AIError("the AI answer was not readable")
+    return data
+
+
+def _ask(client, model, messages, temperature=1.0):
+    """One request. Returns the answer text, or raises AIError.
+    temperature 1.0 (the author): a little randomness, every room gets a different case;
+    lower for the test reading, which should judge steadily."""
     try:
         response = client.chat.completions.create(
             model=model,
             messages=messages,
-            temperature=1.0,   # a little randomness: every room gets a different case
+            temperature=temperature,
             # OpenRouter only: try these models if the first one is busy, and do not let
             # "thinking" models think for minutes (we need the case while people join).
             extra_body={"models": [model] + [m for m in FALLBACK_MODELS if m != model],

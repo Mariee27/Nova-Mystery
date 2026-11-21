@@ -163,7 +163,31 @@ All of them can also go into `.streamlit/secrets.toml` (git ignores it). Copy
 ### AI-written cases (OpenRouter)
 
 We use [OpenRouter](https://openrouter.ai) and one of its free models (the model id ends in `:free`). Without
-buying credit, free models allow 20 requests per minute and 50 per day. Every new room uses one request.
+buying credit, free models allow 20 requests per minute and 50 per day. A new AI case takes 2 to 5 requests
+(writing, perhaps one repair, the test reading, perhaps one revision and a second test reading), so the free
+quota is enough for about 10 to 25 AI rooms a day; after that, rooms play case #001.
+
+**How an AI case is made, and why it is medium difficulty.** The AI only writes texts: the victim, six
+suspects with a motive, a secret and a rumor the secret explains, traces, places and endings, in the mood of a
+psychological thriller. The facts are decided by code (`generator.py`), and for AI stories `balance.py` then
+tunes them and checks them; case #001 never passes through it and is built exactly as before
+(`tests/test_demo_case_frozen.py`).
+- *Solution first:* culprit, scene, false alibi and where everybody really was are fixed before any clue
+  exists; every clue is made from these facts, and the solution file (motive, method, timeline, evidence,
+  red herrings) is stored with the case. Nobody sees it before the result.
+- *Fair:* three independent pieces of evidence (the trace at the scene, the keycard log against the false
+  alibi, a witness on somebody's private card); losing any one still leaves two; sharing private cards matters.
+- *Not obvious:* after round 1 two or three people look suspicious and the culprit is at most slightly ahead.
+  The crime scene opens in round 2, the revelation in the middle that makes earlier clues fall into place.
+- *Controlled misdirection:* one or two red herrings, each explained by that person's secret and cleared by a
+  sighting from another player. The result screen explains them under "The false trails".
+- *Not too hard:* with everything found and shared, the culprit clearly stands out; every timeline and every
+  clue is checked for contradictions.
+- *Test reading:* a second AI request reads a sample case like a player, without the solution, and says
+  whom it suspects after round 1 and at the end. Code judges the answer: the reader must find the culprit at
+  the end without being sure after round 1, without a leap of faith, with explainable red herrings and clear
+  texts. Otherwise the author gets the findings and revises once; a case that fails twice is not played. If
+  the test reading is unavailable, the code checks alone decide.
 
 **Why not Requesty, the course's standard?** We tried it first. Requesty rejected every request from our
 account, also for its free models, with "Your organization reached its limit of concurrent requests". Its limit
@@ -316,6 +340,7 @@ app.py                  Streamlit screens
 ui.py                   HTML building blocks for the screens
 logic.py                game rules, views, case and story validator
 generator.py            case generator
+balance.py              medium difficulty for AI cases: adjustments, checks, the solution file
 content.py              story texts of case #001 and the clue templates
 ai.py                   asks an AI (via OpenRouter) for a new story
 db.py                   SQLite storage

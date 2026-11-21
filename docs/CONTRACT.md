@@ -158,8 +158,25 @@ logic.story_of(game) -> story                    # game["story"]; before the sta
 logic.public_story(story) -> dict                # no intro, secret, trace or rumor; roles only as "dossiers"
 logic.story_view(game) -> dict                   # public_story(story_of(game)) + "pending" (AI still writing in the lobby)
 logic.host_note(game, token) -> str | None       # a note about the AI case, only for the host
-ai.write_story(api_key, model, client=None) -> story   # raises ai.AIError; the only call to an AI service
+ai.write_story(api_key, model, client=None) -> story   # raises ai.AIError; the only module that calls an AI service
+ai.review_story(client, model, story) -> {"available", "ok", "problems", "answer"}   # the test reading
+ai.judge(answer, culprit_role, roles) -> list[str] | None   # [] = passed, None = unusable answer
+ai.player_file(story, case) -> str               # what players can know, round by round; never the solution
+balance.build_balanced_case(pids, seed, story) -> case   # AI stories only; raises logic.Rejected
+balance.problems(case) -> list[str]              # "inconsistent:", "unfair:", "too easy:", "too hard:", "too complex:"
+balance.analyze(case) -> dict                    # the numbers behind the checks
 ```
+
+- `start` builds case #001 with `generator.build_valid_case`, exactly as before. An AI story is built with
+  `balance.build_balanced_case`: `generator.build_case`, then `balance.adjust` (at most 2 innocents with a red
+  herring; crime scene opens in round 2, the other locked place in round 3, preferably one without a red
+  herring), then `validate_case` and `balance.problems`; the next seed is tried, up to 25. The case gets
+  `"balance"` (analyze) and `"solution"` (culprit, culprit_role, motive, method, scene, false_alibi, timeline,
+  evidence, red_herrings). Neither is in any view before RESULT; the result of an AI case has
+  `"red_herrings"`: [{"points_at", "explained_by", "cleared_by"}].
+- Suspicion model (`balance.suspicion`): trace at the scene 3, keycard log against the alibi 2, witness 2
+  (1 while the scene is still locked), note or rumor 1. Medium: culprit's lead after round 1 <= 2, with all
+  evidence >= 3; at least 3 independent strong sources incl. a place and a private card.
 
 - `start` plays the AI story only if `game["ai_case"]["status"] == "ready"` and `fixed_case` is False.
   Otherwise it plays case #001. If an AI case was expected (writing or failed), `game["story_note"]`

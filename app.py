@@ -285,6 +285,9 @@ def show_result(public):
         show(ui.reconstruction(result, characters, who, story=story))
         st.markdown("### Every alibi, checked")
         show(ui.alibi_table(result, characters, who))
+        if result.get("red_herrings"):
+            st.markdown("### The false trails")
+            show(ui.red_herrings(result["red_herrings"]))
     with right:
         # The ballots above already show who accused whom and where, so no vote bars here.
         st.markdown("### Where it happened")
