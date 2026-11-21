@@ -76,11 +76,11 @@ STILL_HINTS = {
                "The window and the name plate sit in the centre; the stone floor and the people are at the bottom."],
     "library": ["The camera bar runs along the top; the library's name is on the white façade below it, left.",
                 "The lit glass entrance is in the middle of the bottom half; the time is in the bottom-right corner."],
-    "campus": ["The camera bar runs along the top; the sea and the sun sit above the long white building.",
-               "The school's name runs across the middle; the lawns, paths and the time are at the bottom."],
+    "campus": ["The camera bar and the dusk sky are at the top; the long white Gallery runs across the middle.",
+               "The four wings point down toward you; the road, the roundabout and the beach are at the bottom right."],
     "deck": ["The camera bar runs along the top; the moon is at the top centre, the white wings left and right.",
              "The wooden deck widens toward the bottom, where its name plate and the time are."],
-    "auditorium": ["The camera bar runs along the top; the screen with the NOVA name is at the top centre.",
+    "auditorium": ["The camera bar runs along the top; the screen with NOVA SBE is at the top centre.",
                    "The stage is in the middle; the red rows of seats and the time fill the bottom."],
 }
 

@@ -155,7 +155,8 @@ the case's own words (see *Mini-games that fit the case* below).
   whatever a game shows.
 - **The pictures are drawn from those words** (`exhibits.py`, SVG, every word escaped): the jigsaw is the
   night camera's still of the place, the campus illustration of the place (`assets/minigames/puzzles/`:
-  Hovione Atrium, Library, Main Deck, Auditorium, otherwise the campus by the sea) with REC, camera number,
+  Hovione Atrium, Library, Main Deck, Auditorium, otherwise the whole campus from above, drawn from the campus
+  map by `tools/draw_campus.py`) with REC, camera number,
   place, time and the case's caption; the scratch card is a handwritten note, a receipt or printout, a phone
   screen with messages, or a photo print of the campus (`assets/minigames/scratchcards/`) with a caption.
 - Every puzzle is built from the case seed and the story, so it works for case #001 and AI-written cases, and
