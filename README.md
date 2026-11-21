@@ -43,7 +43,7 @@ observer's own place) or the witness account, and one more card: an observation,
 account. The innocents spend the evening in pairs (three together if needed) who see each other around
 23:30; one or two of them are alone. So at the start the murderer is never the only one without an alibi:
 a lone innocent looks just as suspicious until the keycard log of their place (a night camera on the
-Beach or the Main Deck) is found and clears them. The murderer's claimed place has a log too – it shows
+Beach) is found and clears them. The murderer's claimed place has a log too – it shows
 they never came.
 
 | Phase | Time | What happens |

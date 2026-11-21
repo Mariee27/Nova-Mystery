@@ -63,7 +63,7 @@ def test_every_sighting_is_of_somebody_at_the_observers_own_place(story):
 
 
 def test_open_air_places_have_a_camera_and_buildings_a_keycard_log():
-    assert content.OPEN_AIR == {"Beach", "Main Deck"}
+    assert content.OPEN_AIR == {"Beach"}                 # the Main Deck is an indoor hall
     seen = set()
     for case in cases("AI"):
         for clue in case["location_clues"]:
