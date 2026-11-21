@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 
 import db      # noqa: E402
 import logic   # noqa: E402
+import minigames  # noqa: E402
 
 
 class Rerun(Exception):
@@ -48,6 +49,7 @@ class FakeStreamlit(types.ModuleType):
         self.press = set()     # labels of buttons that are clicked in the next run
         self.values = {}       # label -> value for inputs
         self.shown = []        # everything that was written to the page
+        self.mounted = []      # (name, key, data) of every custom component
 
     def _pressed(self, label):
         if label in self.press:
@@ -93,6 +95,22 @@ class FakeStreamlit(types.ModuleType):
     def rerun(self, **kwargs):
         raise Rerun()
 
+    @property
+    def components(self):
+        """st.components.v2: a component returns the trigger values the test put in
+        values["component"] (e.g. a puzzle's proof), and records what it was given."""
+        fake = self
+
+        def component(name, **kwargs):
+            def mount(key=None, data=None, **callbacks):
+                fake.mounted.append((name, key, data))
+                # like Streamlit's trigger values: delivered once, not again on the next rerun
+                events = fake.values.pop("component", {}) if callbacks else {}
+                return types.SimpleNamespace(**{e[3:-7]: events.get(e[3:-7]) for e in callbacks
+                                                if e.startswith("on_") and e.endswith("_change")})
+            return mount
+        return types.SimpleNamespace(v2=types.SimpleNamespace(component=component))
+
     def __getattr__(self, name):
         def record(*args, **kwargs):
             self.shown.extend(str(a) for a in args)
@@ -109,10 +127,15 @@ def tap(phone, **params):
 
 
 def tap_on_map(phone, conn, code):
-    """Choose 'Search a place', tap the first open pin, then press 'Search <place>'."""
-    place = next(p["name"] for p in logic.map_view(db.load(conn, code))["places"] if p["state"] == "open")
+    """Choose 'Search a place', tap the first open pin, press 'Search <place>', and solve the
+    place's sealed exhibit (the mini-game sends its proof, Python checks it)."""
+    game = db.load(conn, code)
+    place = next(p["name"] for p in logic.map_view(game)["places"] if p["state"] == "open")
     tap(phone, step="search", place=place)
     phone.run(press=[f"Search {place}"])
+    if game.get("minigames"):
+        assert any(name == "nova_minigame" for name, _, _ in phone.st.mounted), "the puzzle did not open"
+        phone.run(component={"submit": minigames.solve(game, place)})
     return place
 
 
@@ -292,7 +315,8 @@ def test_board_shows_the_evidence_board_and_the_phone_the_move_made(game_db):
     assert 'class="ebs"' in page and "Exhibit 1" in page       # the evidence board, newest first
     assert 'class="plan2 board"' in page and "Just now" in page
     phone_page = phone.run()
-    assert "Move made." in phone_page and "Logged" in phone_page and place in phone_page
+    assert "Move made." in phone_page and place in phone_page
+    assert "Access granted" in phone_page and "New evidence discovered" in phone_page   # the solved exhibit
     assert 'class="ebs"' not in phone_page
 def test_demo_link_starts_a_demo_without_the_intro(game_db):
     home = Browser()

@@ -191,6 +191,21 @@ gets a random theme and a random first letter for the victim, so rooms get diffe
   state is `open`, `done` or `locked`; `found_in` is the round of the search. Never who searched.
 - `private_view(...)["last_move"]`: the player's own search, question or share of the current round
   (for "Move made."), or None.
+
+## Evidence mini-games
+
+- `logic.new_game(code, now, minigames=False)` / `db.create_room(conn, now, minigames=False)`: rooms made by
+  the app pass `minigames=True`; the game stores it as `game["minigames"]`.
+- With mini-games on, every place's clue is sealed: `search(game, token, location, now, proof)` is refused
+  ("The evidence is still sealed. Solve the puzzle first.") unless `minigames.verify(game, location, proof)`
+  is True. Demo bots search without a proof. Every other rule of `search` is unchanged, so each place's
+  evidence is still awarded exactly once.
+- `minigames.spec(game, location)` -> `{"id": "MG-0N-kind", "kind": code|scratch|puzzle|cipher, "variant",
+  "location", "evidence_id" (the clue id), "evidence_no", "icon", "name", "exhibit", "verb", "story",
+  "hints": [3 texts], ...kind-specific data}`. It never contains the answer: no code, no cipher key.
+  `private_view(...)["puzzles"]` maps every place to its spec during INVESTIGATION (else `{}`).
+- Proofs: code `{"code": "1723"}`; scratch `{"cells": [cell indices]}` (at least 55 % of 10 × 14);
+  puzzle `{"swaps": [[a, b], ...]}` replayed on the seeded starting order; cipher `{"shift": n}`.
 - `content.BUILDINGS` (label -> left, top, width, height in percent), `content.BEACH` and `content.PLACES`
   (8 places with pin centre `x`, `y` in percent, icon and letter) describe the plan. Every story's
   locations must be places of `content.PLACES`.
