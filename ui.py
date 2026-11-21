@@ -390,7 +390,9 @@ def clue_cards(items):
             out.append(f'<a class="{css}" href="{h(href)}" target="_self">{inner}</a>')
         else:
             out.append(f'<div class="{css}">{inner}</div>')
-    return "".join(out)
+    # The wrapping <div> matters: st.markdown would otherwise put the bare <a> cards into a <p>,
+    # and the browser splits an <a> holding <div>s there into several empty or half cards.
+    return f'<div class="clues">{"".join(out)}</div>'
 
 
 def move_made(kicker, title, text):

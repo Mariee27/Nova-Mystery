@@ -1,4 +1,4 @@
-# Murder at NOVA
+# NOVA MYSTERY
 
 A multiplayer murder mystery for 4 to 6 players (15 to 30 minutes), built with Python and Streamlit.
 One screen (the projector) shows the public board. Every player joins on their own phone, gets a

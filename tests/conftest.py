@@ -1,4 +1,4 @@
-"""Shared helpers for the Murder at NOVA test suite.
+"""Shared helpers for the NOVA MYSTERY test suite.
 
 All tests are written against docs/CONTRACT.md only.
 """
