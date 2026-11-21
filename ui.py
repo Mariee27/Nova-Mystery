@@ -258,7 +258,6 @@ def _plan_ground(pinned=()):
     pinned: letters that a pin already shows; their building letter is left out."""
     shapes = [f'<polygon class="g-{css}" points="{_points(points)}"/>' for css, points in content.GROUNDS]
     shapes += [f'<polyline class="road" points="{_points(points)}"/>' for _, points, _ in content.ROADS]
-    shapes += [f'<polyline class="path" points="{_points(points)}"/>' for points in content.PATHS]
     shapes += [f'<polygon class="b-{"spine" if label == "I" else "hall"}" points="{_points(item["shape"])}">'
                f'<title>{h(label)} · {h(item["name"])}</title></polygon>'
                for label, item in content.BUILDINGS.items()]
@@ -269,13 +268,6 @@ def _plan_ground(pinned=()):
     roads = [f'<span class="rname" style="left:{points[1][0]}%;top:{points[1][1]}%;--rot:{angle}deg">'
              f'{h(name)}</span>' for name, points, angle in content.ROADS if name]
     return svg + "".join(tags) + "".join(roads)
-
-
-def plan_key():
-    """The legend under the plan: the letters of the official campus map and their buildings."""
-    rows = [f'<span class="k"><b>{h(label)}</b>{h(item["name"])}</span>'
-            for label, item in sorted(content.BUILDINGS.items(), key=lambda kv: (kv[0].isdigit(), kv[0]))]
-    return f'<div class="plan-key" aria-label="Buildings">{"".join(rows)}</div>'
 
 
 def campus_map(searched, scene=None, story=None, view=None, links=None, active=True,
@@ -325,7 +317,7 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
     css = "plan2" + ("" if active else " off") + (" board" if board else "")
     return (f'<div class="{css}" role="group" aria-label="Campus map">{_plan_ground(pinned)}{"".join(pins)}'
             f'<div class="compass" aria-label="North is to the upper left">↖ N</div>'
-            f'</div>{plan_key()}')
+            f'</div>')
 
 
 def place_card(name, item=None, entries=(), story=None):

@@ -49,10 +49,10 @@ BRIEFING = (
 # NOVA SBE Carcavelos from above, simplified (see ui.campus_map), drawn the way the campus is
 # usually shown (the architects' rendering): north is to the LEFT, the beach to the right.
 # Gallery / Main Deck (I) is the long main building running left to right; the Hovione
-# (Entrance) Atrium (A) is its left end, the food court lies on it. The academic halls B, C, D
+# (Entrance) Atrium (A) adjoins its left end. The academic halls B, C, D
 # and E hang below it as parallel wings (the teaching areas), the Library (H) and Horizon Hall
-# (G, surf house and restaurant) stand above it, the Grand Auditorium (F) at its right end
-# towards the beach. Student housing and the entrance square are bottom left, the N6-7 runs
+# (G, surf house and restaurant) stand just above it, the Grand Auditorium (F) just past its right end
+# towards the beach. The N6-7 runs
 # along the bottom into the roundabout below the campus, the big road passes its right end;
 # the beach begins beyond that road, towards the bottom right. The building letters
 # are those of the official campus map; the layout follows the satellite view turned so.
@@ -66,8 +66,8 @@ MAP_RATIO = 1.25
 BUILDINGS = {
     "A": {"name": "Hovione Atrium", "tag": (15.2, 32.5),
           "shape": [(12.8, 30), (26.4, 28.3), (27.2, 47), (13.6, 49)]},
-    "I": {"name": "Gallery / Main Deck", "tag": (76.0, 31.6),
-          "shape": [(12.8, 36), (80.0, 27.4), (80.8, 35.4), (13.6, 44)]},
+    "I": {"name": "Gallery / Main Deck", "tag": (71.5, 31.8),
+          "shape": [(26.8, 34.2), (75.0, 28.0), (75.8, 36.0), (27.6, 42.2)]},
     "B": {"name": "Cascais Academic Hall", "tag": (37.0, 67.0),
           "shape": [(32.0, 40.6), (37.6, 39.9), (40.0, 70.6), (34.4, 71.3)]},
     "C": {"name": "CTT Student Hall", "tag": (49.0, 67.5),
@@ -76,10 +76,10 @@ BUILDINGS = {
           "shape": [(56.0, 37.6), (61.6, 36.9), (64.0, 69.6), (58.4, 70.3)]},
     "E": {"name": "Ming C. Hsu Executive Hall", "tag": (73.0, 59.0),
           "shape": [(68.0, 36.0), (73.6, 35.3), (76.0, 62.0), (70.4, 62.7)]},
-    "H": {"name": "Teresa e Alexandre Soares dos Santos Library", "tag": (53.0, 20.0),
-          "shape": [(51.2, 18), (61.6, 17), (62.4, 30.2), (52.0, 31.5)]},
-    "G": {"name": "Horizon Hall", "tag": (67.6, 14.0),
-          "shape": [(65.6, 12), (75.2, 11), (76.0, 28.4), (66.4, 29.6)]},
+    "H": {"name": "Teresa e Alexandre Soares dos Santos Library", "tag": (53.0, 18.0),
+          "shape": [(51.2, 16), (61.6, 15), (62.4, 27.2), (52.0, 28.5)]},
+    "G": {"name": "Horizon Hall", "tag": (67.6, 12.0),
+          "shape": [(65.6, 10), (75.2, 9), (76.0, 25.4), (66.4, 26.5)]},
     "F": {"name": "Jerónimo Martins Grand Auditorium", "tag": (79.6, 26.5),
           "shape": [(77.6, 24), (87.2, 22), (88.8, 38), (79.2, 41)]},
 }
@@ -91,8 +91,6 @@ BUILDINGS = {
 GROUNDS = [
     ("lawn", [(9, 5), (60, 2.5), (86, 6), (89, 40), (82, 80), (50, 86), (9, 85)]),     # the green site
     ("park", [(14, 8), (48, 6), (49, 24), (15, 27)]),                               # sports grounds
-    ("square", [(11, 50.5), (27.5, 49), (28.5, 63), (12, 64.5)]),                     # entrance square
-    ("housing", [(1.5, 52), (7, 51), (8, 72), (2.5, 73)]),                          # student housing
     ("open", [(94, 0), (100, 0), (100, 55), (74, 100), (70, 100), (73, 93.5), (79, 86), (90.5, 60), (93, 30)]),
     ("sand", [(100, 55), (100, 68), (83, 100), (74, 100)]),                           # Carcavelos beach
     ("sea", [(100, 68), (100, 100), (83, 100)]),
@@ -105,24 +103,13 @@ ROADS = [
           (73.4, 88.0), (74.3, 86.5), (75.6, 86.0), (76.9, 86.5), (77.8, 88.0), (78.2, 90.0)], 0),   # roundabout
     ("", [(74.3, 93.5), (72.5, 100)], 0),
 ]
-# Footpaths between the buildings: the entrance square, the atrium, the ends of the wings
-# and the way down to the roundabout.
-PATHS = [
-    [(19.5, 64.5), (20, 90)],
-    [(8, 62), (11.5, 58)],
-    [(19.5, 50), (19.5, 48.5)],
-    [(28.5, 60), (34, 74.5), (46, 75), (58, 73.5), (70.5, 66), (77, 63), (80, 58), (85, 42)],
-    [(73, 66.5), (75.6, 86)],
-]
-
-# Every case happens at 5 of these 7 places. x, y: the centre of the place's pin, in
+# Every case happens at 5 of these 6 places. x, y: the centre of the place's pin, in
 # percent of the map. letter: what the pin shows (the building's letter on the official map).
 PLACES = {
     "Library": {"letter": "H", "icon": "📚", "x": 55.5, "y": 20.5},
     "Horizon Hall": {"letter": "G", "icon": "🖥️", "x": 70.5, "y": 16},
     "Auditorium": {"letter": "F", "icon": "🎭", "x": 84.5, "y": 35},
-    "Main Deck": {"letter": "I", "icon": "🌉", "x": 22, "y": 39},
-    "ICA Canteen": {"letter": "3", "icon": "🍽️", "x": 44, "y": 36},
+    "Main Deck": {"letter": "I", "icon": "🌉", "x": 40, "y": 36.5},
     "Santander Hall": {"letter": "D", "icon": "🧪", "x": 60, "y": 55},
     "Beach": {"letter": "≈", "icon": "🌊", "x": 88, "y": 82},
 }

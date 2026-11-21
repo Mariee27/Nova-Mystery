@@ -350,22 +350,23 @@ def test_the_plan_draws_every_building_of_the_official_campus_map():
         building = content.BUILDINGS[label]
         assert building["name"] == name
         assert f'points="{ui._points(building["shape"])}"' in html
-        assert f'<b>{label}</b>{name}' in html                      # the legend names every building
+        assert f"<title>{label} · {name}</title>" in html             # its name, without a legend
     tag = 'class="btag" style="left:{}%;top:{}%">{}</span>'
     assert tag.format(*content.BUILDINGS["B"]["tag"], "B") in html    # a hall without a place: its letter
     assert tag.format(*content.BUILDINGS["D"]["tag"], "D") not in html  # Santander Hall's pin shows the D
+    assert "plan-key" not in html and 'class="path"' not in html
     assert 'class="g-lawn"' in html and 'class="g-sand"' in html and 'class="g-sea"' in html and "Floor 0" not in html
     assert html.startswith('<div class="plan2"') and "\n" not in html
 
 
 def test_every_place_pin_sits_in_its_building_or_area():
     where = {"Library": "H", "Horizon Hall": "G", "Auditorium": "F", "Main Deck": "I",
-             "ICA Canteen": "I", "Santander Hall": "D"}         # the canteen is the food court on I
+             "Santander Hall": "D"}
     grounds = dict(content.GROUNDS)
     for place, label in where.items():
         spot = content.PLACES[place]
         assert inside((spot["x"], spot["y"]), content.BUILDINGS[label]["shape"]), place
-        assert spot["letter"] == ("3" if place == "ICA Canteen" else label)   # 3: food service 3
+        assert spot["letter"] == label
     assert inside((content.PLACES["Beach"]["x"], content.PLACES["Beach"]["y"]), grounds["sand"])
 
 
@@ -417,8 +418,9 @@ def test_the_plan_is_greyed_out_after_the_players_move_and_marks_the_selected_pl
 
 
 def test_every_place_on_the_campus_has_a_spot_on_the_map():
-    assert list(content.PLACES) == ["Library", "Horizon Hall", "Auditorium", "Main Deck", "ICA Canteen",
+    assert list(content.PLACES) == ["Library", "Horizon Hall", "Auditorium", "Main Deck",
                                     "Santander Hall", "Beach"]    # every searchable place, names unchanged
+    assert "ICA Canteen" not in content.PLACES                     # no longer a place, so never a crime scene
     for place in content.PLACES.values():
         assert 0 <= place["x"] <= 100 and 0 <= place["y"] <= 100 and place["icon"] and place["letter"]
     assert all(place in content.PLACES for place in content.LOCATIONS)
