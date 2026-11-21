@@ -137,6 +137,13 @@ def new_game(code, now, minigames=False):
     }
 
 
+def as_demo(game):
+    """A demo room ("Play a demo"): it always plays case #001 the same way (see app.case_choice)."""
+    game = copy.deepcopy(game)
+    game["demo"] = True
+    return game
+
+
 # Names are what players recognise each other by, so a name must look like itself and like
 # nobody else's: no invisible characters, no text-direction tricks, no look-alike letters.
 BLANK_LETTERS = {"\u115f", "\u1160", "\u3164", "\uffa0", "\u2800"}   # fillers and the braille blank
@@ -739,6 +746,7 @@ def public_view(game, online):
         "code": game["code"],
         "phase": game["phase"],
         "deadline": game["deadline"],
+        "demo": bool(game.get("demo")),
         "players": [
             {
                 "pid": p["pid"],
