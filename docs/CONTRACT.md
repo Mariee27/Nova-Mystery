@@ -200,8 +200,8 @@ gets a random theme and a random first letter for the victim, so rooms get diffe
 - Proofs: code `{"code": "1723"}`; scratch `{"cells": [cell indices]}` (at least 55 % of 10 × 14);
   puzzle `{"swaps": [[a, b], ...]}` replayed on the seeded starting order; cipher `{"shift": n}`.
 - `content.BUILDINGS` (letter of the official campus map -> `name`, `shape`: outline as [(x, y), ...] and
-  `tag`: where the letter sits, all in percent), `content.GROUNDS` ((css class, outline): lawn, park,
-  open land, sand, sea), `content.ROADS` ((name, line, angle of the name)) and `content.PLACES` (6 places,
+  `tag`: where the letter sits, all in percent), `content.GROUNDS` ((css class, outline): lawn,
+  open land, sand, sea), `content.ROADS` ((name, line, angle of the name)) and `content.PLACES` (7 places,
   no car park and no canteen, with pin centre `x`, `y`
   in percent, icon and letter) describe the plan. `ui.campus_map` draws them as one SVG with the pins as
   HTML on top. Every story's

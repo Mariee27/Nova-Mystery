@@ -361,7 +361,7 @@ def test_the_plan_draws_every_building_of_the_official_campus_map():
 
 def test_every_place_pin_sits_in_its_building_or_area():
     where = {"Library": "H", "Horizon Hall": "G", "Auditorium": "F", "Main Deck": "I",
-             "Santander Hall": "D"}
+             "Hovione Atrium": "A", "Santander Hall": "D"}
     grounds = dict(content.GROUNDS)
     for place, label in where.items():
         spot = content.PLACES[place]
@@ -419,7 +419,7 @@ def test_the_plan_is_greyed_out_after_the_players_move_and_marks_the_selected_pl
 
 def test_every_place_on_the_campus_has_a_spot_on_the_map():
     assert list(content.PLACES) == ["Library", "Horizon Hall", "Auditorium", "Main Deck",
-                                    "Santander Hall", "Beach"]    # every searchable place, names unchanged
+                                    "Hovione Atrium", "Santander Hall", "Beach"]    # every searchable place, names unchanged
     assert "ICA Canteen" not in content.PLACES                     # no longer a place, so never a crime scene
     for place in content.PLACES.values():
         assert 0 <= place["x"] <= 100 and 0 <= place["y"] <= 100 and place["icon"] and place["letter"]

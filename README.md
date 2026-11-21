@@ -60,8 +60,8 @@ along the bottom into the roundabout below the campus and the big road passes it
 Carcavelos and the sea begin beyond that road, in the bottom right corner. The buildings carry the letters
 of the official campus map. There is no car park and no canteen on the plan. The drawing is one SVG of
 building outlines, roads and grounds; it and the pins use percent of the map (`content.BUILDINGS`,
-`GROUNDS`, `ROADS`, `PLACES`), so phone and board draw the same plan. Every case happens at 5 of 6 places
-(Library, Horizon Hall, Auditorium, Main Deck, Santander Hall, Beach). Each place holds exactly one clue. Pins are
+`GROUNDS`, `ROADS`, `PLACES`), so phone and board draw the same plan. Every case happens at 5 of 7 places
+(Library, Horizon Hall, Auditorium, Main Deck, Hovione Atrium, Santander Hall, Beach). Each place holds exactly one clue. Pins are
 red (open), grey with a tick (searched) or dashed with a lock (locked). Two places are locked at the
 start – the crime scene and one other – and open in rounds 2 and 3. The board names the round a place
 was searched in, never who searched it, so the murderer's planted clue does not stand out.

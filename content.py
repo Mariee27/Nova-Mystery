@@ -90,7 +90,6 @@ BUILDINGS = {
 # of Carcavelos and the sea in the corner towards the bottom right.
 GROUNDS = [
     ("lawn", [(9, 5), (60, 2.5), (86, 6), (89, 40), (82, 80), (50, 86), (9, 85)]),     # the green site
-    ("park", [(14, 8), (48, 6), (49, 24), (15, 27)]),                               # sports grounds
     ("open", [(94, 0), (100, 0), (100, 55), (74, 100), (70, 100), (73, 93.5), (79, 86), (90.5, 60), (93, 30)]),
     ("sand", [(100, 55), (100, 68), (83, 100), (74, 100)]),                           # Carcavelos beach
     ("sea", [(100, 68), (100, 100), (83, 100)]),
@@ -103,13 +102,14 @@ ROADS = [
           (73.4, 88.0), (74.3, 86.5), (75.6, 86.0), (76.9, 86.5), (77.8, 88.0), (78.2, 90.0)], 0),   # roundabout
     ("", [(74.3, 93.5), (72.5, 100)], 0),
 ]
-# Every case happens at 5 of these 6 places. x, y: the centre of the place's pin, in
+# Every case happens at 5 of these 7 places. x, y: the centre of the place's pin, in
 # percent of the map. letter: what the pin shows (the building's letter on the official map).
 PLACES = {
     "Library": {"letter": "H", "icon": "📚", "x": 55.5, "y": 20.5},
     "Horizon Hall": {"letter": "G", "icon": "🖥️", "x": 70.5, "y": 16},
     "Auditorium": {"letter": "F", "icon": "🎭", "x": 84.5, "y": 35},
     "Main Deck": {"letter": "I", "icon": "🌉", "x": 40, "y": 36.5},
+    "Hovione Atrium": {"letter": "A", "icon": "🏛️", "x": 20, "y": 38.5},
     "Santander Hall": {"letter": "D", "icon": "🧪", "x": 60, "y": 55},
     "Beach": {"letter": "≈", "icon": "🌊", "x": 88, "y": 82},
 }
