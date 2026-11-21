@@ -51,9 +51,14 @@ There is no interrogation in the app: the players sit in one room and question, 
 defend their alibis out loud. A player with nothing left to search or share is told so and is
 not waited for.
 
-**The campus map.** A simplified plan of NOVA SBE Carcavelos, floor 0, seen from above: buildings are
-rectangles, all positions are percent of the map (`content.BUILDINGS`, `content.PLACES`), so phone and
-board draw the same plan. Every case happens at 5 of 8 places (Library, Horizon Hall, Auditorium,
+**The campus map.** A simplified plan of NOVA SBE Carcavelos, floor 0, seen from above with north up.
+It follows the official campus map and the satellite view: Gallery / Main Deck (I) is the long diagonal
+spine, the academic halls B, C, D and E branch off it to the west as parallel wings, the Hovione Atrium (A)
+sits at its north end, the Library (H) and Horizon Hall (G) east of it, the Grand Auditorium (F) at its
+south end towards the beach; the N6-7 and the Saba car park lie to the west. The buildings carry the
+letters of the official map, and a legend under the plan names them. The drawing is one SVG of building
+outlines, roads and grounds; it and the pins use percent of the map (`content.BUILDINGS`, `GROUNDS`,
+`ROADS`, `PLACES`), so phone and board draw the same plan. Every case happens at 5 of 8 places (Library, Horizon Hall, Auditorium,
 Main Deck, ICA Canteen, Santander Hall, Beach, Parking). Each place holds exactly one clue. Pins are
 red (open), grey with a tick (searched) or dashed with a lock (locked). Two places are locked at the
 start – the crime scene and one other – and open in rounds 2 and 3. The board names the round a place

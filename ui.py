@@ -217,9 +217,11 @@ def suspect_list(players, phase, me_pid=None):
 
 # ---------------------------------------------------------------- the campus plan
 #
-# NOVA SBE, floor 0, seen from above: buildings are rectangles, every value is percent of
-# the map (content.BUILDINGS, content.PLACES), so phone and board draw the same plan.
-# The pins are HTML on top of it, so on the phone they can be links.
+# NOVA SBE, floor 0, seen from above (north up). The ground, the roads and the building
+# outlines are one SVG whose units are percent of the map (content.BUILDINGS, GROUNDS,
+# ROADS); it is stretched to the map's 1.25 : 1 box. The building letters and the pins are
+# HTML on top of it at the same percent positions, so text never stretches and, on the
+# phone, the pins can be links.
 
 STATE_LABELS = {"open": "Not searched yet", "done": "Searched", "locked": "Locked"}
 ICONS = {
@@ -247,13 +249,32 @@ def _spot(name, index):
     return place["x"], place["y"], place["letter"]
 
 
-def _plan_ground():
-    left, top, width, height = content.BEACH
-    parts = [f'<div class="beach" style="left:{left}%;top:{top}%;width:{width}%;height:{height}%"></div>']
-    for label, (left, top, width, height) in content.BUILDINGS.items():
-        parts.append(f'<div class="bld" style="left:{left}%;top:{top}%;width:{width}%;height:{height}%">'
-                     f'<span>{h(label)}</span></div>')
-    return "".join(parts)
+def _points(points):
+    return " ".join(f"{x},{y}" for x, y in points)
+
+
+def _plan_ground(pinned=()):
+    """The drawing under the pins: ground, roads, building outlines, building letters.
+    pinned: letters that a pin already shows; their building letter is left out."""
+    shapes = [f'<polygon class="g-{css}" points="{_points(points)}"/>' for css, points in content.GROUNDS]
+    shapes += [f'<polyline class="road" points="{_points(points)}"/>' for _, points in content.ROADS]
+    shapes += [f'<polygon class="b-{"spine" if label == "I" else "hall"}" points="{_points(item["shape"])}">'
+               f'<title>{h(label)} · {h(item["name"])}</title></polygon>'
+               for label, item in content.BUILDINGS.items()]
+    svg = ('<svg class="ground" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">'
+           f'{"".join(shapes)}</svg>')
+    tags = [f'<span class="btag" style="left:{x}%;top:{y}%">{h(label)}</span>'
+            for label, item in content.BUILDINGS.items() if label not in pinned for x, y in [item["tag"]]]
+    roads = [f'<span class="rname" style="left:{points[1][0]}%;top:{points[1][1]}%">{h(name)}</span>'
+             for name, points in content.ROADS if name]
+    return svg + "".join(tags) + "".join(roads)
+
+
+def plan_key():
+    """The legend under the plan: the letters of the official campus map and their buildings."""
+    rows = [f'<span class="k"><b>{h(label)}</b>{h(item["name"])}</span>'
+            for label, item in sorted(content.BUILDINGS.items(), key=lambda kv: (kv[0].isdigit(), kv[0]))]
+    return f'<div class="plan-key" aria-label="Buildings">{"".join(rows)}</div>'
 
 
 def campus_map(searched, scene=None, story=None, view=None, links=None, active=True,
@@ -276,6 +297,7 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
     links = links or {}
     this_round = view.get("round")
     pins = []
+    pinned = {_spot(item["name"], index)[2] for index, item in enumerate(view["places"])}
     for index, item in enumerate(view["places"]):
         name, state = item["name"], item["state"]
         x, y, letter = _spot(name, index)
@@ -300,8 +322,9 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
         else:
             pins.append(f'<div class="{css}" style="{style}" aria-label="{h(label)}">{inner}</div>')
     css = "plan2" + ("" if active else " off") + (" board" if board else "")
-    return (f'<div class="{css}" role="group" aria-label="Campus map">{_plan_ground()}{"".join(pins)}'
-            f'<div class="plan-foot">NOVA SBE Carcavelos · Floor 0</div></div>')
+    return (f'<div class="{css}" role="group" aria-label="Campus map">{_plan_ground(pinned)}{"".join(pins)}'
+            f'<div class="compass" aria-hidden="true">N</div>'
+            f'<div class="plan-foot">NOVA SBE Carcavelos · Floor 0</div></div>{plan_key()}')
 
 
 def place_card(name, item=None, entries=(), story=None):

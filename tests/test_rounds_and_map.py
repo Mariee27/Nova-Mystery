@@ -326,12 +326,56 @@ def test_the_campus_plan_places_pins_by_percent_and_links_only_when_given():
     assert "\n\n" not in html
 
 
-def test_the_plan_draws_every_building_and_the_beach_from_the_data():
+OFFICIAL_BUILDINGS = {   # the official NOVA SBE campus map
+    "A": "Hovione Atrium", "B": "Cascais Academic Hall", "C": "CTT Student Hall",
+    "D": "Santander Academic Hall", "E": "Ming C. Hsu Executive Hall",
+    "F": "Jerónimo Martins Grand Auditorium", "G": "Horizon Hall",
+    "H": "Teresa e Alexandre Soares dos Santos Library", "I": "Gallery / Main Deck",
+}
+
+
+def inside(point, polygon):
+    """Ray casting: is the point inside the polygon?"""
+    x, y = point
+    hit = False
+    for (x1, y1), (x2, y2) in zip(polygon, polygon[1:] + polygon[:1]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            hit = not hit
+    return hit
+
+
+def test_the_plan_draws_every_building_of_the_official_campus_map():
     html = ui.campus_map([])
-    for label, (left, top, width, height) in content.BUILDINGS.items():
-        assert f'left:{left}%;top:{top}%;width:{width}%;height:{height}%' in html
-        assert f"<span>{label}</span>" in html
-    assert 'class="beach"' in html and "Floor 0" in html
+    for label, name in OFFICIAL_BUILDINGS.items():
+        building = content.BUILDINGS[label]
+        assert building["name"] == name
+        assert f'points="{ui._points(building["shape"])}"' in html
+        assert f'<b>{label}</b>{name}' in html                      # the legend names every building
+    tag = 'class="btag" style="left:{}%;top:{}%">{}</span>'
+    assert tag.format(*content.BUILDINGS["B"]["tag"], "B") in html    # a hall without a place: its letter
+    assert tag.format(*content.BUILDINGS["D"]["tag"], "D") not in html  # Santander Hall's pin shows the D
+    assert 'class="g-lawn"' in html and 'class="g-sand"' in html and 'class="g-sea"' in html and "Floor 0" in html
+    assert html.startswith('<div class="plan2"') and "\n" not in html
+
+
+def test_every_place_pin_sits_in_its_building_or_area():
+    where = {"Library": "H", "Horizon Hall": "G", "Auditorium": "F", "Main Deck": "I",
+             "ICA Canteen": "3", "Santander Hall": "D"}
+    grounds = dict(content.GROUNDS)
+    for place, label in where.items():
+        spot = content.PLACES[place]
+        assert inside((spot["x"], spot["y"]), content.BUILDINGS[label]["shape"]), place
+        assert spot["letter"] == label or place == "Main Deck" and spot["letter"] == "I"
+    assert inside((content.PLACES["Beach"]["x"], content.PLACES["Beach"]["y"]), grounds["sand"])
+    assert inside((content.PLACES["Parking"]["x"], content.PLACES["Parking"]["y"]), grounds["lot"])
+
+
+def test_pins_stay_far_enough_apart_to_tap_them_on_a_phone():
+    spots = [(p["x"], p["y"]) for p in content.PLACES.values()]
+    for i, (x1, y1) in enumerate(spots):
+        assert 6 <= x1 <= 94 and 6 <= y1 <= 90                      # the label fits on the plan
+        for x2, y2 in spots[i + 1:]:
+            assert ((x1 - x2) * 1.25) ** 2 + (y1 - y2) ** 2 >= 14 ** 2
 
 
 def test_pins_show_open_searched_and_locked_and_the_board_says_when():
