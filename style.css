@@ -365,8 +365,18 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 /* ---------- how everyone voted ---------- */
 /* Each ballot flips in after the one before it (--i comes from ui.vote_table). */
 .ballots { margin: .3rem 0 1.6rem; }
-.ballot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .8rem; }
-.ballot-grid .ballot { margin: 0; align-content: start; }
+/* Upright cards side by side: all ballots fit in one row on the board, two per row on a phone. */
+.ballot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: .8rem; }
+.ballot-grid .ballot { margin: 0; flex-direction: column; flex-wrap: nowrap; align-items: center; text-align: center;
+  gap: .45rem; padding: .9rem .7rem .8rem; border-left-width: 1px; border-top: 4px solid #4b5563; }
+.ballot-grid .ballot.right { border-top-color: #22c55e; }
+.ballot-grid .ballot.killer { border-top-color: var(--blood); }
+.ballot-grid .ballot .tag { margin-left: 0; }
+.ballot-grid .ballot .arrow::after { content: " ↓"; }
+.ballot-grid .ballot .arrow + .who { font-size: 1.15rem; }     /* the accused stands out */
+.ballot-grid .ballot .where { flex-basis: auto; }
+.ballot-grid .ballot .award { margin-top: auto; width: 100%; }        /* titles line up at the bottom */
+@media (max-width: 640px) { .ballot-grid { grid-template-columns: repeat(2, 1fr); } }
 .ballots .sum { font-family: var(--mono); font-size: .68rem; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); margin-bottom: .5rem; }
 .ballot { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; margin: .45rem 0; padding: .6rem .75rem;
   background: rgba(31,41,55,.75); border: 1px solid rgba(156,163,175,.18); border-left: 4px solid #4b5563; border-radius: 3px;
