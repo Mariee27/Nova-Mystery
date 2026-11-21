@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+<!-- A fingerprint raised with white powder on dark glass, with a forensic scale and an evidence tag.
+     Slot: place. -->
+<defs>
+  <radialGradient id="fp-glass" cx="50%" cy="40%" r="80%">
+    <stop offset="0" stop-color="#1d2733"/><stop offset=".7" stop-color="#0d131a"/><stop offset="1" stop-color="#05080b"/>
+  </radialGradient>
+  <radialGradient id="fp-dust" cx="50%" cy="50%" r="50%">
+    <stop offset="0" stop-color="#e9edf2" stop-opacity=".25"/><stop offset="1" stop-color="#e9edf2" stop-opacity="0"/>
+  </radialGradient>
+  <clipPath id="fp-tip"><ellipse cx="200" cy="230" rx="112" ry="150"/></clipPath>
+</defs>
+<rect width="400" height="500" fill="url(#fp-glass)"/>
+<ellipse cx="200" cy="230" rx="150" ry="190" fill="url(#fp-dust)"/>
+<g clip-path="url(#fp-tip)" fill="none" stroke="#eef1f5" stroke-linecap="round" opacity=".88">
+  <g stroke-width="5.5">
+    <path d="M200 236 m-14 0 a14 18 0 1 1 28 0"/>
+    <path d="M200 236 m-30 4 a30 38 0 1 1 60 -4 q0 22 -12 40"/>
+    <path d="M200 236 m-46 8 a46 58 0 1 1 92 -8 q0 30 -18 58"/>
+    <path d="M154 250 q-2 64 40 96 M200 236 m-62 10 a62 78 0 1 1 124 -10 q0 40 -24 78"/>
+    <path d="M200 236 m-78 14 a78 98 0 1 1 156 -14 q0 52 -30 100"/>
+    <path d="M122 254 q0 80 58 122 M200 236 m-94 18 a94 118 0 1 1 188 -18 q0 62 -34 120"/>
+    <path d="M200 236 m-110 22 a110 138 0 1 1 220 -22"/>
+    <path d="M108 280 q12 70 70 110 M292 300 q-14 56 -56 92"/>
+    <path d="M90 200 q40 -170 220 -20"/><path d="M96 330 q4 50 40 80"/>
+  </g>
+  <g stroke="#0d131a" stroke-width="7">
+    <path d="M150 170 l10 8 M244 196 l8 -10 M170 300 l12 -4 M232 290 l10 6 M138 236 l0 12 M262 248 l-2 12"/>
+  </g>
+</g>
+<g transform="translate(36 446)">
+  <rect width="328" height="26" fill="#f1e9d2" opacity=".92"/>
+  <g stroke="#2b2b2b" stroke-width="1.2">
+    <line x1="8" y1="0" x2="8" y2="12"/><line x1="40" y1="0" x2="40" y2="8"/><line x1="72" y1="0" x2="72" y2="12"/>
+    <line x1="104" y1="0" x2="104" y2="8"/><line x1="136" y1="0" x2="136" y2="12"/><line x1="168" y1="0" x2="168" y2="8"/>
+    <line x1="200" y1="0" x2="200" y2="12"/><line x1="232" y1="0" x2="232" y2="8"/><line x1="264" y1="0" x2="264" y2="12"/>
+    <line x1="296" y1="0" x2="296" y2="8"/>
+  </g>
+  <text x="10" y="23" font-family="monospace" font-size="9" fill="#2b2b2b">0 cm          2          4          6          8</text>
+</g>
+<g transform="translate(24 24)">
+  <rect width="168" height="54" rx="3" fill="#f1e9d2" opacity=".94"/>
+  <rect width="168" height="14" rx="3" fill="#b42318" opacity=".9"/>
+  <text x="84" y="11" font-family="monospace" font-size="9" fill="#fff" text-anchor="middle" letter-spacing="1.5">EVIDENCE · LATENT PRINT</text>
+  <text data-slot="place" x="10" y="32" font-family="monospace" font-size="11" fill="#1f1f1f">Horizon Hall</text>
+  <text x="10" y="47" font-family="monospace" font-size="10" fill="#444">23:47 · glass, desk</text>
+</g>
+</svg>

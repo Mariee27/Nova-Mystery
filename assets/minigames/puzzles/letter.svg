@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+<!-- A torn letter on a dark desk. Slots filled by the game: place, victim. -->
+<defs>
+  <linearGradient id="lt-wood" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#2a1a12"/><stop offset=".5" stop-color="#1a100b"/><stop offset="1" stop-color="#0d0806"/>
+  </linearGradient>
+  <radialGradient id="lt-paper" cx="45%" cy="40%" r="75%">
+    <stop offset="0" stop-color="#efe3c6"/><stop offset=".7" stop-color="#dcc9a0"/><stop offset="1" stop-color="#b89a68"/>
+  </radialGradient>
+  <radialGradient id="lt-seal" cx="40%" cy="35%" r="65%">
+    <stop offset="0" stop-color="#c2412f"/><stop offset=".6" stop-color="#8e1f17"/><stop offset="1" stop-color="#5a100c"/>
+  </radialGradient>
+</defs>
+<rect width="300" height="300" fill="url(#lt-wood)"/>
+<path d="M0 40 Q150 30 300 46 M0 120 Q150 112 300 128 M0 210 Q150 200 300 216 M0 280 Q150 272 300 288" stroke="#3a2418" stroke-width="2" fill="none" opacity=".6"/>
+<g transform="rotate(-4 150 150)">
+  <rect x="34" y="22" width="232" height="262" fill="url(#lt-paper)" stroke="#8a6d43" stroke-width="1"/>
+  <line x1="34" y1="109" x2="266" y2="109" stroke="#a88a5c" stroke-width="1" opacity=".7"/>
+  <line x1="34" y1="196" x2="266" y2="196" stroke="#a88a5c" stroke-width="1" opacity=".7"/>
+  <text x="150" y="44" font-family="Georgia, 'Times New Roman', serif" font-size="7.6" letter-spacing="1.3" fill="#5a4630" text-anchor="middle">NOVA SCHOOL OF BUSINESS &amp; ECONOMICS</text>
+  <line x1="70" y1="52" x2="230" y2="52" stroke="#7a6142" stroke-width=".8"/>
+  <text data-slot="place" x="252" y="70" font-family="Georgia, serif" font-style="italic" font-size="11" fill="#3b2a1b" text-anchor="end">Horizon Hall</text>
+  <text x="252" y="84" font-family="Georgia, serif" font-style="italic" font-size="11" fill="#3b2a1b" text-anchor="end">a quarter past eleven</text>
+  <text data-slot="victim" x="52" y="106" font-family="Georgia, serif" font-style="italic" font-size="16" fill="#1f1610">Dear Vale,</text>
+  <g font-family="Georgia, serif" font-style="italic" font-size="13.5" fill="#2a1d12">
+    <text x="52" y="132">I know what you did,</text>
+    <text x="52" y="154">and I know who else knows.</text>
+    <text x="52" y="176">Meet me after eleven.</text>
+    <text x="52" y="198">Come alone. Burn this.</text>
+  </g>
+  <path d="M188 238 q10 -14 22 -2 q8 8 18 -4 q6 -6 14 2" stroke="#1f1610" stroke-width="1.6" fill="none"/>
+  <text x="222" y="262" font-family="Georgia, serif" font-style="italic" font-size="11" fill="#3b2a1b" text-anchor="middle">a friend</text>
+  <circle cx="84" cy="246" r="21" fill="url(#lt-seal)"/>
+  <path d="M84 225 l4 6 l6 -2 l-1 7 l6 3 l-6 4 l2 7 l-7 -2 l-4 6 l-4 -6 l-7 2 l2 -7 l-6 -4 l6 -3 l-1 -7 l6 2 z" fill="none" stroke="#5a100c" stroke-width="1" opacity=".55"/>
+  <text x="84" y="253" font-family="Georgia, serif" font-weight="bold" font-size="19" fill="#f2c1a8" text-anchor="middle" opacity=".85">N</text>
+  <ellipse cx="236" cy="128" rx="9" ry="6" fill="#1f1610" opacity=".55"/>
+  <circle cx="250" cy="136" r="2" fill="#1f1610" opacity=".5"/>
+  <path d="M34 22 l18 0 l-18 16 z" fill="#c9b285" opacity=".8"/>
+</g>
+<rect width="300" height="300" fill="none" stroke="#000" stroke-width="10" opacity=".35"/>
+</svg>

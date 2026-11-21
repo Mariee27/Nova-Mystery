@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+<!-- A symbol scratched into an old desk: a circle, an eye, a broken key and "XI". Slot: place. -->
+<defs>
+  <linearGradient id="sy-wood" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#2b1b12"/><stop offset=".5" stop-color="#3a2417"/><stop offset="1" stop-color="#22150e"/>
+  </linearGradient>
+  <filter id="sy-rough"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="7"/><feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .18 0"/><feComposite in2="SourceGraphic" operator="in"/></filter>
+</defs>
+<rect width="400" height="500" fill="url(#sy-wood)"/>
+<g stroke="#4a2f1f" stroke-width="2" fill="none" opacity=".55">
+  <path d="M0 60 q200 -18 400 6"/><path d="M0 150 q200 14 400 -6"/><path d="M0 250 q200 -10 400 8"/>
+  <path d="M0 350 q200 16 400 -4"/><path d="M0 440 q200 -12 400 6"/>
+</g>
+<rect width="400" height="500" fill="#000" filter="url(#sy-rough)"/>
+<g fill="none" stroke="#e8d3b0" stroke-linecap="round" stroke-linejoin="round" opacity=".9">
+  <circle cx="200" cy="226" r="122" stroke-width="5"/>
+  <circle cx="200" cy="226" r="104" stroke-width="2" stroke-dasharray="10 8"/>
+  <polygon points="200,118 300,288 100,288" stroke-width="4"/>
+  <path d="M146 222 q54 -46 108 0 q-54 46 -108 0 z" stroke-width="4"/>
+  <circle cx="200" cy="222" r="15" stroke-width="4"/>
+  <circle cx="200" cy="222" r="4" fill="#e8d3b0"/>
+  <path d="M188 288 v52 M188 312 h18 M188 328 h12" stroke-width="5"/>
+  <path d="M174 352 l52 -18" stroke-width="2"/>
+</g>
+<text x="200" y="98" font-family="Georgia, serif" font-size="34" fill="#e8d3b0" text-anchor="middle" letter-spacing="10" opacity=".9">XI</text>
+<g font-family="Georgia, serif" fill="#e8d3b0" opacity=".85" text-anchor="middle">
+  <text x="200" y="398" font-size="15" font-style="italic">carved under the desk in the</text>
+  <text data-slot="place" x="200" y="424" font-size="20" letter-spacing="2">HORIZON HALL</text>
+</g>
+<g stroke="#e8d3b0" stroke-width="1.4" opacity=".5">
+  <path d="M60 470 l12 -8 M80 474 l10 -10 M318 466 l14 -6 M340 474 l8 -12"/>
+</g>
+</svg>

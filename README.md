@@ -123,8 +123,8 @@ In every room created by the app, each place's clue is a **sealed exhibit**. Tap
 | Game | What you do | Solvable from |
 |---|---|---|
 | 🔐 Crack the code | Tap a 4-digit code on a keypad | The case timeline: death ≈ 23:30, body found 23:47 (e.g. 17 minutes, then 23 → `1723`) |
-| 🕵️ Rub to reveal | Rub a blank notepad page (finger or mouse) to raise the pressed-in writing | Just rubbing: 55 % of the page |
-| 🧩 Reconstruct the still | Tap two pieces to swap them (9 or 6 pieces of a camera still) | The picture: camera number, place name, timestamp |
+| 🕵️ Rub to reveal | Rub the surface (finger or mouse) to reveal a picture: one of 5 motifs | Just rubbing: 55 % of it |
+| 🧩 Reassemble the picture | Tap two pieces to swap them (9 or 6 pieces of a picture): one of 5 motifs | The picture itself; the hints say where its parts are |
 | 🧠 Decode the note | Turn a cipher wheel until the shifted-letter note reads | The note is signed with the victim's name |
 
 - **Checked in Python, never on the phone.** The phone only reports what the player did (digits, rubbed cells,
@@ -138,6 +138,19 @@ In every room created by the app, each place's clue is a **sealed exhibit**. Tap
 - **Phone first:** one custom Streamlit component (`st.components.v2`, no new package), pointer events for touch and
   mouse, tap targets of at least 48 px, no horizontal scrolling at 320 px. Sound is off by default (🔇/🔊 in the
   puzzle header) and only starts after a tap, as mobile browsers require. Reduced motion is respected.
+- **Five pictures per game**, hand-drawn SVGs in `assets/minigames/` (no AI):
+  - *jigsaw* (`puzzles/`, 300 × 300): the security-camera still, a torn letter with a wax seal, a dark corridor
+    with a figure at its end, an old group photo with one face circled in red, a redacted confidential memo;
+  - *rub to reveal* (`scratchcards/`, 400 × 500): the pressed-in note, a fingerprint in white powder, a symbol
+    carved into a desk, half of a torn photograph, a pocket watch stopped at 11:30.
+
+  Every picture gets this case's words (place, victim, times) in its `data-slot` texts, so it never contradicts
+  the story and works for AI cases too. `logic.start` picks the first picture of each kind for the game
+  (`minigames.choose_motifs`) and keeps it in the game, so it stays the same on every reload and for every player;
+  a second place of the same kind shows the next picture, so none repeats within a game. Rehearsal mode keeps the
+  first pictures (camera still, pressed-in note), as before. Story text, exhibit name and the jigsaw hints belong to
+  each picture; the mechanics, the checks and the rewards are the same for all. New pictures or kinds are added to
+  `minigames.MOTIFS`.
 - Every puzzle is built from the case seed and the story, so it works for case #001 and AI-written cases, and
   every player in a room gets the same puzzle for the same place. Demo bots skip the puzzles and wait until every
   human has moved, so they never snatch a place from someone who is solving it.

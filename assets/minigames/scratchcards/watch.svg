@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+<!-- A brass pocket watch on dark velvet, stopped at 11:30, engraved with an N. Slot: place. -->
+<defs>
+  <radialGradient id="wt-velvet" cx="50%" cy="45%" r="75%"><stop offset="0" stop-color="#3b1018"/><stop offset="1" stop-color="#12050a"/></radialGradient>
+  <radialGradient id="wt-brass" cx="38%" cy="32%" r="75%"><stop offset="0" stop-color="#f6dc96"/><stop offset=".5" stop-color="#c39a45"/><stop offset="1" stop-color="#6e4f1c"/></radialGradient>
+  <radialGradient id="wt-face" cx="45%" cy="40%" r="70%"><stop offset="0" stop-color="#fbf6ea"/><stop offset="1" stop-color="#d9ccb0"/></radialGradient>
+</defs>
+<rect width="400" height="500" fill="url(#wt-velvet)"/>
+<path d="M200 96 q-60 -60 -120 -40 q-50 18 -40 70 q8 40 -20 80" fill="none" stroke="#b08a3e" stroke-width="5" stroke-dasharray="7 4" stroke-linecap="round"/>
+<circle cx="200" cy="96" r="14" fill="none" stroke="url(#wt-brass)" stroke-width="7"/>
+<rect x="190" y="104" width="20" height="18" rx="3" fill="url(#wt-brass)"/>
+<circle cx="200" cy="250" r="128" fill="url(#wt-brass)"/>
+<circle cx="200" cy="250" r="128" fill="none" stroke="#4a3412" stroke-width="3"/>
+<circle cx="200" cy="250" r="106" fill="url(#wt-face)" stroke="#8a6a2c" stroke-width="3"/>
+<g font-family="Georgia, serif" font-size="19" fill="#2a2016" text-anchor="middle">
+  <text x="200" y="168">XII</text><text x="286" y="257">III</text><text x="200" y="346">VI</text><text x="114" y="257">IX</text>
+</g>
+<g stroke="#2a2016" stroke-width="2.4" stroke-linecap="round">
+  <line x1="246" y1="170" x2="242" y2="177"/><line x1="280" y1="204" x2="273" y2="208"/>
+  <line x1="280" y1="296" x2="273" y2="292"/><line x1="246" y1="330" x2="242" y2="323"/>
+  <line x1="154" y1="330" x2="158" y2="323"/><line x1="120" y1="296" x2="127" y2="292"/>
+  <line x1="120" y1="204" x2="127" y2="208"/><line x1="154" y1="170" x2="158" y2="177"/>
+</g>
+<line x1="200" y1="250" x2="200" y2="328" stroke="#1a130c" stroke-width="4" stroke-linecap="round"/>
+<line x1="200" y1="250" x2="188" y2="196" stroke="#1a130c" stroke-width="6" stroke-linecap="round"/>
+<circle cx="200" cy="250" r="7" fill="#1a130c"/>
+<text x="200" y="300" font-family="Georgia, serif" font-weight="bold" font-size="22" fill="#8a6a2c" text-anchor="middle" opacity=".55">N</text>
+<path d="M150 200 l40 30 M212 268 l36 22" stroke="#fff" stroke-width="1.2" opacity=".55"/>
+<g font-family="Georgia, serif" fill="#e7c98a" text-anchor="middle" opacity=".88">
+  <text x="200" y="420" font-size="15" font-style="italic">stopped – found in the</text>
+  <text data-slot="place" x="200" y="448" font-size="20" letter-spacing="2">HORIZON HALL</text>
+</g>
+</svg>

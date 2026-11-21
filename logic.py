@@ -259,6 +259,10 @@ def start(game, token, online, now, seed=None, fixed_case=False, use_ai=True):
         note = "The AI case could not be used, so you are playing case #001."
         game["case"] = generator.build_valid_case(_player_ids(game), seed, story)
     game["story"] = story
+    # The pictures of the evidence puzzles: chosen once per game and kept in it, so every
+    # player of the room sees the same ones on every reload. Rehearsal mode keeps the first
+    # pictures, so a presentation looks the same every time.
+    game["motifs"] = None if fixed_case else minigames.choose_motifs(seed)
     if note:
         game["story_note"] = note
     _enter_phase(game, "REVEAL", now)

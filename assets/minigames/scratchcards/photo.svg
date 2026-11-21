@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+<!-- One half of a torn photograph: a figure at a lit window at night, a date stamp, a name crossed out.
+     Slots: victim, place. -->
+<defs>
+  <linearGradient id="pt-night" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d1622"/><stop offset="1" stop-color="#1a2230"/></linearGradient>
+  <radialGradient id="pt-window" cx="50%" cy="50%" r="60%"><stop offset="0" stop-color="#ffd896"/><stop offset="1" stop-color="#c7853a"/></radialGradient>
+  <radialGradient id="pt-vig" cx="50%" cy="45%" r="70%"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".6"/></radialGradient>
+</defs>
+<rect width="400" height="500" fill="#14110d"/>
+<path d="M28 22 H372 V420 l-14 10 l12 14 l-16 8 l10 16 l-18 8 l6 12 H28 Z" fill="#ece3cf"/>
+<path d="M44 38 H356 V406 l-10 8 l8 10 l-12 8 H44 Z" fill="url(#pt-night)"/>
+<g fill="#0a0f16">
+  <rect x="44" y="190" width="312" height="230"/>
+  <polygon points="44,190 120,120 200,170 290,96 356,150 356,190"/>
+</g>
+<g fill="#1c2433">
+  <rect x="80" y="222" width="70" height="90"/><rect x="250" y="222" width="70" height="90"/>
+</g>
+<rect x="160" y="210" width="80" height="110" fill="url(#pt-window)"/>
+<line x1="200" y1="210" x2="200" y2="320" stroke="#3a2a18" stroke-width="4"/>
+<line x1="160" y1="264" x2="240" y2="264" stroke="#3a2a18" stroke-width="4"/>
+<path d="M184 320 v-48 q0 -14 16 -14 q16 0 16 14 v48 z" fill="#0b0b0b"/>
+<circle cx="200" cy="246" r="11" fill="#0b0b0b"/>
+<g fill="#ffe6b0" opacity=".7"><circle cx="96" cy="70" r="1.6"/><circle cx="150" cy="56" r="1.2"/><circle cx="260" cy="64" r="1.4"/><circle cx="320" cy="84" r="1.2"/></g>
+<rect x="44" y="38" width="312" height="392" fill="url(#pt-vig)"/>
+<text x="340" y="400" font-family="'Courier New', monospace" font-size="20" font-weight="bold" fill="#ff8a3d" text-anchor="end" opacity=".9">23:30</text>
+<g font-family="'Segoe Print', 'Bradley Hand', cursive" fill="#2a2118">
+  <text data-slot="victim" x="60" y="462" font-size="26">Vale</text>
+  <text data-slot="place" x="60" y="486" font-size="15" opacity=".8">Horizon Hall</text>
+</g>
+<path d="M54 454 q60 -16 112 4" stroke="#b42318" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+</svg>

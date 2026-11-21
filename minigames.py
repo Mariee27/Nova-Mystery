@@ -16,7 +16,10 @@ Everything is built from the case seed, the story and the fixed times of the nig
 AI-written case, and every player of a room gets the same puzzle for the same place.
 """
 
+import functools
+import html
 import math
+import pathlib
 import random
 import re
 
@@ -43,6 +46,118 @@ MAX_SWAPS = 400
 # browser's developer tools; this, and the limit on wrong answers, makes it slow and pointless.
 MIN_SECONDS = {"code": 3, "cipher": 3, "scratch": 4, "puzzle": 4}
 MAX_PROOF_ITEMS = SCRATCH_COLS * SCRATCH_ROWS
+
+
+# ---------------------------------------------------------------- motifs: what a puzzle shows
+#
+# Each kind can show one of several pictures (assets/minigames/...). Only the picture and its
+# words change; how a puzzle is solved, checked and rewarded never does. logic.start picks a
+# first motif per kind for the game (choose_motifs) and stores it in game["motifs"]; a second
+# place of the same kind gets the next motif, so no picture repeats within a game. Without a
+# stored choice (rehearsal mode, games from before) every place shows the first motif, the
+# picture case #001 always had. Pictures are SVG files with <text data-slot="..."> elements
+# that get this case's words (fill), so no picture contradicts the story.
+
+ASSETS = pathlib.Path(__file__).resolve().parent / "assets" / "minigames"
+PUZZLE_HINT_MOVE = "PIECE"   # the third puzzle hint: replaced on the phone by a concrete move
+
+MOTIFS = {
+    "puzzle": [
+        {"id": "camera", "file": "puzzles/camera.svg", "name": "Reconstruct the still",
+         "exhibit": "The torn camera still",
+         "story": "A security still from the camera in the {location}, torn into {pieces} pieces and left in a bin. "
+                  "Put it back together.",
+         "hints": ["The camera writes its number top-left and the time bottom-left.",
+                   "The name of the place runs across the top row; the floor lines meet in the middle."],
+         "slots": {"camera": "CAM {number:02d}", "place": "{PLACE}", "time": "23:{minute:02d}:{second:02d}",
+                   "icon": "{icon}"}},
+        {"id": "letter", "file": "puzzles/letter.svg", "name": "Piece the letter together",
+         "exhibit": "The torn letter",
+         "story": "A letter found in the {location}, torn into {pieces} pieces. Somebody did not want it read. "
+                  "Put it back together.",
+         "hints": ["The letterhead runs across the top row; the place and the hour sit top-right.",
+                   "The red wax seal is bottom-left, the signature bottom-right; the lines of writing fill the middle."],
+         "slots": {"place": "{location}", "victim": "Dear {victim},"}},
+        {"id": "corridor", "file": "puzzles/corridor.svg", "name": "Reconstruct the photo",
+         "exhibit": "The torn photo of the corridor",
+         "story": "A photo of the dark corridor by the {location}, printed and torn into {pieces} pieces. "
+                  "Someone stands at the far end. Put it back together.",
+         "hints": ["The sign with the place name and the lamps are in the top row; the floor lines meet in the middle.",
+                   "The open door with its light is on the right; the figure stands at the far end, in the centre."],
+         "slots": {"place": "{PLACE}"}},
+        {"id": "photograph", "file": "puzzles/photograph.svg", "name": "Restore the photograph",
+         "exhibit": "The torn group photo",
+         "story": "An old photograph pinned up in the {location}, torn into {pieces} pieces. One face is circled in red. "
+                  "Put it back together.",
+         "hints": ["The red pushpin holds the top-left corner; the arched windows run across the top.",
+                   "The red circle is around one face on the right; the caption is written along the bottom."],
+         "slots": {"place": "{location}"}},
+        {"id": "document", "file": "puzzles/document.svg", "name": "Reassemble the memo",
+         "exhibit": "The shredded memo",
+         "story": "A confidential memo from the {location}, torn into {pieces} pieces before anyone could read it. "
+                  "Put it back together.",
+         "hints": ["The paperclip and the heading are top-left; the red CONFIDENTIAL stamp is top-right.",
+                   "The black bars are in the middle; the signature and the coffee ring are at the bottom."],
+         "slots": {"victim": "RE: {victim}", "place": "LOCATION: {location}"}},
+    ],
+    "scratch": [
+        {"id": "note", "file": "scratchcards/note.svg", "name": "Rub to reveal", "exhibit": "The pressed-in note",
+         "verb": "Rub the page with your finger.", "cover": "RUB THE PAGE",
+         "story": "A blank notepad page from the {location}. Whoever wrote on the sheet above pressed hard. "
+                  "Rub it like a pencil to raise the writing.",
+         "slots": {"victim": "{victim} –", "place": "{location}", "time": "{murder_time} ?"}},
+        {"id": "fingerprint", "file": "scratchcards/fingerprint.svg", "name": "Dust for prints",
+         "exhibit": "The dusted fingerprint", "verb": "Brush the powder with your finger.", "cover": "BRUSH THE POWDER",
+         "story": "A glass left on a desk in the {location}. Brush the powder across it to raise the fingerprint.",
+         "slots": {"place": "{location}"}},
+        {"id": "symbol", "file": "scratchcards/symbol.svg", "name": "Rub away the dust",
+         "exhibit": "The carved symbol", "verb": "Rub the dust away with your finger.", "cover": "RUB AWAY THE DUST",
+         "story": "Under a desk in the {location}, something was carved into the wood. Rub away the dust to see it.",
+         "slots": {"place": "{PLACE}"}},
+        {"id": "photo", "file": "scratchcards/photo.svg", "name": "Clean the photograph",
+         "exhibit": "The torn photograph", "verb": "Rub the grime away with your finger.", "cover": "RUB IT CLEAN",
+         "story": "Half a photograph, stuck face down under grime in the {location}. Rub it clean.",
+         "slots": {"victim": "{victim}", "place": "{location}"}},
+        {"id": "watch", "file": "scratchcards/watch.svg", "name": "Polish the watch",
+         "exhibit": "The stopped pocket watch", "verb": "Rub the tarnish away with your finger.",
+         "cover": "RUB AWAY THE TARNISH",
+         "story": "A pocket watch under a cloth in the {location}, black with tarnish. Rub it until you can read it.",
+         "slots": {"place": "{PLACE}"}},
+    ],
+}
+
+
+def choose_motifs(seed):
+    """The first motif of each kind for a new game: random, but fixed by the game's seed."""
+    rng = random.Random(f"{seed}|motifs")
+    return {kind: rng.randrange(len(options)) for kind, options in MOTIFS.items()}
+
+
+def motif(game, kind, variant):
+    """The motif of a place: the game's first motif of this kind, then the next ones for further
+    places of the same kind. Without a stored choice: always the first motif."""
+    options = MOTIFS[kind]
+    chosen = game.get("motifs")
+    if not chosen:
+        return options[0]
+    return options[(chosen.get(kind, 0) + variant) % len(options)]
+
+
+@functools.lru_cache(maxsize=None)
+def _picture(name):
+    return (ASSETS / name).read_text(encoding="utf-8")
+
+
+def picture(name, **words):
+    """An SVG asset with its <text data-slot="..."> elements filled (every word escaped)."""
+    def fill(match):
+        slot = match.group(2)
+        return match.group(1) + (html.escape(str(words[slot])) if slot in words else match.group(3)) + match.group(4)
+    return re.sub(r'(<text\b[^>]*\bdata-slot="([a-z_]+)"[^>]*>)(.*?)(</text>)', fill, _picture(name), flags=re.S)
+
+
+def _words(spec_slots, **values):
+    return {slot: template.format(**values) for slot, template in spec_slots.items()}
 
 
 def _minutes(clock):
@@ -171,25 +286,30 @@ def spec(game, location):
             facts=[["Time of death", f"≈ {content.MURDER_TIME}"], ["Body found", content.FOUND_TIME]],
             hints=_code_hints(variant))
     elif kind == "scratch":
+        look = motif(game, kind, variant)
+        words = _words(look["slots"], location=location, PLACE=location.upper(), victim=victim,
+                       murder_time=content.MURDER_TIME)
         base.update(
-            story=f"A blank notepad page from the {location}. Whoever wrote on the sheet above pressed hard. "
-                  "Rub it like a pencil to raise the writing.",
+            motif=look["id"], name=look["name"], exhibit=look["exhibit"], verb=look["verb"], cover=look["cover"],
+            story=look["story"].format(location=location),
             cols=SCRATCH_COLS, rows=SCRATCH_ROWS, needed=SCRATCH_NEEDED,
-            lines=[f"{victim} –", f"{location}", f"{content.MURDER_TIME} ?", "don't tell anyone"],
-            hints=["Rub with your finger over the whole page, not just one spot.",
-                   "The writing is spread across the page – work from edge to edge.",
-                   f"Rub a little more than half of the page ({int(SCRATCH_NEEDED * 100)} %) and it opens."])
+            image=picture(look["file"], **words),
+            hints=["Rub with your finger over the whole surface, not just one spot.",
+                   "The picture is spread across the whole surface – work from edge to edge.",
+                   f"Rub a little more than half of it ({int(SCRATCH_NEEDED * 100)} %) and it opens."])
     elif kind == "puzzle":
         cols, rows = _puzzle_grid(variant)
         rng = _rng(game, location, "still")
+        look = motif(game, kind, variant)
+        words = _words(look["slots"], location=location, PLACE=location.upper(), victim=victim, number=number,
+                       minute=rng.randint(20, 29), second=rng.randint(10, 59),
+                       icon=content.PLACES.get(location, {}).get("icon", "📷"))
         base.update(
-            story=f"A security still from the camera in the {location}, torn into {cols * rows} pieces "
-                  "and left in a bin. Put it back together.",
+            motif=look["id"], name=look["name"], exhibit=look["exhibit"],
+            story=look["story"].format(location=location, pieces=cols * rows),
             cols=cols, rows=rows, start=_puzzle_start(game, location, variant),
-            image=camera_still(location, number, rng.randint(20, 29), rng.randint(10, 59)),
-            hints=["The camera writes its number top-left and the time bottom-left.",
-                   "The name of the place runs across the top row; the floor lines meet in the middle.",
-                   "PIECE"])   # replaced on the phone by a concrete move (see first_misplaced)
+            image=picture(look["file"], **words),
+            hints=look["hints"] + [PUZZLE_HINT_MOVE])   # the move: see first_misplaced
     else:
         sig = _signature(game)
         key = _cipher_key(game, location)
@@ -315,32 +435,7 @@ def first_misplaced(spec_, swaps):
 # ---------------------------------------------------------------- the camera still (SVG)
 
 def camera_still(location, number, minute, second):
-    """A stylised security-camera frame of a place, 300 × 300. Every piece looks different."""
-    from html import escape
-    place = escape(location.upper())
-    icon = content.PLACES.get(location, {}).get("icon", "📷")
-    lines = "".join(f'<line x1="150" y1="165" x2="{x}" y2="300" stroke="#1f6f7a" stroke-width="1.4"/>'
-                    for x in range(-150, 451, 60))
-    rows = "".join(f'<line x1="0" y1="{y}" x2="300" y2="{y}" stroke="#1f6f7a" stroke-width="1" opacity=".7"/>'
-                   for y in (190, 215, 250, 295))
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">'
-        '<defs><radialGradient id="g" cx="50%" cy="40%" r="75%"><stop offset="0" stop-color="#20384a"/>'
-        '<stop offset="1" stop-color="#05080d"/></radialGradient></defs>'
-        '<rect width="300" height="300" fill="url(#g)"/>'
-        f'{lines}{rows}'
-        '<rect x="30" y="70" width="70" height="95" fill="#0b1520" stroke="#3b82a0" stroke-width="2"/>'
-        '<rect x="200" y="60" width="72" height="50" fill="#132433" stroke="#3b82a0" stroke-width="2"/>'
-        '<line x1="200" y1="85" x2="272" y2="85" stroke="#3b82a0"/><line x1="236" y1="60" x2="236" y2="110" stroke="#3b82a0"/>'
-        '<circle cx="85" cy="120" r="4" fill="#d4a853"/>'
-        '<rect x="120" y="120" width="70" height="40" rx="3" fill="#1b2a38" stroke="#5aa9bf"/>'
-        f'<text x="155" y="105" font-size="44" text-anchor="middle">{icon}</text>'
-        '<rect x="0" y="0" width="300" height="34" fill="rgba(0,0,0,.55)"/>'
-        f'<text x="10" y="22" font-family="monospace" font-size="15" fill="#e2e8f0">CAM {number:02d}</text>'
-        f'<text x="290" y="22" font-family="monospace" font-size="13" fill="#f5f1e8" text-anchor="end">{place}</text>'
-        '<circle cx="96" cy="17" r="5" fill="#ef4444"/><text x="106" y="22" font-family="monospace" font-size="13" fill="#ef4444">REC</text>'
-        '<rect x="0" y="266" width="300" height="34" fill="rgba(0,0,0,.6)"/>'
-        f'<text x="10" y="289" font-family="monospace" font-size="15" fill="#d4a853">23:{minute:02d}:{second:02d}</text>'
-        '<text x="290" y="289" font-family="monospace" font-size="12" fill="#94a3b8" text-anchor="end">NOVA SECURITY</text>'
-        '<path d="M8 44 v-8 h8 M292 44 v-8 h-8 M8 256 v8 h8 M292 256 v8 h-8" stroke="#e2e8f0" fill="none" stroke-width="2"/>'
-        '</svg>')
+    """The camera still (the first puzzle motif) of a place, 300 × 300."""
+    look = MOTIFS["puzzle"][0]
+    return picture(look["file"], **_words(look["slots"], PLACE=location.upper(), number=number, minute=minute,
+                                          second=second, icon=content.PLACES.get(location, {}).get("icon", "📷")))

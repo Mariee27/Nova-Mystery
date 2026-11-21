@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+<!-- An old group photograph pinned to a cork board, one face circled in red. Slot: place. -->
+<defs>
+  <pattern id="ph-cork" width="8" height="8" patternUnits="userSpaceOnUse">
+    <rect width="8" height="8" fill="#4a3322"/><circle cx="2" cy="2" r="1" fill="#5c4130"/><circle cx="6" cy="5" r=".8" fill="#3c291b"/>
+  </pattern>
+  <linearGradient id="ph-sepia" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#b9a07a"/><stop offset="1" stop-color="#6e5a40"/></linearGradient>
+  <radialGradient id="ph-vignette" cx="50%" cy="50%" r="70%"><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></radialGradient>
+</defs>
+<rect width="300" height="300" fill="url(#ph-cork)"/>
+<rect width="300" height="300" fill="#000" opacity=".35"/>
+<path d="M0 36 L70 60" stroke="#9b1c1c" stroke-width="2"/>
+<path d="M300 250 L236 222" stroke="#9b1c1c" stroke-width="2"/>
+<g transform="rotate(3 150 150)">
+  <rect x="34" y="34" width="232" height="232" fill="#efe6d2"/>
+  <rect x="48" y="48" width="204" height="160" fill="url(#ph-sepia)"/>
+  <g fill="#5a4935" opacity=".9">
+    <rect x="58" y="62" width="184" height="70"/>
+    <path d="M70 132 v-46 a14 14 0 0 1 28 0 v46 z M114 132 v-46 a14 14 0 0 1 28 0 v46 z M158 132 v-46 a14 14 0 0 1 28 0 v46 z M202 132 v-46 a14 14 0 0 1 28 0 v46 z" fill="#8f7a5a"/>
+  </g>
+  <g fill="#2b2118">
+    <circle cx="80" cy="150" r="11"/><path d="M62 208 q0 -38 18 -38 q18 0 18 38 z"/>
+    <circle cx="116" cy="146" r="11"/><path d="M98 208 q0 -42 18 -42 q18 0 18 42 z"/>
+    <circle cx="152" cy="150" r="11"/><path d="M134 208 q0 -38 18 -38 q18 0 18 38 z"/>
+    <circle cx="188" cy="144" r="11"/><path d="M170 208 q0 -44 18 -44 q18 0 18 44 z"/>
+    <circle cx="224" cy="150" r="11"/><path d="M206 208 q0 -38 18 -38 q18 0 18 38 z"/>
+  </g>
+  <ellipse cx="188" cy="146" rx="19" ry="21" fill="none" stroke="#c81e1e" stroke-width="3" transform="rotate(-8 188 146)"/>
+  <path d="M206 128 q8 -8 16 -4" stroke="#c81e1e" stroke-width="2.5" fill="none"/>
+  <rect x="48" y="48" width="204" height="160" fill="url(#ph-vignette)"/>
+  <text data-slot="place" x="150" y="236" font-family="Georgia, serif" font-style="italic" font-size="15" fill="#3b2c1e" text-anchor="middle">Horizon Hall</text>
+  <text x="150" y="254" font-family="Georgia, serif" font-style="italic" font-size="11" fill="#5a4630" text-anchor="middle">the night of the gala</text>
+  <path d="M266 266 l-30 0 l8 -6 l-6 -6 l10 -4 l-4 -8 l22 0 z" fill="#4a3322" opacity=".9"/>
+</g>
+<circle cx="50" cy="44" r="8" fill="#b91c1c"/><circle cx="48" cy="42" r="3" fill="#f87171"/>
+<rect width="300" height="300" fill="none" stroke="#000" stroke-width="10" opacity=".4"/>
+</svg>

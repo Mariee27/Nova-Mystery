@@ -52,6 +52,20 @@ try {
   check((await page.locator('.pin2.sel .pn').allInnerTexts()).includes(place), `tapping ${place} selects it`);
   check(await page.getByRole('button', { name: new RegExp(`^Search ${place}$`, 'i') }).count() === 1,
         `the button to search ${place} appears`);
+  await click(`Search ${place}`); await settle(3000);
+  const tiles = page.locator('.grid .tile');
+  if (await tiles.count() > 0) {          // the jigsaw: its picture loads, and no piece is stretched
+    const shape = await tiles.evaluateAll((all) => {
+      const grid = all[0].parentElement, cols = getComputedStyle(grid).gridTemplateColumns.split(' ').length;
+      const rows = all.length / cols, box = all[0].getBoundingClientRect();
+      return { cols, rows, ratio: box.width / box.height, image: getComputedStyle(all[0]).backgroundImage.length };
+    });
+    check(shape.image > 100, 'the jigsaw shows its picture');
+    check(Math.abs(shape.ratio - shape.rows / shape.cols) < 0.05, `the pieces keep the picture's shape (${shape.cols} × ${shape.rows})`);
+  } else if (await page.locator('img.motif').count() > 0) {   // rub to reveal: the picture under the cover
+    const width = await page.locator('img.motif').evaluate((img) => img.complete ? img.naturalWidth : 0);
+    check(width > 0, 'the picture under the cover loads');
+  }
 
   for (let i = 0; i < 6 && !(await text()).includes('Who did it?'); i++) await click('End phase (host)');
   check((await text()).includes('Who did it?'), 'the vote opens');
