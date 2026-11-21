@@ -263,6 +263,9 @@ def show_result(public):
     who = lambda pid: name_of(public, pid)   # noqa: E731
     story = public["story"]
     show(ui.reveal(result, characters, who, story=story))
+    # The ballots come right after the culprit, over the full width: the moment everybody reacts to.
+    st.markdown("### How everyone voted")
+    show(ui.vote_table(result, public["players"], who))
     left, right = st.columns([3, 2])
     with left:
         st.markdown("### Reconstruction of the night")
@@ -273,8 +276,6 @@ def show_result(public):
         st.markdown("### Who the room accused")
         labels = [(str(p["pid"]), p["name"]) for p in public["players"]]
         show(ui.bars(result["tally"], labels, hit=str(result["murderer"])))
-        st.markdown("### How everyone voted")
-        show(ui.vote_table(result, public["players"], who))
         st.markdown("### Where it happened")
         places = [(loc, loc) for loc in story["locations"]]
         show(ui.bars(result.get("scene_tally", {}), places, hit=result["murder_location"]))

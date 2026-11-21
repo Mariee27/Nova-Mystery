@@ -364,7 +364,9 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 
 /* ---------- how everyone voted ---------- */
 /* Each ballot flips in after the one before it (--i comes from ui.vote_table). */
-.ballots { margin: .3rem 0 1.2rem; }
+.ballots { margin: .3rem 0 1.6rem; }
+.ballot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .8rem; }
+.ballot-grid .ballot { margin: 0; align-content: start; }
 .ballots .sum { font-family: var(--mono); font-size: .68rem; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); margin-bottom: .5rem; }
 .ballot { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; margin: .45rem 0; padding: .6rem .75rem;
   background: rgba(31,41,55,.75); border: 1px solid rgba(156,163,175,.18); border-left: 4px solid #4b5563; border-radius: 3px;
@@ -383,6 +385,9 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .ballot.killer .tag { color: #fca5a5; }
 .ballot.killer > .who:first-child .face { background: var(--blood); color: var(--ivory); }
 .ballot.none { opacity: .6; }
+.ballot.killer { animation-delay: calc(var(--i) * .35s + 1.5s); }   /* a pause before the punchline */
+.ballot .award { flex-basis: 100%; margin-top: .2rem; padding-top: .45rem; border-top: 1px dashed rgba(245,241,232,.15);
+  font-family: var(--serif); font-style: italic; font-size: 1rem; color: var(--ivory); }
 @keyframes ballotIn {
   from { opacity: 0; transform: translateX(-18px) rotate(-1.5deg) scale(.97); }
   to   { opacity: 1; transform: none; }

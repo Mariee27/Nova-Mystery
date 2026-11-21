@@ -713,17 +713,40 @@ def alibi_table(result, characters, name_of):
             f'{"".join(rows)}</table>')
 
 
+def ballot_award(accused, place, murderer, scene, is_killer, caught):
+    """A small title for each ballot, just for fun. caught: did most ballots name the killer?"""
+    if is_killer:
+        return "🚨 Caught" if caught else "🎭 Master liar"
+    if accused is None:
+        return "🙈 Too scared to vote"
+    if accused != murderer:
+        return "🤡 Fooled"
+    if place == scene:
+        return "🕵️ Sharpest detective"
+    return "🔎 Good instinct"
+
+
+def ballot_order(player, votes, murderer):
+    """Suspense: wrong and missing ballots first, then the right ones, the killer's ballot last."""
+    if player["pid"] == murderer:
+        return 2
+    return 1 if votes.get(str(player["pid"])) == murderer else 0
+
+
 def vote_table(result, players, name_of):
     """After the game: every ballot as a card that flips in, one after another.
     Green = pointed at the real culprit, red = the culprit's own ballot, grey = wrong.
-    --i is the card's number; the CSS uses it to delay each card a little more."""
+    --i is the card's number; the CSS uses it to delay each card a little more
+    (and the killer's ballot, which comes last, a little longer)."""
     murderer = result["murderer"]
     scene = result["murder_location"]
     votes = result.get("votes", {})
     scene_votes = result.get("scene_votes", {})
     right = sum(1 for accused in votes.values() if accused == murderer)
+    caught = right * 2 > len(votes)          # more than half of the ballots named the killer
+    ordered = sorted(players, key=lambda p: ballot_order(p, votes, murderer))   # sorted() keeps ties in order
     cards = []
-    for i, p in enumerate(players):
+    for i, p in enumerate(ordered):
         voter = str(p["pid"])
         accused = votes.get(voter)
         place = scene_votes.get(voter)
@@ -740,15 +763,17 @@ def vote_table(result, players, name_of):
             tag = "The killer's ballot"
         where = ""
         if place is not None:
-            mark = " ✓" if place == scene else ""
+            mark = " ✓" if place == scene else " ✗"
             icon = content.LOCATION_ICONS.get(place, "")
             where = f'<div class="where">{icon} {h(place)}{mark}</div>'
+        award = ballot_award(accused, place, murderer, scene, killer, caught)
         cards.append(f'<div class="{css}" style="--i:{i}">'
                      f'<span class="who"><span class="face">{initial(name_of(p["pid"]))}</span>'
                      f'{h(name_of(p["pid"]))}</span><span class="arrow">accuses</span>{target}'
-                     f'<span class="tag">{h(tag)}</span>{where}</div>')
+                     f'<span class="tag">{h(tag)}</span>{where}<div class="award">{h(award)}</div></div>')
     summary = f'{right} of {len(votes)} ballots named the killer'
-    return f'<div class="ballots"><div class="sum">{h(summary)}</div>{"".join(cards)}</div>'
+    return (f'<div class="ballots"><div class="sum">{h(summary)}</div>'
+            f'<div class="ballot-grid">{"".join(cards)}</div></div>')
 
 
 def bars(counts, labels, hit=None):

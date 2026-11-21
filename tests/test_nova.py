@@ -1,5 +1,7 @@
 """Features of NOVA MYSTERY: the scene accusation and its endings, confronting a
 suspect with evidence, the demo suspects (bots), and the HTML building blocks."""
+import re
+
 import pytest
 
 import content
@@ -366,3 +368,23 @@ def test_vote_table_shows_every_ballot_escaped():
     assert "Did not vote" in html                           # player 3 abstained
     assert "ballot killer" in html and "The killer&#x27;s ballot" in html   # player 2 is the culprit
     assert "1 of 2 ballots named the killer" in html
+
+
+def test_ballots_come_wrong_first_right_next_and_the_killers_ballot_last():
+    scene = content.LOCATIONS[0]
+    result = {"murderer": 3, "murder_location": scene,
+              "votes": {"1": 3, "2": 1, "3": 2, "4": 3}, "scene_votes": {"1": scene, "4": content.LOCATIONS[1]}}
+    players = [{"pid": 1}, {"pid": 2}, {"pid": 3}, {"pid": 4}, {"pid": 5}]
+    names = {1: "Ana", 2: "Ben", 3: "Caro", 4: "Dev", 5: "Eli"}
+    html = ui.vote_table(result, players, lambda pid: names[pid])
+    order = re.findall(r'style="--i:\d+"><span class="who"><span class="face">.</span>(\w+)', html)
+    assert order == ["Ben", "Eli", "Ana", "Dev", "Caro"]     # wrong/none, right, killer last
+    assert "🕵️ Sharpest detective" in html                   # Ana: right person and right place
+    assert "🔎 Good instinct" in html                         # Dev: right person, wrong place
+    assert "🤡 Fooled" in html and "🙈 Too scared to vote" in html
+    assert "🎭 Master liar" in html                           # only 2 of 4 named Caro: not more than half
+
+
+def test_the_killer_is_a_master_liar_when_few_ballots_name_them():
+    assert ui.ballot_award(1, None, 3, "X", True, caught=False) == "🎭 Master liar"
+    assert ui.ballot_award(1, None, 3, "X", True, caught=True) == "🚨 Caught"
