@@ -484,8 +484,9 @@ def board_screen(code):
     public, _ = sync(code)
     if public is not None:
         st.session_state["board_phase"] = public["phase"]
+    board_live(code)                             # first: always at the same place (see player_screen)
+    if public is not None:
         play_case_intro(code, public)
-    board_live(code)
 
 
 # ---------------------------------------------------------------- player (phone)
@@ -494,8 +495,9 @@ def signature(public, me):
     """Changes whenever the buttons on the phone have to change: also when new evidence
     arrives, so that the search list stays current."""
     evidence = sum(1 for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS)
-    # Who is in the room and online: the host's Start button depends on it.
-    players = tuple((p["pid"], p["online"]) for p in public["players"])
+    # Who is in the room, online, has moved or voted: the suspect list shows it (it is drawn
+    # with the page, so the page must be redrawn when it changes).
+    players = tuple((p["pid"], p["online"], p["acted"], p["voted"]) for p in public["players"])
     # The round and the state of every place: the map's markers depend on them.
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
@@ -512,7 +514,6 @@ def player_status(code, token):
         st.rerun()   # redraw the whole page so that the right buttons appear
 
 
-@st.fragment(run_every=POLL_SECONDS)
 def player_suspects(code, my_pid):
     """The suspects as a short list. The phone has no room for the board's big tiles."""
     with open_db() as conn:
@@ -524,7 +525,6 @@ def player_suspects(code, my_pid):
         show(ui.suspect_list(public["players"], public["phase"], my_pid))
 
 
-@st.fragment(run_every=POLL_SECONDS)
 def player_log(code):
     with open_db() as conn:
         game, seen = db.snapshot(conn, code, time.time(), key=db_target())
@@ -1016,11 +1016,16 @@ def player_screen(code, token):
         return
     st.session_state["signature"] = signature(public, me)
     phase = public["phase"]
-    play_case_intro(code, public)
 
+    # The one part of the page that refreshes itself (every POLL_SECONDS). It must sit at the
+    # same place in every redraw: Streamlit addresses a fragment's output by its position, and a
+    # refresh that arrives just as the page is redrawn with a different layout above it crashes
+    # the page in the browser ("Bad delta path index": a white page). So nothing that comes and
+    # goes is drawn above it, and the rest of the page is redrawn as a whole when it changes.
     st.markdown(f'<div class="kicker">Room {ui.h(code)} · you are {ui.h(me["name"])}</div>',
                 unsafe_allow_html=True)
     player_status(code, token)
+    play_case_intro(code, public)                # a fixed overlay: where it sits does not matter
 
     flash = st.session_state.pop("flash", None)
     if flash:
