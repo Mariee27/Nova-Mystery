@@ -360,14 +360,33 @@ def test_the_plan_draws_every_building_of_the_official_campus_map():
 
 def test_every_place_pin_sits_in_its_building_or_area():
     where = {"Library": "H", "Horizon Hall": "G", "Auditorium": "F", "Main Deck": "I",
-             "ICA Canteen": "3", "Santander Hall": "D"}
+             "ICA Canteen": "I", "Santander Hall": "D"}         # the canteen is the food court on I
     grounds = dict(content.GROUNDS)
     for place, label in where.items():
         spot = content.PLACES[place]
         assert inside((spot["x"], spot["y"]), content.BUILDINGS[label]["shape"]), place
-        assert spot["letter"] == label or place == "Main Deck" and spot["letter"] == "I"
+        assert spot["letter"] == ("3" if place == "ICA Canteen" else label)   # 3: food service 3
     assert inside((content.PLACES["Beach"]["x"], content.PLACES["Beach"]["y"]), grounds["sand"])
-    assert inside((content.PLACES["Parking"]["x"], content.PLACES["Parking"]["y"]), grounds["lot"])
+
+
+def test_the_map_has_no_parking():
+    """No car park on the plan: not as a place, a pin, an area or a label."""
+    assert "Parking" not in content.PLACES
+    html = ui.campus_map([]) + ui.campus_map([], board=True)
+    assert "parking" not in html.lower() and "car park" not in html.lower() and "🅿" not in html
+    assert not any(css in ("lot", "parking") for css, _ in content.GROUNDS)
+
+
+def test_every_place_has_exactly_one_pin_that_links_to_it_on_the_phone():
+    places = list(content.PLACES)
+    view = {"round": 1, "places": [{"name": p, "state": "open", "opens_in": None, "found_in": None}
+                                    for p in places]}
+    links = {p: f"?step=search&place={p}" for p in places}
+    html = ui.campus_map([], view=view, links=links)
+    assert html.count('class="pin2') == len(places)
+    for place in places:
+        assert html.count(f'href="?step=search&amp;place={ui.h(place)}"') == 1
+        assert html.count(f'<span class="pn">{ui.h(place)}</span>') == 1
 
 
 def test_pins_stay_far_enough_apart_to_tap_them_on_a_phone():
@@ -398,7 +417,8 @@ def test_the_plan_is_greyed_out_after_the_players_move_and_marks_the_selected_pl
 
 
 def test_every_place_on_the_campus_has_a_spot_on_the_map():
-    assert len(content.PLACES) == 8
+    assert list(content.PLACES) == ["Library", "Horizon Hall", "Auditorium", "Main Deck", "ICA Canteen",
+                                    "Santander Hall", "Beach"]    # every searchable place, names unchanged
     for place in content.PLACES.values():
         assert 0 <= place["x"] <= 100 and 0 <= place["y"] <= 100 and place["icon"] and place["letter"]
     assert all(place in content.PLACES for place in content.LOCATIONS)

@@ -51,15 +51,19 @@ There is no interrogation in the app: the players sit in one room and question, 
 defend their alibis out loud. A player with nothing left to search or share is told so and is
 not waited for.
 
-**The campus map.** A simplified plan of NOVA SBE Carcavelos, floor 0, seen from above with north up.
-It follows the official campus map and the satellite view: Gallery / Main Deck (I) is the long diagonal
-spine, the academic halls B, C, D and E branch off it to the west as parallel wings, the Hovione Atrium (A)
-sits at its north end, the Library (H) and Horizon Hall (G) east of it, the Grand Auditorium (F) at its
-south end towards the beach; the N6-7 and the Saba car park lie to the west. The buildings carry the
-letters of the official map, and a legend under the plan names them. The drawing is one SVG of building
-outlines, roads and grounds; it and the pins use percent of the map (`content.BUILDINGS`, `GROUNDS`,
-`ROADS`, `PLACES`), so phone and board draw the same plan. Every case happens at 5 of 8 places (Library, Horizon Hall, Auditorium,
-Main Deck, ICA Canteen, Santander Hall, Beach, Parking). Each place holds exactly one clue. Pins are
+**The campus map.** A simplified plan of NOVA SBE Carcavelos, floor 0, seen from above the way the campus
+is usually shown (the architects' rendering): north to the left, the beach to the right. Gallery / Main Deck
+(I) is the long main building from left to right with the Hovione Atrium (A) at its left end and the food
+court (ICA Canteen) on it; the academic halls B, C, D and E hang below it as parallel wings; the Library (H)
+and Horizon Hall (G) stand above it and the Grand Auditorium (F) at its right end towards the beach.
+Student housing, the entrance square and the sports grounds are on the left, footpaths link the square,
+the atrium and the ends of the wings. As on the aerial views, the N6-7 runs along the bottom into the
+roundabout below the campus and the big road passes its right end; the beach of Carcavelos and the sea
+begin beyond that road, in the bottom right corner. There is no car park on the plan. The buildings carry the letters of the official campus
+map and a legend under the plan names them. The drawing is one SVG of building outlines, roads and grounds;
+it and the pins use percent of the map (`content.BUILDINGS`, `GROUNDS`, `ROADS`, `PLACES`), so phone and
+board draw the same plan. Every case happens at 5 of 7 places (Library, Horizon Hall, Auditorium,
+Main Deck, ICA Canteen, Santander Hall, Beach). Each place holds exactly one clue. Pins are
 red (open), grey with a tick (searched) or dashed with a lock (locked). Two places are locked at the
 start – the crime scene and one other – and open in rounds 2 and 3. The board names the round a place
 was searched in, never who searched it, so the murderer's planted clue does not stand out.

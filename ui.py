@@ -217,7 +217,7 @@ def suspect_list(players, phase, me_pid=None):
 
 # ---------------------------------------------------------------- the campus plan
 #
-# NOVA SBE, floor 0, seen from above (north up). The ground, the roads and the building
+# NOVA SBE, floor 0, seen from above (north to the upper left, the beach to the bottom right). The ground, the roads and the building
 # outlines are one SVG whose units are percent of the map (content.BUILDINGS, GROUNDS,
 # ROADS); it is stretched to the map's 1.25 : 1 box. The building letters and the pins are
 # HTML on top of it at the same percent positions, so text never stretches and, on the
@@ -257,7 +257,8 @@ def _plan_ground(pinned=()):
     """The drawing under the pins: ground, roads, building outlines, building letters.
     pinned: letters that a pin already shows; their building letter is left out."""
     shapes = [f'<polygon class="g-{css}" points="{_points(points)}"/>' for css, points in content.GROUNDS]
-    shapes += [f'<polyline class="road" points="{_points(points)}"/>' for _, points in content.ROADS]
+    shapes += [f'<polyline class="road" points="{_points(points)}"/>' for _, points, _ in content.ROADS]
+    shapes += [f'<polyline class="path" points="{_points(points)}"/>' for points in content.PATHS]
     shapes += [f'<polygon class="b-{"spine" if label == "I" else "hall"}" points="{_points(item["shape"])}">'
                f'<title>{h(label)} · {h(item["name"])}</title></polygon>'
                for label, item in content.BUILDINGS.items()]
@@ -265,8 +266,8 @@ def _plan_ground(pinned=()):
            f'{"".join(shapes)}</svg>')
     tags = [f'<span class="btag" style="left:{x}%;top:{y}%">{h(label)}</span>'
             for label, item in content.BUILDINGS.items() if label not in pinned for x, y in [item["tag"]]]
-    roads = [f'<span class="rname" style="left:{points[1][0]}%;top:{points[1][1]}%">{h(name)}</span>'
-             for name, points in content.ROADS if name]
+    roads = [f'<span class="rname" style="left:{points[1][0]}%;top:{points[1][1]}%;--rot:{angle}deg">'
+             f'{h(name)}</span>' for name, points, angle in content.ROADS if name]
     return svg + "".join(tags) + "".join(roads)
 
 
@@ -323,7 +324,7 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
             pins.append(f'<div class="{css}" style="{style}" aria-label="{h(label)}">{inner}</div>')
     css = "plan2" + ("" if active else " off") + (" board" if board else "")
     return (f'<div class="{css}" role="group" aria-label="Campus map">{_plan_ground(pinned)}{"".join(pins)}'
-            f'<div class="compass" aria-hidden="true">N</div>'
+            f'<div class="compass" aria-label="North is to the upper left">↖ N</div>'
             f'<div class="plan-foot">NOVA SBE Carcavelos · Floor 0</div></div>{plan_key()}')
 
 
