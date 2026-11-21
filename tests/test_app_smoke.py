@@ -50,6 +50,10 @@ class FakeStreamlit(types.ModuleType):
         self.values = {}       # label -> value for inputs
         self.shown = []        # everything that was written to the page
         self.mounted = []      # (name, key, data) of every custom component
+        # One fixed st.components object per stand-in, like the real module. app.mg_renderer
+        # caches components by id(st.components.v2); a new object on every access would be
+        # freed at once, and a later test could get the same id and an earlier test's component.
+        self.components = self._make_components()
 
     def _pressed(self, label):
         if label in self.press:
@@ -95,8 +99,7 @@ class FakeStreamlit(types.ModuleType):
     def rerun(self, **kwargs):
         raise Rerun()
 
-    @property
-    def components(self):
+    def _make_components(self):
         """st.components.v2: a component returns the trigger values the test put in
         values["component"] (e.g. a puzzle's proof), and records what it was given."""
         fake = self
@@ -467,3 +470,10 @@ def test_the_phone_guides_through_one_move_and_explains_mistakes(game_db):
         assert db.load(conn, code)["acted"] == []             # no mistake used up the move
     finally:
         conn.close()
+
+
+def test_the_stand_in_keeps_one_components_object_like_streamlit():
+    """app.mg_renderer caches by id(st.components.v2). A fresh object per access let a later
+    test reuse a freed id and get an earlier test's component (a flaky mini-game test)."""
+    fake = FakeStreamlit()
+    assert fake.components is fake.components and fake.components.v2 is fake.components.v2
