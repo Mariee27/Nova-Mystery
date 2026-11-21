@@ -16,6 +16,13 @@ CODE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"   # no I and no O: easy to read from a
 CODE_LENGTH = 4
 ROOM_LIFETIME = 24 * 60 * 60                 # rooms older than one day are deleted
 MAX_NEW_ROOMS_PER_HOUR = 200                 # stops anyone from filling the database
+IDLE_ROOM_SECONDS = 5 * 60                   # a lobby nobody was active in for this long is abandoned
+MAX_AI_CASES_PER_HOUR = 30                   # AI requests for the whole app; then case #001
+# Nobody can be recognised reliably (the app runs behind a proxy, and Streamlit warns that the
+# visitor's address can be spoofed), so both limits work without knowing who is asking:
+# - when the room limit is reached, abandoned lobbies are freed instead of refusing everyone
+#   for an hour; flooding the app therefore blocks new rooms for minutes at most;
+# - the AI quota has its own limit, so a flood of rooms cannot use it up.
 
 
 def connect(path):
@@ -32,6 +39,7 @@ def connect(path):
         "CREATE TABLE IF NOT EXISTS presence ("
         " code TEXT NOT NULL, pid INTEGER NOT NULL, last_seen REAL NOT NULL,"
         " PRIMARY KEY (code, pid))")
+    conn.execute("CREATE TABLE IF NOT EXISTS ai_requests (at REAL NOT NULL)")
     return conn
 
 
@@ -47,9 +55,11 @@ def create_room(conn, now, minigames=False):
         for code in old:
             conn.execute("DELETE FROM presence WHERE code = ?", (code,))
             conn.execute("DELETE FROM rooms WHERE code = ?", (code,))
-        recent = conn.execute(
-            "SELECT COUNT(*) FROM rooms WHERE created_at > ?", (now - 60 * 60,)).fetchone()[0]
-        if recent >= MAX_NEW_ROOMS_PER_HOUR:
+        if _recent_rooms(conn, now) >= MAX_NEW_ROOMS_PER_HOUR:
+            for code in _abandoned_lobbies(conn, now):
+                conn.execute("DELETE FROM presence WHERE code = ?", (code,))
+                conn.execute("DELETE FROM rooms WHERE code = ?", (code,))
+        if _recent_rooms(conn, now) >= MAX_NEW_ROOMS_PER_HOUR:
             raise logic.Rejected("Too many new rooms right now. Please try again later.")
         while True:
             code = "".join(secrets.choice(CODE_LETTERS) for _ in range(CODE_LENGTH))
@@ -62,6 +72,36 @@ def create_room(conn, now, minigames=False):
         conn.execute("ROLLBACK")
         raise
     return code
+
+
+def _recent_rooms(conn, now):
+    return conn.execute(
+        "SELECT COUNT(*) FROM rooms WHERE created_at > ?", (now - 60 * 60,)).fetchone()[0]
+
+
+def _abandoned_lobbies(conn, now):
+    """Rooms still in the lobby, older than IDLE_ROOM_SECONDS, with no player seen since then."""
+    rows = conn.execute(
+        "SELECT code, state FROM rooms WHERE created_at < ? AND code NOT IN"
+        " (SELECT code FROM presence WHERE last_seen > ?)",
+        (now - IDLE_ROOM_SECONDS, now - IDLE_ROOM_SECONDS)).fetchall()
+    return [code for code, state in rows if json.loads(state).get("phase") == "LOBBY"]
+
+
+def claim_ai_case(conn, now):
+    """True (and counted) if the app may ask the AI for one more case this hour."""
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        conn.execute("DELETE FROM ai_requests WHERE at < ?", (now - 60 * 60,))
+        used = conn.execute("SELECT COUNT(*) FROM ai_requests").fetchone()[0]
+        allowed = used < MAX_AI_CASES_PER_HOUR
+        if allowed:
+            conn.execute("INSERT INTO ai_requests (at) VALUES (?)", (now,))
+        conn.execute("COMMIT")
+    except BaseException:
+        conn.execute("ROLLBACK")
+        raise
+    return allowed
 
 
 def raw_state(conn, code):

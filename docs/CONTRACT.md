@@ -92,7 +92,11 @@ private_view(game, token) -> dict | None
 ```
 
 ### Behaviour
-- **join**: only in LOBBY (else Rejected). Name is stripped; 1..20 characters; unique in the room ignoring case. A 7th player is rejected. Token must not already be used in the room.
+- **join**: only in LOBBY (else Rejected). Name via `clean_name`: NFKC-normalised, tabs and line breaks become
+  spaces, other control characters are dropped, runs of spaces become one; invisible characters (Unicode
+  format, private-use, unassigned, line/paragraph separators, blank letters such as U+2800, U+3164) and
+  more than 2 combining marks in a row are refused; it needs a letter or digit; 1..20 characters. Unique in the
+  room by `name_key` (ignoring case, accents, width and Cyrillic/Greek look-alike letters). A 7th player is rejected. Token must not already be used in the room.
 - **kick**: only in LOBBY; only the host; the target must be another player of the room. The player is removed from `players`.
 - **start**: only the host; only in LOBBY; the number of *online* players must be 4..6. Offline lobby players are removed from `players`. Picks the story (see *Stories* below), stores it in `game["story"]` and builds the case with it (seed=None → random seed). Phase becomes REVEAL, `phase_started = now`, `deadline = now + 30`.
 - **end_phase**: moves to the next phase immediately (same as a timer running out).
@@ -122,7 +126,10 @@ private_view(game, token) -> dict | None
 ```
 connect(path) -> sqlite3.Connection        # creates tables if needed
 create_room(conn, now) -> code             # 4 letters from "ABCDEFGHJKLMNPQRSTUVWXYZ", unused
-                                           # logic.Rejected if 200 rooms were created in the last hour
+                                           # at 200 rooms in the last hour, lobbies without activity for
+                                           # IDLE_ROOM_SECONDS are deleted first; logic.Rejected if still 200
+claim_ai_case(conn, now) -> bool           # True and counted if fewer than MAX_AI_CASES_PER_HOUR (30) AI
+                                           # requests were made in the last hour
 load(conn, code) -> game | None
 apply(conn, code, fn) -> game              # runs game = fn(game) inside ONE write transaction and saves it.
                                            # If fn raises logic.Rejected: rollback, nothing saved, exception re-raised.

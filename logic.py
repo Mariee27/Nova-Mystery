@@ -9,6 +9,7 @@ No Streamlit and no database code belongs in here.
 
 import copy
 import secrets
+import unicodedata
 
 import content
 import generator
@@ -129,12 +130,67 @@ def new_game(code, now, minigames=False):
     }
 
 
+# Names are what players recognise each other by, so a name must look like itself and like
+# nobody else's: no invisible characters, no text-direction tricks, no look-alike letters.
+BLANK_LETTERS = {"\u115f", "\u1160", "\u3164", "\uffa0", "\u2800"}   # fillers and the braille blank
+INVISIBLE_CATEGORIES = {"Cf", "Cs", "Co", "Cn", "Zl", "Zp"}    # format (zero-width, direction
+                                                                 # marks), private use, unassigned
+MAX_MARKS = 2                       # combining accents on one letter ("Zalgo" text has dozens)
+# Cyrillic and Greek letters that look exactly like Latin ones, for name_key. Capitals are
+# mapped before the name is lower-cased (a Greek capital N is lower-case v-shaped).
+CAPITAL_LOOK_ALIKES = str.maketrans({
+    "А": "A", "В": "B", "Е": "E", "Ё": "E", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C",
+    "Т": "T", "У": "Y", "Х": "X", "І": "I", "Ї": "I", "Ј": "J", "Ѕ": "S", "Ԛ": "Q", "Ԝ": "W",
+    "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N", "Ο": "O",
+    "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X",
+})
+LOOK_ALIKES = str.maketrans({
+    "а": "a", "в": "b", "е": "e", "ё": "e", "к": "k", "м": "m", "н": "h", "о": "o", "р": "p", "с": "c",
+    "т": "t", "у": "y", "х": "x", "і": "i", "ї": "i", "ј": "j", "ѕ": "s", "ԁ": "d", "ԛ": "q", "ԝ": "w",
+    "ɡ": "g", "ɑ": "a", "ı": "i", "ℓ": "l",
+    "α": "a", "β": "b", "ε": "e", "η": "n", "ι": "i", "κ": "k", "μ": "u", "ν": "v", "ο": "o", "ρ": "p",
+    "τ": "t", "υ": "u", "χ": "x", "ω": "w",
+})
+
+
+def clean_name(name):
+    """A player's name: normalised, single spaces, 1..MAX_NAME visible characters."""
+    if not isinstance(name, str):
+        raise Rejected("Text is missing.")
+    name = unicodedata.normalize("NFKC", name)
+    # Old-style control characters: tabs and line breaks become spaces, the rest is dropped.
+    name = "".join(" " if ch in "\t\n\r\v\f" else ch for ch in name
+                   if unicodedata.category(ch) != "Cc" or ch in "\t\n\r\v\f")
+    if any(unicodedata.category(ch) in INVISIBLE_CATEGORIES or ch in BLANK_LETTERS for ch in name):
+        raise Rejected("Names cannot contain invisible or special characters.")
+    name = " ".join(name.split())            # every kind of space becomes one plain space
+    marks = 0
+    for ch in name:
+        marks = marks + 1 if unicodedata.category(ch).startswith("M") else 0
+        if marks > MAX_MARKS:
+            raise Rejected("Names cannot contain invisible or special characters.")
+    if not any(unicodedata.category(ch)[0] in "LN" for ch in name):
+        raise Rejected("A name needs at least one letter or digit.")
+    if len(name) > MAX_NAME:
+        raise Rejected(f"Text must have at most {MAX_NAME} characters.")
+    return name
+
+
+def name_key(name):
+    """Two names with the same key look alike on a screen: same letters regardless of case,
+    accents, width, and Cyrillic or Greek look-alike letters."""
+    name = unicodedata.normalize("NFKC", name).translate(CAPITAL_LOOK_ALIKES)
+    folded = unicodedata.normalize("NFKD", name.casefold())
+    letters = "".join(ch for ch in folded if not unicodedata.category(ch).startswith("M"))
+    return " ".join(letters.translate(LOOK_ALIKES).split())
+
+
 def join(game, name, token, now):
     _require_phase(game, "LOBBY")
-    name = clean_text(name, MAX_NAME)
+    name = clean_name(name)
     if len(game["players"]) >= MAX_PLAYERS:
         raise Rejected(f"The room is full ({MAX_PLAYERS} players).")
-    if any(p["name"].casefold() == name.casefold() for p in game["players"]):
+    if any(name_key(p["name"]) == name_key(name) for p in game["players"]):
         raise Rejected("This name is already taken in this room.")
     if not token or any(p["token"] == token for p in game["players"]):
         raise Rejected("Invalid token.")
@@ -514,9 +570,9 @@ def add_bot(game, token, now):
     player = _player_by_token(game, token)
     if player["pid"] != game["host"]:
         raise Rejected("Only the host can add demo suspects.")
-    taken = {p["name"].casefold() for p in game["players"]}
+    taken = {name_key(p["name"]) for p in game["players"]}
     name = next((f"{first} (demo)" for first in content.DEMO_NAMES
-                 if f"{first} (demo)".casefold() not in taken), None)
+                 if name_key(f"{first} (demo)") not in taken), None)
     if name is None or len(game["players"]) >= MAX_PLAYERS:
         raise Rejected(f"The room is full ({MAX_PLAYERS} players).")
     game = join(game, name, new_token(), now)

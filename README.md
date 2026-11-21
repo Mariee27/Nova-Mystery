@@ -269,10 +269,18 @@ and advances the timers.
 - **No personal data is stored:** no accounts, passwords or e-mail addresses. Only a chosen name per room. Rooms are deleted after 24 hours.
 - **Access control:** every action checks the player's token, the phase, and the role (host only, murderer only).
   Before the result, the board never contains the murderer, secrets or private clues.
-- **Input validation:** names are limited to 1–20 characters and must be unique,
-  and control characters are removed. All user text is escaped before it is shown, so HTML and Markdown are shown as plain text.
+- **Input validation:** names are limited to 1–20 characters and need a letter or digit. They are normalised,
+  and invisible characters (zero-width spaces, text-direction marks, blank letters) are refused, so a name can
+  neither be invisible nor pass for another one: names that only look alike (case, accents, full-width letters,
+  Cyrillic or Greek look-alikes) count as taken (`logic.clean_name`, `logic.name_key`). All user and AI text is
+  escaped before it is shown, so HTML and Markdown are shown as plain text; case texts in widget labels are
+  escaped for Markdown too (`ui.md`), so an AI text can never become a link or load an image.
   Room codes from the URL must be exactly 4 valid letters. SQL always uses placeholders.
-- **Abuse limits:** at most 6 players per room, the host can remove strangers from the lobby, and at most 200 new rooms can be created per hour.
+- **Abuse limits:** at most 6 players per room, and the host can remove strangers from the lobby. At most 200 new
+  rooms per hour; when that is reached, lobbies nobody was active in for 5 minutes are freed, so a flood of rooms
+  blocks new ones for minutes, not an hour. The AI is asked for at most 30 cases per hour, so a flood of rooms
+  cannot use up the AI quota; past that, new rooms play case #001. Both limits work without recognising visitors,
+  because behind the host's proxy their addresses are not reliable.
 - **Dependencies:** only three direct dependencies (`streamlit`, `qrcode[pil]`, and `openai` for the OpenRouter calls). All 42 packages are pinned to exact versions
   in `uv.lock` and `requirements.txt` and checked against the OSV vulnerability database (no known vulnerabilities at the time of submission;
   the check runs again on every push).
