@@ -96,7 +96,7 @@ def teaser():
         ("Your file", "Role, alibi, secret and two private clues"),
         ("Your move", "One per round: search, interrogate or share"),
         ("The goal", "Name the culprit – and where it happened"),
-        ("Duration", "5 rounds, 15 to 30 minutes"),
+        ("Duration", f"{logic.ROUNDS} rounds, 15 to 30 minutes"),
     ]
     brief = ("One of you is the murderer, and only that player knows. Everybody may lie. "
              "Collect evidence, compare alibis, and accuse together before the clock runs out.")

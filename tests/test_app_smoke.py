@@ -276,6 +276,11 @@ def test_play_a_demo_seats_you_with_four_demo_suspects(game_db):
         conn.close()
 
 
+def test_home_page_names_the_real_number_of_rounds(game_db):
+    page = Browser().run()
+    assert f"{logic.ROUNDS} rounds, 15 to 30 minutes" in page and "5 rounds" not in page
+
+
 def test_host_lobby_folds_away_add_demo_suspect_once_there_are_enough_players(game_db):
     phone = Browser()
     phone.run(press=["Play a demo"])

@@ -216,7 +216,7 @@ def test_a_demo_game_with_one_human_plays_to_the_end_by_itself():
     g = demo_lobby(1, 3)
     g = logic.start(g, "t1", logic.with_bots(g, {1}), 0, seed=logic.DEMO_SEED)
     now = 0
-    for _ in range(1200):           # only timers and bots, the human does nothing (5 rounds)
+    for _ in range(1200):           # only timers and bots, the human does nothing (all rounds)
         if g["phase"] == "RESULT":
             break
         now += 2
