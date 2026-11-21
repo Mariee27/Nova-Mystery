@@ -65,9 +65,9 @@ def case_intro(story=None, suspects=None, scene=False, players=None):
     """The shorter intro of one case (about 8 seconds), on the board and every phone at the start.
 
     suspects: how many play in this room. Then "4 to 6 suspects." becomes e.g. "Five suspects."
-    scene: the board adds a crime-scene moment (who died, where the body was found) and a
-    lineup of the players with their roles before the title, so everybody looks up at the
-    projector together. About 16 seconds then.
+    scene: the board adds a crime-scene moment (who died, where the body was found) and then
+    introduces every player one by one, so everybody looks up at the projector together.
+    It ends before the reveal phase does (see BOARD_INTRO_END).
     """
     story = _story(story)
     if suspects in NUMBER_WORDS:
@@ -80,7 +80,7 @@ def case_intro(story=None, suspects=None, scene=False, players=None):
              '<div class="tag">Your file is waiting.</div>')
     if scene:
         return _intro(story["intro_lines"], " case short long", 0.3, 0.65, final,
-                      middle=crime_scene(story) + lineup(players or []))
+                      middle=crime_scene(story) + lineup(players or [], story))
     return _intro(story["intro_lines"], " case short", 0.3, 0.65, final)
 
 
@@ -98,16 +98,36 @@ def crime_scene(story):
             f'{tape.format(" b")}</div>')
 
 
-def lineup(players):
-    """The suspects of this room, one card each, like a police lineup. Name and role only:
-    roles are public once the game runs (public_view), who did it stays secret."""
+# The board intro must be over before the reveal phase ends (logic.DURATIONS["REVEAL"] = 30 s):
+# at the next phase the board redraws and the intro would be cut off.
+SUSPECTS_FROM = 10.8      # seconds: the first suspect appears after the crime scene
+SUSPECTS_UNTIL = 27.6     # the last suspect leaves; every suspect gets an equal share in between
+BOARD_INTRO_END = 28.0    # the whole intro fades out (style.css: .intro.long)
+
+# A head-and-shoulders silhouette for the mugshot (no image file needed).
+SILHOUETTE = ('<svg class="sil" viewBox="0 0 100 110" aria-hidden="true">'
+              '<circle cx="50" cy="36" r="21"/><path d="M6 110 C8 78 27 64 50 64 C73 64 92 78 94 110 Z"/></svg>')
+
+
+def lineup(players, story=None):
+    """The players one by one, like mugshots: silhouette, name, role and the public dossier line.
+    Only public facts (roles are public once the game runs); who did it stays secret."""
     if not players:
         return ""
-    cards = "".join(
-        f'<div class="lu" style="--i:{i}"><div class="face">{initial(p["name"])}</div>'
-        f'<div class="n">{h(p["name"])}</div><div class="r">{h(p.get("role") or "")}</div></div>'
-        for i, p in enumerate(players))
-    return f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{cards}</div></div>'
+    dossiers = _story(story).get("dossiers", {})
+    per = (SUSPECTS_UNTIL - SUSPECTS_FROM) / len(players)
+    mugs = []
+    for i, player in enumerate(players):
+        role = player.get("role") or ""
+        start = SUSPECTS_FROM + i * per
+        timing = f"--in:{start:.2f}s;--out:{start + per - 0.35:.2f}s"
+        mugs.append(
+            f'<div class="mug" style="{timing}">'
+            f'<div class="photo">{SILHOUETTE}<span class="q">?</span></div>'
+            f'<div class="info"><div class="pk">Suspect {i + 1} of {len(players)}</div>'
+            f'<div class="n">{h(player["name"])}</div><div class="r">{h(role)}</div>'
+            f'<div class="bio">{h(dossiers.get(role, ""))}</div></div></div>')
+    return f'<div class="lineup">{"".join(mugs)}</div>'
 
 
 def _intro(lines, css, start, step, final, red=3, middle=""):
