@@ -509,6 +509,8 @@ a.act:hover, a.act:focus { border-color: var(--act-text); transform: translateY(
 .paper .pb { font: 1rem/1.5 var(--sans); color: var(--ink); }
 .paper .pq { font-family: var(--serif); font-weight: 700; font-size: 1.15rem; line-height: 1.35; margin-top: .35rem; }
 .paper .pe { margin-top: .6rem; }
+.clues { display: flex; flex-direction: column; gap: .8rem; margin: .7rem 0; }
+.clues .paper { margin: 0; }
 .paper.clue.sel { border-color: var(--act); box-shadow: 0 0 0 3px rgba(224,89,76,.35); }
 .paper.clue.used { opacity: .55; }
 .paper .logged { position: absolute; right: 1rem; top: .8rem; transform: rotate(-6deg); border: 2px solid var(--act);

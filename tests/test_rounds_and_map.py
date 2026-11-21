@@ -410,6 +410,16 @@ def test_rows_chips_and_clue_cards_mark_what_is_selected():
     assert "paper clue sel" in cards and "already shared" in cards
 
 
+def test_clue_cards_are_one_block_with_one_card_per_clue():
+    """Bare <a> cards end up in a <p> in st.markdown, and the browser splits them into extra boxes."""
+    cards = ui.clue_cards([("?c=1", 1, "At 23:25 you saw someone.", False),
+                           ("?c=2", 2, "At 23:30 you saw someone else.", False)])
+    assert cards.startswith('<div class="clues">') and cards.endswith("</div>")
+    assert cards.count('class="paper clue') == 2 and cards.count("<a ") == 2
+    assert cards.count("Private clue 1") == 1 and cards.count("Private clue 2") == 1
+    assert cards.count("At 23:25 you saw someone.") == 1
+
+
 def test_the_move_made_card_is_stamped_and_the_waiting_list_names_no_action():
     assert "Logged" in ui.move_made("Clue shared", "Exhibit 4", "<b>x</b>")
     players = [{"pid": 1, "name": "Laura", "online": True, "acted": True},
