@@ -110,12 +110,13 @@ def show(html):
     st.markdown(html, unsafe_allow_html=True)
 
 
-def play_case_intro(code, public):
-    """The intro of this room's case plays once on each screen, when the game starts."""
+def play_case_intro(code, public, scene=False):
+    """The intro of this room's case plays once on each screen, when the game starts.
+    scene=True (the board): with the crime-scene moment before the title."""
     key = f"case_intro_{code}"
     if public["phase"] == "REVEAL" and not st.session_state.get(key):
         st.session_state[key] = True
-        show(ui.case_intro(public["story"], suspects=len(public["players"])))
+        show(ui.case_intro(public["story"], suspects=len(public["players"]), scene=scene))
 
 
 def case_kicker(public):
@@ -472,7 +473,7 @@ def board_screen(code):
     public, _ = sync(code)
     if public is not None:
         st.session_state["board_phase"] = public["phase"]
-        play_case_intro(code, public)
+        play_case_intro(code, public, scene=True)
     board_live(code)
 
 

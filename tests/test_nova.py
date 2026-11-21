@@ -353,3 +353,22 @@ def test_opened_file_plays_once_and_tints_the_murderers_file():
     assert "<script>" not in first and 'class="dossier"' in later
     assert "unseal guilty" in ui.opened_file(dict(me, is_murderer=True), animate=False)
     assert "guilty" not in later
+
+
+def test_board_intro_shows_where_the_body_was_found_and_escapes_it():
+    story = dict(ui._story(None), victim=EVIL, found_place=EVIL)
+    html = ui.case_intro(story, scene=True)
+    assert 'class="intro case short long"' in html and 'class="scene"' in html
+    assert "<script>" not in html and "&lt;script&gt;" in html
+    assert "CRIME SCENE – DO NOT CROSS" in html
+    assert "\n\n" not in html
+    # Without scene (the phones) the intro stays the short one.
+    plain = ui.case_intro(story)
+    assert 'class="scene"' not in plain and 'class="intro case short"' in plain
+
+
+def test_board_intro_never_names_the_real_crime_scene():
+    html = ui.crime_scene(ui._story(None))
+    # Only where the body was FOUND (public); where the victim died is decided per game
+    # and lives in game["case"], which the story never sees.
+    assert content.FOUND_PLACE.replace("'", "&#x27;") in html

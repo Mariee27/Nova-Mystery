@@ -420,3 +420,20 @@ def test_the_phone_guides_through_one_move_and_explains_mistakes(game_db):
         assert db.load(conn, code)["acted"] == []             # no mistake used up the move
     finally:
         conn.close()
+
+
+def test_only_the_board_plays_the_crime_scene_moment_at_the_start(game_db):
+    board = Browser()
+    board.run(press=["Create room"])
+    code = board.st.query_params["room"]
+    board_tab = Browser(room=code, view="board")
+    board_tab.run()                                            # the board is open in the lobby
+    phones = []
+    for name in ["Ana", "Ben", "Caro", "Dev"]:
+        phone = Browser(room=code)
+        phone.run(press=["Join"], **{"Your name": name})
+        phones.append(phone)
+    phones[0].run(press=["Start game"], **{"Use the fixed demo case": True})
+    assert 'class="scene"' in board_tab.run()                  # REVEAL: the board shows who was found where
+    assert 'class="scene"' not in board_tab.run()              # only once per session
+    assert 'class="scene"' not in phones[1].run()              # phones keep the short intro

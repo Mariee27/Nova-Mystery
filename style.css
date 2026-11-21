@@ -545,3 +545,32 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .iv-q { font-family: var(--serif); font-weight: 800; font-size: 1.5rem; margin: .4rem 0; color: var(--ivory); }
 .iv-a { font-family: var(--serif); font-size: 1.15rem; color: var(--paper); }
 .iv-w { font-family: var(--serif); font-style: italic; color: var(--muted); }
+
+/* ---------- board intro: crime-scene moment (lines 0–4.6 s, scene 5–9.4 s, title 9.9 s, out 12.6 s) ---------- */
+.intro.long { animation: introOut 1s ease 12.6s forwards; }
+.intro.long .final { animation: titleIn 1.8s ease 9.9s forwards; }
+.intro.long .glitch { animation: glitch .25s steps(2) 4.4s 2, glitch .25s steps(2) 9.3s 2; }
+.intro .scene { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; opacity: 0; animation: sceneIn .6s ease 5s forwards, sceneOut .5s ease 9.4s forwards; }
+.intro .scene::before { content: ""; position: absolute; inset: 0; opacity: 0;   /* police lights, red and blue */
+  background: radial-gradient(circle at 15% 50%, rgba(185,28,28,.55), transparent 45%),
+              radial-gradient(circle at 85% 50%, rgba(37,99,235,.55), transparent 45%);
+  animation: siren .8s steps(1) 5s 5; }
+.intro .tape { position: absolute; top: 18%; left: -10%; right: -10%; padding: .45rem 0; background: #F2C230; color: #111;
+  font: 700 clamp(.7rem, 1.6vw, 1rem) var(--mono); letter-spacing: .25em; white-space: nowrap; overflow: hidden;
+  transform: rotate(-4deg); box-shadow: 0 6px 20px rgba(0,0,0,.6); animation: tapeIn .5s ease-out 5.1s both; }
+.intro .tape.b { top: auto; bottom: 18%; transform: rotate(3deg); animation-name: tapeInRight; animation-delay: 5.3s; }
+.intro .scene .sk { font: 700 1.15rem var(--mono); letter-spacing: .4em; text-transform: uppercase; color: var(--blood); }
+.intro .scene .victim { font-family: var(--serif); font-weight: 800; font-size: clamp(2rem, 6vw, 4.2rem); color: var(--ivory); margin: .3rem 0; }
+.intro .scene .where { font: clamp(1rem, 2.4vw, 1.5rem) var(--mono); color: var(--gold); letter-spacing: .08em;
+  animation: lineIn .5s ease 6.2s both; }
+.intro .scene .twist { font-family: var(--serif); font-style: italic; color: var(--ivory); font-size: clamp(1.1rem, 2.6vw, 1.7rem);
+  margin-top: 1.2rem; animation: lineIn .6s ease 7.3s both; }
+@keyframes sceneIn { from { opacity: 0; transform: scale(1.08); } to { opacity: 1; transform: none; } }
+@keyframes sceneOut { to { opacity: 0; filter: blur(8px); } }
+@keyframes siren {   /* red left + blue right, then swapped: like a police light bar */
+  0% { opacity: .9; }
+  50% { opacity: .9; background: radial-gradient(circle at 15% 50%, rgba(37,99,235,.55), transparent 45%),
+                                 radial-gradient(circle at 85% 50%, rgba(185,28,28,.55), transparent 45%); } }
+@keyframes tapeIn { from { transform: translateX(-110%) rotate(-4deg); } }
+@keyframes tapeInRight { from { transform: translateX(110%) rotate(3deg); } }
