@@ -66,6 +66,26 @@ def test_dw04_empty_or_whitespace_name_rejected(name):
     assert_rejected_unchanged(lambda x: logic.join(x, name, "ta", 0), logic.new_game("ABCD", 0))
 
 
+@pytest.mark.parametrize("name", ["Ana\u200b", "\u200b", "Ana\u202e", "A\u00adna", "\u2800", "Ana\u2800",
+                                  "\u3164", "Z\u0334\u0321\u031b\u034da", "\ufeffAna", "🙂"])
+def test_names_with_invisible_or_special_characters_are_refused(name):
+    """Such a name could pass for another player's, or be invisible on every screen."""
+    assert_rejected_unchanged(lambda g: logic.join(g, name, "tx", 0), make_lobby(1))
+
+
+@pytest.mark.parametrize("name", ["Аna", "ΑΝΑ", "Ána", "Ａｎａ", "ana ", "ANA", "Ana\u3000"])
+def test_a_name_that_only_looks_like_a_taken_one_is_refused(name):
+    g = logic.join(logic.new_game("ABCD", 0), "Ana", "t1", 0)
+    with pytest.raises(logic.Rejected, match="already taken"):
+        logic.join(g, name, "t2", 0)
+
+
+@pytest.mark.parametrize("name", ["Zoë", "Анна", "李雷", "María José", "O'Neil", "Ana🙂", "<b>x</b>"])
+def test_real_names_from_everywhere_are_accepted_as_typed(name):
+    g = logic.join(logic.new_game("ABCD", 0), "Ben", "t1", 0)
+    assert logic.join(g, name, "t2", 0)["players"][-1]["name"] == name
+
+
 def test_dw04_name_is_stripped_and_first_player_is_host():
     g = logic.join(logic.new_game("ABCD", 0), "  Bob  ", "ta", 0)
     assert g["players"][0]["name"] == "Bob"

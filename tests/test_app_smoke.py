@@ -9,6 +9,7 @@ It does NOT prove how the page looks in a browser.
 import pathlib
 import runpy
 import sys
+import time
 import types
 
 import pytest
@@ -16,6 +17,7 @@ import pytest
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+import ai      # noqa: E402
 import db      # noqa: E402
 import logic   # noqa: E402
 import minigames  # noqa: E402
@@ -504,3 +506,21 @@ def test_interrogations_are_out_loud_and_an_old_question_link_goes_back_to_your_
         conn.close()
     page = phone.run()
     assert "Question each other face to face" in page and "Your answer" not in page
+
+
+def test_when_the_hourly_ai_limit_is_reached_a_new_room_plays_case_001(game_db, monkeypatch):
+    """A flood of rooms cannot use up the AI quota: past the limit, nobody asks the AI."""
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test-never-used")
+    asked = []
+    monkeypatch.setattr(ai, "write_story", lambda *args, **kwargs: asked.append(args) or {})
+    conn = db.connect(game_db)
+    try:
+        for i in range(db.MAX_AI_CASES_PER_HOUR):
+            assert db.claim_ai_case(conn, time.time())
+    finally:
+        conn.close()
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    page = phone.run()
+    assert "No AI case (the AI limit for this hour is reached). Case #001 will be played." in page
+    assert asked == []

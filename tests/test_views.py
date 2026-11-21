@@ -247,7 +247,7 @@ def test_dw18_html_in_a_name_stored_and_shown_literally():
 
 def test_dw18_control_characters_removed_from_a_name():
     name = _joined("Hel\x00lo\nwor\x07ld")
-    assert name == "Helloworld" and not any(ord(ch) < 32 for ch in name)
+    assert name == "Hello world" and not any(ord(ch) < 32 for ch in name)   # a line break becomes a space
 
 
 def test_dw18_text_of_only_control_characters_is_rejected():

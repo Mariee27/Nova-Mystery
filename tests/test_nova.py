@@ -353,3 +353,11 @@ def test_ballots_come_wrong_first_right_next_and_the_killers_ballot_last():
 def test_the_killer_is_a_master_liar_when_few_ballots_name_them():
     assert ui.ballot_award(1, None, 3, "X", True, caught=False) == "🎭 Master liar"
     assert ui.ballot_award(1, None, 3, "X", True, caught=True) == "🚨 Caught"
+
+
+def test_widget_labels_with_case_texts_show_markdown_as_plain_text():
+    """Streamlit reads labels as Markdown; an AI role name must not become a link or an image."""
+    assert ui.md("![x](https://example.com/p.png)") == "\\!\\[x\\]\\(https\\://example\\.com/p\\.png\\)"
+    assert ui.md("The <b>Dean</b> **x**") == "The \\<b\\>Dean\\</b\\> \\*\\*x\\*\\*"
+    for place in content.PLACES:
+        assert ui.md(place) == place                       # plain names stay as they are

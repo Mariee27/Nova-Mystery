@@ -34,6 +34,15 @@ def _story(story):
     return story if story is not None else logic.public_story(content.DEFAULT_STORY)
 
 
+def md(text):
+    """Text for a widget label. Streamlit reads labels as Markdown (links, even images that load
+    from another site), so every Markdown character is escaped and the text stays plain."""
+    return "".join("\\" + ch if ch in MARKDOWN_CHARS else ch for ch in str(text))
+
+
+MARKDOWN_CHARS = set("\\`*_{}[]()<>#+-.!|~$:")
+
+
 def initial(name):
     name = str(name).strip()
     return h(name[0].upper()) if name else "?"

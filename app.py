@@ -206,6 +206,9 @@ def begin_ai_case(code):
         if settings is None:
             db.apply(conn, code, lambda g: logic.ai_case_failed(g, "no AI key is set up", now))
             return
+        if not db.claim_ai_case(conn, now):     # protects the AI quota from a flood of rooms
+            db.apply(conn, code, lambda g: logic.ai_case_failed(g, "the AI limit for this hour is reached", now))
+            return
         db.apply(conn, code, lambda g: logic.ai_case_writing(g, now))
     threading.Thread(target=write_ai_case, args=(code, settings), daemon=True).start()
 
@@ -530,7 +533,7 @@ def player_log(code):
 
 
 def show_card(me, expanded):
-    with st.expander(f"Your card: {me['role']}", expanded=expanded):
+    with st.expander(f"Your card: {ui.md(me['role'])}", expanded=expanded):
         show(ui.dossier(me))
 
 
@@ -708,7 +711,7 @@ def search_step(code, token, public, me, move):
     if sealed and places[place]["state"] == "open":
         show(minigame_ui.sealed_line(sealed))
     if (place and places[place]["state"] == "open"
-            and st.button(f"Search {place}", type="primary", use_container_width=True)):
+            and st.button(f"Search {ui.md(place)}", type="primary", use_container_width=True)):
         if sealed:      # the clue is sealed: open its mini-game first
             st.session_state["move"] = dict(move, play=place)
             st.rerun()
@@ -924,7 +927,7 @@ def vote_form(code, token, public, me):
     suspect = st.selectbox("Who did it?", others,
                            format_func=lambda pid: player_label(public, pid))
     story = public["story"]
-    scene = st.selectbox(f"Where did {story['victim_short']} really die?", [None] + story["locations"],
+    scene = st.selectbox(f"Where did {ui.md(story['victim_short'])} really die?", [None] + story["locations"],
                          format_func=lambda loc: "Not sure" if loc is None else loc)
     st.caption("Name the right suspect for a win – and the right place for the full truth.")
     if st.button("Vote", type="primary"):
