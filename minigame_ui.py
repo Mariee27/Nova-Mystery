@@ -3,10 +3,10 @@
 Fragments (puzzle head, hints, reward card) are pure functions like ui.py: all text goes
 through ui.h() and the strings contain no blank lines.
 
-COMPONENT_CSS / COMPONENT_JS are one st.components.v2 component that draws all four games.
+COMPONENT_CSS / COMPONENT_JS are one st.components.v2 component that draws all five games.
 It runs in the page (no iframe), touch first: pointer events for rubbing and the wheel,
 big tap targets (at least 48 px), no dragging needed. It only ever reports what the player
-did (the code typed, the cells rubbed, the swaps made, the wheel setting); app.py checks
+did (the code typed, the cells rubbed, the swaps made, the wheel setting, the order tapped); app.py checks
 that in Python with minigames.verify before logic.search hands out the evidence.
 
 Sound is off by default. The player can switch it on in the puzzle header (remembered in
@@ -135,6 +135,17 @@ canvas.gone{opacity:0}
 .grid.done{gap:0;padding:0;border-color:var(--gold);box-shadow:0 0 30px rgba(212,168,83,.35)}
 .grid.done .tile{border-radius:0;border-color:transparent}.grid.done .tile .n,.grid.done .tile::after{display:none}
 .count{font-family:var(--mono);font-size:13px;color:var(--muted);text-align:center;margin-top:8px}
+/* ---- order the evening ---- */
+.olist{display:flex;flex-direction:column;gap:8px}
+.ev{display:flex;gap:12px;align-items:center;width:100%;text-align:left;min-height:60px;padding:10px 12px;border-radius:12px;
+  border:1px solid #2f3b52;background:linear-gradient(180deg,#1b2537,#131b29);box-shadow:0 3px 0 #0a0f18;transition:border-color .2s,transform .15s}
+.ev:active{transform:translateY(2px)}
+.ev .b{flex:none;width:36px;height:36px;border-radius:50%;border:1px dashed rgba(167,176,191,.6);display:grid;place-items:center;
+  font-family:var(--mono);font-size:16px;color:var(--muted)}
+.ev .w{display:block;font-family:var(--mono);font-size:14px;letter-spacing:.04em;color:var(--gold);margin-bottom:2px}
+.ev .t{display:block;font-size:15px;line-height:1.35;color:var(--ivory)}
+.ev.on{border-color:var(--gold)}
+.ev.on .b{background:var(--gold);border:1px solid var(--gold);color:#0b111b;font-weight:bold}
 /* ---- cipher ---- */
 .ct{font-family:var(--mono);font-size:clamp(17px,5vw,22px);letter-spacing:.12em;line-height:1.5;text-align:center;word-spacing:.35em;
   background:#05080D;border:1px solid #2a3446;border-radius:10px;padding:10px;color:#FFB3B5}
@@ -232,9 +243,9 @@ const BUILD = {
       img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(data.image)));
     } else (data.lines || []).forEach(t => el('p', null, t, under));
     const canvas = el('canvas', null, null, paper);
-    canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', 'A blank page. Rub it with your finger or the mouse.');
+    canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', 'A find covered in dust. Rub it with your finger or the mouse.');
     const meter = el('div', 'meter', null, root); const fill = el('i', null, null, meter);
-    const status = el('div', 'status', 'Rub the page · 0 %', root); status.setAttribute('aria-live', 'polite');
+    const status = el('div', 'status', 'Rub away the dust · 0 %', root); status.setAttribute('aria-live', 'polite');
     const cols = data.cols, rows = data.rows, total = cols * rows, cells = new Set();
     let done = false, ctx, w = 0, hgt = 0, last = null, brush = 30;
     let started = false;
@@ -272,7 +283,7 @@ const BUILD = {
       else mark(x, y);
       last = { x, y };
       const share = cells.size / total; fill.style.width = Math.min(100, share / data.needed * 100) + '%';
-      status.textContent = 'Rub the page · ' + Math.round(share * 100) + ' %';
+      status.textContent = 'Rub away the dust · ' + Math.round(share * 100) + ' %';
       if (!done && share >= data.needed) finish();
     }
     function finish() {
@@ -339,6 +350,46 @@ const BUILD = {
     paint();
   },
 
+  order(root, data) {
+    const list = el('div', 'olist', null, root);
+    const go = el('button', 'go', 'Check the order', root); go.type = 'button';
+    const status = el('div', 'status', 'Tap the entries, earliest first', root); status.setAttribute('aria-live', 'polite');
+    const n = data.items.length;
+    let picked = [];
+    const cards = data.items.map((item, i) => {
+      const b = el('button', 'ev', null, list); b.type = 'button';
+      el('span', 'b', item.letter, b);
+      const body = el('span', null, null, b);
+      el('span', 'w', item.when, body); el('span', 't', item.text, body);
+      b.onclick = () => tap(i);
+      return b;
+    });
+    function paint() {
+      cards.forEach((b, i) => {
+        const pos = picked.indexOf(i), badge = b.firstChild;
+        b.classList.toggle('on', pos >= 0);
+        badge.textContent = pos >= 0 ? String(pos + 1) : data.items[i].letter;
+        b.setAttribute('aria-pressed', pos >= 0);
+        b.setAttribute('aria-label', 'Entry ' + data.items[i].letter + ': ' + data.items[i].when + ', ' + data.items[i].text +
+          (pos >= 0 ? '. Placed as number ' + (pos + 1) : '. Not placed yet'));
+      });
+      go.disabled = picked.length !== n || !!root.__busy;
+      status.textContent = picked.length === n ? 'Happy with the order? Check it.' :
+        picked.length ? 'Next: entry number ' + (picked.length + 1) + ' (tap a numbered entry to undo)' : 'Tap the entries, earliest first';
+      status.className = 'status';
+    }
+    function tap(i) {
+      if (root.__busy) return; SND.unlock(); SND.tap(); buzz(6);
+      const pos = picked.indexOf(i);
+      if (pos >= 0) picked = picked.slice(0, pos); else picked.push(i);
+      paint();
+    }
+    go.onclick = () => { if (root.__busy || picked.length !== n) return; SND.unlock(); SND.tap(); root.__busy = true;
+      paint(); status.textContent = 'Checking…'; root.__send('submit', { order: picked.slice() }); };
+    root.__order = { reset() { picked = []; paint(); } };
+    paint();
+  },
+
   cipher(root, data) {
     el('div', 'lbl', 'The note', root);
     const ct = el('div', 'ct', data.cipher, root);
@@ -400,12 +451,13 @@ function update(root, data) {
   root.__busy = false;
   const status = root.querySelector('.status');
   if (status && st.note) { status.textContent = st.note; status.className = 'status bad'; }
-  const target = root.querySelector('.lockface, .wheel, .grid, .paper') || root;
+  const target = root.querySelector('.lockface, .wheel, .grid, .paper, .olist') || root;
   target.classList.remove('shake'); void target.offsetWidth; target.classList.add('shake');
   SND.bad(); buzz([60, 40, 60]);
   if (root.__code) { root.__code.led.className = 'led bad'; root.__code.led.innerHTML = 'ACCESS DENIED<i></i>'; root.__code.reset(); }
   if (root.__cipher) root.__cipher.draw();
   if (root.__scratch) root.__scratch.again();
+  if (root.__order) { root.__order.reset(); if (status && st.note) { status.textContent = st.note; status.className = 'status bad'; } }
 }
 
 export default function (component) {

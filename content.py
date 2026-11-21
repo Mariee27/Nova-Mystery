@@ -247,6 +247,72 @@ DEMO_NAMES = ["Sofia", "Tiago", "Inês", "Rui", "Marta", "João"]
 # Every text of case #001 in one place. An AI-written case (see ai.py) has exactly
 # these keys, and logic.validate_story checks it before it is ever used.
 # The clue TEMPLATES above stay the same for every case.
+# ---------------------------------------------------------------- the evidence mini-games
+#
+# What the five mini-games of a case show: one piece per kind, so the five places of a case
+# always have five different games. "{location}" becomes the place the puzzle seals and
+# "{victim}" the victim's short name. The mechanics, the checks and the answers are code
+# (minigames.py); these are only the words. An AI case brings its own (see ai.py); a piece
+# it is missing, or that fails the checks (minigames.clean_content), comes from
+# MINIGAME_FALLBACK, which fits every case.
+#   code     the locked object; the riddle and the code follow from the case timeline
+#   cipher   a note in the victim's hand; the game shifts its letters and signs it
+#   scratch  the document under the coating: a note, a printout, a phone screen or a photo
+#   puzzle   the caption the night camera printed on its still of the place
+#   order    four entries from the victim's evening (24-hour times, none after 23:30)
+CASE_MINIGAMES = {
+    "code": {"exhibit": "Vale's grade cabinet",
+             "story": "Vale's steel grade cabinet stands in the {location}. The final grades are inside, "
+                      "and its keypad wants four digits. A note is taped to the back:"},
+    "cipher": {"exhibit": "Vale's coded note",
+               "story": "A folded note in Vale's handwriting, pushed under a door in the {location}. "
+                        "He liked to write in shifted letters: every letter replaced by one a fixed number "
+                        "of steps further along the alphabet.",
+               "message": "NOBODY PASSES WITHOUT ME"},
+    "scratch": {"exhibit": "Vale's phone", "style": "phone", "title": "Prof. Vale",
+                "story": "Vale's cracked phone, found face down in the {location} under a film of grey dust. "
+                         "Rub the screen clean.",
+                "lines": ["Are you still on campus?", "The grades go out tomorrow.", "No second chances.",
+                          "Don't come to my office."]},
+    "puzzle": {"exhibit": "The night camera still",
+               "story": "A still from the security camera in the {location}, printed and torn into {pieces} "
+                        "pieces. Somebody did not want it seen. Put it back together.",
+               "caption": "Motion detected"},
+    "order": {"exhibit": "Vale's last evening",
+              "story": "A page of Vale's diary, found in the {location}. Someone tore the entries apart. "
+                       "Put his evening back in order.",
+              "events": [["21:15", "Cancels his office hour by email"],
+                         ["22:10", "Prints the final grade list"],
+                         ["22:45", "Argues on the phone in the corridor"],
+                         ["23:10", "Books the lecture hall for tomorrow"]]},
+}
+
+MINIGAME_FALLBACK = {
+    "code": {"exhibit": "The locked cash box",
+             "story": "A steel cash box under a desk in the {location}. Its keypad wants four digits. "
+                      "A note is taped inside the drawer:"},
+    "cipher": {"exhibit": "The shifted-letter note",
+               "story": "A folded note slipped under a door of the {location}. The letters are shifted: "
+                        "every letter replaced by one a fixed number of steps further along the alphabet.",
+               "message": "DO NOT TRUST ANYONE TONIGHT"},
+    "scratch": {"exhibit": "The pressed-in note", "style": "note", "title": "",
+                "story": "A notepad in the {location}, covered in grey dust. Whoever wrote on it pressed hard. "
+                         "Rub it clean.",
+                "lines": ["{victim} -", "we need to talk.", "Tonight. Alone.", "You know where."]},
+    "puzzle": {"exhibit": "The torn camera still",
+               "story": "A still from the security camera in the {location}, torn into {pieces} pieces and "
+                        "left in a bin. Put it back together.",
+               "caption": "Motion detected"},
+    "order": {"exhibit": "The victim's last evening",
+              "story": "A calendar page found in the {location}, torn into strips. Put {victim}'s evening "
+                       "back in order.",
+              "events": [["21:00", "{victim} leaves a meeting early"],
+                         ["22:05", "{victim} buys coffee from the machine"],
+                         ["22:40", "{victim}'s office light goes out"],
+                         ["23:15", "{victim} sends a last email"]]},
+}
+
+
 DEFAULT_STORY = {
     "source": "fixed",
     "case_number": CASE_NUMBER,
@@ -263,4 +329,5 @@ DEFAULT_STORY = {
     "roles": ROLES,
     "neutral_private_clues": NEUTRAL_PRIVATE_CLUES,
     "endings": ENDINGS,
+    "minigames": CASE_MINIGAMES,
 }

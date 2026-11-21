@@ -239,18 +239,20 @@ gets a random theme and a random first letter for the victim, so rooms get diffe
   ("The evidence is still sealed. Solve the puzzle first.") unless `minigames.verify(game, location, proof)`
   is True. Demo bots search without a proof. Every other rule of `search` is unchanged, so each place's
   evidence is still awarded exactly once.
-- `minigames.spec(game, location)` -> `{"id": "MG-0N-kind", "kind": code|scratch|puzzle|cipher, "variant",
+- `minigames.spec(game, location)` -> `{"id": "MG-0N-kind", "kind": code|scratch|puzzle|cipher|order, "variant",
   "location", "evidence_id" (the clue id), "evidence_no", "icon", "name", "exhibit", "verb", "story",
-  "hints": [3 texts], ...kind-specific data}`. It never contains the answer: no code, no cipher key.
+  "hints": [3 texts], ...kind-specific data}`. It never contains the answer: no code, no cipher key, no order.
   `private_view(...)["puzzles"]` maps every place to its spec during INVESTIGATION (else `{}`).
-  A puzzle or scratch spec also has `"motif"` (the picture's id) and `"image"` (the SVG of a NOVA SBE place);
-  scratch has `"cover"` (the words on the cover). The motifs: `minigames.MOTIFS[kind]` (id, file in
-  `assets/minigames/`, name, exhibit, story, hints, slots). `game["motifs"]` = `{"puzzle": i, "scratch": j}`,
-  set by `start` from `minigames.choose_motifs(seed)`, or None in rehearsal mode (then every place shows motif 0);
-  the n-th place of a kind shows motif (i + n) % 5. `minigames.picture(file, **words)` fills the
-  `<text data-slot="...">` elements, every word escaped.
+  The five places of a case get the five kinds (`minigames.assignment`), so no kind comes twice.
+  Puzzle and scratch specs have `"image"` (SVG from `exhibits.camera_still` / `exhibits.document`); scratch
+  has `"cover"`; order has `"items"`: `[{"letter", "when", "text"}]` in the shuffled order shown.
+- `story["minigames"]` (optional): `{kind: piece}` with `exhibit` and `story` (containing `{location}`; may use
+  `{victim}`; the puzzle's may use `{pieces}`), plus cipher `message`, scratch `style` (note|printout|phone|photo),
+  `title`, `lines`, puzzle `caption`, order `events` (4 × `["HH:MM", text]`). `minigames.clean_content(raw, story)`
+  keeps the pieces that pass the checks; `minigames.piece(game, kind)` falls back to `content.MINIGAME_FALLBACK`.
 - Proofs: code `{"code": "1723"}`; scratch `{"cells": [cell indices]}` (at least 55 % of 10 × 14);
-  puzzle `{"swaps": [[a, b], ...]}` replayed on the seeded starting order; cipher `{"shift": n}`.
+  puzzle `{"swaps": [[a, b], ...]}` replayed on the seeded starting order; cipher `{"shift": n}`;
+  order `{"order": [positions on screen, earliest entry first]}`.
 - `content.BUILDINGS` (letter of the official campus map -> `name`, `shape`: outline as [(x, y), ...] and
   `tag`: where the letter sits, all in percent), `content.GROUNDS` ((css class, outline): lawn,
   open land, sand, sea), `content.ROADS` ((name, line, angle of the name)) and `content.PLACES` (7 places,

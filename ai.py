@@ -24,6 +24,7 @@ import string
 
 import content
 import logic
+import minigames
 
 BASE_URL = "https://openrouter.ai/api/v1"
 # Free models are often busy ("rate-limited upstream"). OpenRouter then tries the next
@@ -116,6 +117,10 @@ Rules (the game checks them, a case that breaks one is thrown away):
 7. The 6 intro lines are short like a film trailer, max 50 characters each. Line 4 is
    "<victim_short> is dead." and line 5 is exactly "4 to 6 suspects.". No role or location names.
 8. Never say how many suspects there are anywhere else.
+9. The mini-games are things the victim left behind tonight, in the mood of this case. Their texts
+   name no suspect, no role and no other person, and never use "murder", "kill", "culprit" or "guilty".
+   Every mini-game "story" contains the exact placeholder {{location}} (the game puts the place there)
+   and may use {{victim}} for the victim's short name. Exhibit names max 40 characters, stories max 260.
 Other maximum lengths: case_title 60, victim 40, victim_short 20, found_place 60, briefing 600,
 flavor 200, neutral_clue 160, dossier 160, intro 240, secret 160, ending title 40, ending text 300.
 
@@ -145,10 +150,29 @@ The JSON shape (replace every description with your text):
     "incomplete": {{"title": "...", "text": "right suspect, but the place was wrong or unknown"}},
     "wrong": {{"title": "...", "text": "an innocent suspect was accused"}},
     "escaped": {{"title": "...", "text": "the group could not agree, the case goes cold"}}
+  }},
+  "minigames": {{
+    "code": {{"exhibit": "a locked object of the victim with a 4-digit keypad",
+              "story": "1 or 2 sentences: the object in the {{location}}; end with a note taped to it, like 'A note is taped inside:'"}},
+    "cipher": {{"exhibit": "the victim's coded note",
+                "story": "where it was found in the {{location}}; say the letters are shifted along the alphabet",
+                "message": "the note the victim wrote: 3 to 6 words, CAPITAL LETTERS and spaces only, max 40 characters"}},
+    "scratch": {{"exhibit": "what was found under dust", "story": "where in the {{location}}, covered in dust; rub it clean",
+                 "style": "one of: note, printout, phone, photo",
+                 "title": "note: a heading or empty; printout: its header; phone: the contact's name; photo: a date stamp",
+                 "lines": ["2 to 5 short lines that appear on it, max 30 characters each (photo: 1 or 2 lines of caption)"]}},
+    "puzzle": {{"exhibit": "the torn camera still", "story": "a still of the night camera in the {{location}}, torn into {{pieces}} pieces",
+                "caption": "what the camera printed on the still, max 26 characters, e.g. 'Motion detected'"}},
+    "order": {{"exhibit": "the victim's last evening", "story": "a torn page about {{victim}}'s evening, found in the {{location}}",
+               "events": [["21:15", "an entry of the victim's evening, max 60 characters"], ["22:05", "..."],
+                          ["22:40", "..."], ["23:10", "..."]]}}
   }}
 }}
 
-Before you answer, check every rule above once more, especially rules 1, 3 and 5."""
+The 4 "events" are in time order, at least 10 minutes apart, written as 24-hour times, and none is
+later than {content.MURDER_TIME}.
+
+Before you answer, check every rule above once more, especially rules 1, 3, 5 and 9."""
 
 
 def settings(getter):
@@ -592,7 +616,7 @@ def _match_places(entries, places):
 def _to_story(data, places=None):
     names, locations = _match_places(data["locations"], places)
     suspects = _first_unique(data["suspects"], lambda s: _clean(s["role"]), logic.NUMBER_OF_ROLES)
-    return {
+    story = {
         "source": "ai",
         "case_number": "AI",   # replaced by the room code in logic.ai_case_ready
         "case_title": _clean(data["case_title"]),
@@ -619,3 +643,7 @@ def _to_story(data, places=None):
         "neutral_private_clues": [_clean(c) for c in data["neutral_private_clues"]],
         "endings": _endings(data),
     }
+    # The words of the five mini-games: only pieces that pass the checks are kept, a missing
+    # piece is filled in by the game (content.MINIGAME_FALLBACK). A weak piece never costs the case.
+    story["minigames"] = minigames.clean_content(data.get("minigames"), story)
+    return story
