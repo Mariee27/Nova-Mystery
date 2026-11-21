@@ -23,6 +23,8 @@ import ai
 import content
 import db
 import logic
+import minigame_ui
+import minigames
 import ui
 
 DB_PATH = os.environ.get("MURDER_DB", "data/murder.db")
@@ -94,6 +96,12 @@ def views(game, online, token=None):
 
 def act(code, action):
     """Run one action. action(game, online, now) -> game. Rejections are shown to the player."""
+    attempt(code, action)
+    st.rerun()
+
+
+def attempt(code, action):
+    """Like act, without the rerun. True if the action was saved."""
     now = time.time()
     try:
         with open_db() as conn:
@@ -102,7 +110,8 @@ def act(code, action):
                 g, logic.with_bots(g, logic.online_ids(presence, now)), now))
     except logic.Rejected as problem:
         st.session_state["flash"] = str(problem)
-    st.rerun()
+        return False
+    return True
 
 
 def show(html):
@@ -263,6 +272,9 @@ def show_result(public):
     who = lambda pid: name_of(public, pid)   # noqa: E731
     story = public["story"]
     show(ui.reveal(result, characters, who, story=story))
+    # The ballots come right after the culprit, over the full width: the moment everybody reacts to.
+    st.markdown("### How everyone voted")
+    show(ui.vote_table(result, public["players"], who))
     left, right = st.columns([3, 2])
     with left:
         st.markdown("### Reconstruction of the night")
@@ -270,12 +282,8 @@ def show_result(public):
         st.markdown("### Every alibi, checked")
         show(ui.alibi_table(result, characters, who))
     with right:
-        st.markdown("### Who the room accused")
-        labels = [(str(p["pid"]), p["name"]) for p in public["players"]]
-        show(ui.bars(result["tally"], labels, hit=str(result["murderer"])))
+        # The ballots above already show who accused whom and where, so no vote bars here.
         st.markdown("### Where it happened")
-        places = [(loc, loc) for loc in story["locations"]]
-        show(ui.bars(result.get("scene_tally", {}), places, hit=result["murder_location"]))
         show(ui.campus_map(public["searched"], scene=result["murder_location"], story=story,
                            view=public["map"]))
     st.markdown("### The evidence, re-examined")
@@ -309,7 +317,7 @@ def home_screen():
         if st.button("Create room", type="primary", use_container_width=True):
             try:
                 with open_db() as conn:
-                    code = db.create_room(conn, time.time())
+                    code = db.create_room(conn, time.time(), minigames=True)
             except logic.Rejected as problem:
                 st.error(str(problem))
                 return
@@ -338,7 +346,7 @@ def start_demo():
     now = time.time()
     try:
         with open_db() as conn:
-            code = db.create_room(conn, now)
+            code = db.create_room(conn, now, minigames=True)
             game = db.apply(conn, code, lambda g: logic.join(g, "Detective", token, now))
             db.heartbeat(conn, code, logic.private_view(game, token)["pid"], now)
             for _ in range(DEMO_BOTS):
@@ -518,7 +526,8 @@ def player_log(code):
         game = db.load(conn, code)
         online = logic.online_ids(db.presence(conn, code), time.time())
     if game is not None:
-        st.markdown('<div class="kicker">Evidence &amp; statements</div>', unsafe_allow_html=True)
+        st.markdown('<div class="kicker" id="evidence-log">Evidence &amp; statements</div>',
+                    unsafe_allow_html=True)
         show_log(views(game, online)[0])
 
 
@@ -707,9 +716,137 @@ def search_step(code, token, public, me, move):
                        links=links, selected=place))
     found = [e for e in public["log"] if e["kind"] == "search" and e.get("location") == place]
     show(ui.place_card(place, places.get(place), found, story=public["story"]))
+    sealed = me["puzzles"].get(place)
+    if sealed and places[place]["state"] == "open":
+        show(minigame_ui.sealed_line(sealed))
     if (place and places[place]["state"] == "open"
             and st.button(f"Search {place}", type="primary", use_container_width=True)):
+        if sealed:      # the clue is sealed: open its mini-game first
+            st.session_state["move"] = dict(move, play=place)
+            st.rerun()
         act(code, lambda g, on, now: logic.search(g, token, place, now))
+
+
+# ---------------------------------------------------------------- evidence mini-games
+
+def mg_renderer(name="nova_minigame"):
+    """The mini-game component (registered once per server process)."""
+    v2 = getattr(getattr(st, "components", None), "v2", None)
+    if v2 is None:
+        return None
+    cache = minigame_ui.RENDERERS
+    key = (id(v2), name)
+    if key not in cache:
+        if name == "nova_chime":
+            cache[key] = v2.component(name, js=minigame_ui.CHIME_JS)
+        else:
+            cache[key] = v2.component(name, css=minigame_ui.COMPONENT_CSS, js=minigame_ui.COMPONENT_JS)
+    return cache[key]
+
+
+def _ignore():
+    pass
+
+
+def evidence_progress(public):
+    places = public["map"]["places"]
+    return sum(1 for p in places if p["state"] == "done"), len(places)
+
+
+def pending_reward(code, public):
+    """'ACCESS GRANTED' after a solved exhibit. Stays until Continue, also when the round or
+    the phase has moved on in the meantime. Returns True while it is shown."""
+    reward = st.session_state.get("reward")
+    if not reward or reward.get("code") != code:
+        return False
+    spec = reward["spec"]
+    entry = next((e for e in public["log"] if e["kind"] == "search" and e.get("location") == spec["location"]), None)
+    if entry is None:
+        st.session_state.pop("reward", None)
+        return False
+    done, total = evidence_progress(public)
+    show(minigame_ui.reward(spec, entry["text"], entry["id"], done, total, reward["celebrate"]))
+    if reward["celebrate"]:
+        reward["celebrate"] = False                   # the big moment plays once
+        chime = mg_renderer("nova_chime")
+        if chime is not None:
+            chime(key=f"chime-{code}-{entry['id']}", data={"id": f"{code}-{entry['id']}"})
+    if st.button("Continue ▸", key="reward-continue", type="primary", use_container_width=True):
+        st.session_state.pop("reward", None)
+        st.session_state["move"] = {}
+        st.rerun()
+    return True
+
+
+def puzzle_step(code, token, public, me, move):
+    """A sealed exhibit: solve the mini-game, and the search happens (logic checks the proof)."""
+    place = move["play"]
+    spec = me["puzzles"].get(place)
+    show(ui.back_link(move_link(code, token, {"step": "search", "place": place})))
+    state = next((p["state"] for p in public["map"]["places"] if p["name"] == place), None)
+    if spec is None or state != "open":
+        show(ui.step_head("Too late.", "Someone else searched this place first, or it is not open. "
+                                       "Pick another pin on the map."))
+        return
+    done, total = evidence_progress(public)
+    show(minigame_ui.puzzle_head(spec, done, total))
+    puzzle_panel(code, token, spec)
+
+
+@st.fragment
+def puzzle_panel(code, token, spec):
+    """The game itself. A fragment, so taps only redraw this part of the page."""
+    key = f"{code}:{spec['id']}"
+    state = st.session_state.setdefault("mg", {}).setdefault(
+        key, {"seq": 0, "note": "", "hints": 0, "attempts": 0, "swaps": []})
+    renderer = mg_renderer()
+    if renderer is None:
+        st.warning("This puzzle cannot be shown here.")
+        return
+    data = {k: v for k, v in spec.items() if k != "hints"}
+    data["state"] = {"seq": state["seq"], "note": state["note"], "swaps": state["swaps"]}
+    result = renderer(key=f"mg-{key}", data=data, on_submit_change=_ignore, on_progress_change=_ignore)
+    progress = getattr(result, "progress", None)
+    if spec["kind"] == "puzzle" and isinstance(progress, list):
+        state["swaps"] = progress[:minigames.MAX_SWAPS]
+    proof = getattr(result, "submit", None)
+    if isinstance(proof, dict):
+        check_proof(code, token, spec, state, proof)
+    puzzle_hints(key, spec, state)
+
+
+def check_proof(code, token, spec, state, proof):
+    """Python decides, never the phone: a wrong answer only costs an attempt."""
+    with open_db() as conn:
+        game = db.load(conn, code)
+    if game is None:
+        st.rerun()
+    if minigames.verify(game, spec["location"], proof):
+        if attempt(code, lambda g, on, now: logic.search(g, token, spec["location"], now, proof=proof)):
+            # Kept until the player taps Continue: the round may end the very same second.
+            st.session_state["reward"] = {"code": code, "spec": spec, "celebrate": True}
+            st.session_state.get("mg", {}).pop(f"{code}:{spec['id']}", None)
+        st.rerun()
+    state["attempts"] += 1
+    state["seq"] += 1
+    state["note"] = minigames.feedback(game, spec["location"], proof)
+    st.rerun(scope="fragment")
+
+
+def puzzle_hints(key, spec, state):
+    texts = list(spec["hints"][:state["hints"]])
+    if spec["kind"] == "puzzle" and len(texts) == 3:
+        move = minigames.first_misplaced(spec, state["swaps"])
+        texts[2] = (f"The piece now in slot {move[0]} belongs in slot {move[1]}." if move
+                    else "Every piece is in place.")
+    show(minigame_ui.hints(texts))
+    used = state["hints"]
+    if used < len(spec["hints"]):
+        if state["attempts"] >= 2 and used == 0:
+            st.caption("Stuck? A hint costs nothing but a little pride.")
+        if st.button(f"💡 Hint {used + 1} of {len(spec['hints'])}", key=f"hint-{key}", use_container_width=True):
+            state["hints"] = used + 1
+            st.rerun(scope="fragment")
 
 
 def question_step(code, token, public, me, move):
@@ -782,6 +919,9 @@ def move_made(code, token, public, me):
     last = me["last_move"]
     if last is None:
         show(ui.move_made("Move logged", "", "The next round starts when everybody has moved."))
+    elif last["kind"] == "search" and me["puzzles"].get(last.get("location")):
+        done, total = evidence_progress(public)
+        show(minigame_ui.reward(me["puzzles"][last["location"]], last["text"], last["id"], done, total, False))
     elif last["kind"] == "search":
         show(ui.move_made(f"New evidence · {last.get('location', '')}", f"Exhibit {last['id']}", last["text"]))
     elif last["kind"] == "question":
@@ -794,6 +934,8 @@ def move_made(code, token, public, me):
 
 
 def investigation_actions(code, token, public, me):
+    if pending_reward(code, public):
+        return
     move = st.session_state.get("move") or {}
     if move and move.setdefault("round", public["map"]["round"]) != public["map"]["round"]:
         move = st.session_state["move"] = {}     # a new round starts with "Your move."
@@ -803,6 +945,8 @@ def investigation_actions(code, token, public, me):
     elif me["acted"]:
         st.session_state["move"] = {}
         move_made(code, token, public, me)
+    elif step == "search" and move.get("play"):
+        puzzle_step(code, token, public, me, move)
     elif step == "search":
         search_step(code, token, public, me, move)
     elif step == "question":
@@ -875,6 +1019,7 @@ def player_screen(code, token):
         investigation_actions(code, token, public, me)
         show_card(me, expanded=False)
     elif phase == "DISCUSSION":
+        pending_reward(code, public)             # an exhibit solved in the very last second
         answer_forms(code, token, public, me)
         st.info("Talk to each other. Compare the alibis. Who is lying?")
         show_card(me, expanded=False)

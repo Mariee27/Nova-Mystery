@@ -16,7 +16,7 @@ PUBLIC_KEYS = {"code", "phase", "deadline", "players", "log", "searched",
 PUBLIC_PLAYER_KEYS = {"pid", "name", "role", "online", "is_host", "acted", "voted"}
 PRIVATE_KEYS = {"pid", "name", "is_host", "phase", "acted", "voted", "role", "intro",
                 "alibi", "secret", "is_murderer", "clues", "can_plant", "plant_locations",
-                "open_questions", "last_move"}
+                "open_questions", "last_move", "puzzles"}
 # "role" is intentionally NOT forbidden: roles are public from REVEAL on.
 FORBIDDEN_KEYS = {"token", "murderer", "is_murderer", "secret", "intro", "alibi",
                   "clues", "implicates", "clue_kind", "planted", "case",
@@ -268,3 +268,19 @@ def test_dw18_text_of_only_control_characters_is_rejected():
     from conftest import assert_rejected_unchanged
     g = started_in("INVESTIGATION")
     assert_rejected_unchanged(lambda x: logic.question(x, "t1", 2, "\x00\n", 5), g)
+
+
+def test_ballots_are_secret_while_voting_and_public_in_the_result():
+    g = started_in("INVESTIGATION", tokens=SECURE_TOKENS)
+    g = advance_to(g, "VOTE")
+    murderer = murderer_pid(g)
+    voter, other = innocent_pids(g)[0], innocent_pids(g)[1]
+    g = cast_votes(g, {voter: murderer, other: voter})
+    during = logic.public_view(g, online_all(g))
+    assert during["result"] is None                          # nobody sees a ballot while voting
+    assert '"votes"' not in dump(during)                       # no ballot hides anywhere in the view
+    g = advance_to(g, "RESULT")
+    result = logic.public_view(g, online_all(g))["result"]
+    assert result["votes"][str(voter)] == murderer           # afterwards every ballot is shown
+    assert result["votes"][str(other)] == voter
+    assert set(result["votes"]) == {str(voter), str(other)}  # players who did not vote are not invented

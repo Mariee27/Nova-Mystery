@@ -39,7 +39,7 @@ def _dump(game):
     return json.dumps(game, sort_keys=True, ensure_ascii=False)
 
 
-def create_room(conn, now):
+def create_room(conn, now, minigames=False):
     conn.execute("BEGIN IMMEDIATE")
     try:
         old = [row[0] for row in conn.execute(
@@ -56,7 +56,7 @@ def create_room(conn, now):
             if conn.execute("SELECT 1 FROM rooms WHERE code = ?", (code,)).fetchone() is None:
                 break
         conn.execute("INSERT INTO rooms (code, state, created_at) VALUES (?, ?, ?)",
-                     (code, _dump(logic.new_game(code, now)), now))
+                     (code, _dump(logic.new_game(code, now, minigames=minigames)), now))
         conn.execute("COMMIT")
     except BaseException:
         conn.execute("ROLLBACK")
