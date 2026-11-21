@@ -243,7 +243,7 @@ gets a random theme and a random first letter for the victim, so rooms get diffe
   "location", "evidence_id" (the clue id), "evidence_no", "icon", "name", "exhibit", "verb", "story",
   "hints": [3 texts], ...kind-specific data}`. It never contains the answer: no code, no cipher key.
   `private_view(...)["puzzles"]` maps every place to its spec during INVESTIGATION (else `{}`).
-  A puzzle or scratch spec also has `"motif"` (the picture's id) and `"image"` (the SVG with this case's words);
+  A puzzle or scratch spec also has `"motif"` (the picture's id) and `"image"` (the SVG of a NOVA SBE place);
   scratch has `"cover"` (the words on the cover). The motifs: `minigames.MOTIFS[kind]` (id, file in
   `assets/minigames/`, name, exhibit, story, hints, slots). `game["motifs"]` = `{"puzzle": i, "scratch": j}`,
   set by `start` from `minigames.choose_motifs(seed)`, or None in rehearsal mode (then every place shows motif 0);

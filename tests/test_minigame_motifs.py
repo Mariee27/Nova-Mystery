@@ -50,8 +50,11 @@ def test_five_distinct_valid_pictures_per_kind(kind):
     assert len(hashes) == 5                                              # five different pictures
 
 
-def test_words_are_filled_in_and_escaped():
-    svg = minigames.picture("puzzles/letter.svg", victim="Dear <b>X</b> & Co,", place="Library")
+def test_words_are_filled_in_and_escaped(monkeypatch):
+    template = ('<svg xmlns="http://www.w3.org/2000/svg"><text data-slot="victim">x</text>'
+                '<text x="1" data-slot="place">y</text></svg>')
+    monkeypatch.setattr(minigames, "_picture", lambda name: template)
+    svg = minigames.picture("any.svg", victim="Dear <b>X</b> & Co,", place="Library")
     assert "Dear &lt;b&gt;X&lt;/b&gt; &amp; Co," in svg and ">Library<" in svg
     assert "<b>" not in svg
     ET.fromstring(svg)                                                   # still a valid picture
@@ -67,7 +70,8 @@ def test_every_jigsaw_motif_is_shown_and_solvable(index):
         look = minigames.MOTIFS["puzzle"][(index + variant) % 5]
         assert spec["motif"] == look["id"] and spec["exhibit"] == look["exhibit"]
         ET.fromstring(spec["image"])
-        assert place.upper() in spec["image"] or place in spec["image"]  # the place of this case
+        assert spec["image"] == minigames.picture(look["file"])          # the campus picture, as drawn
+        assert place in spec["story"]                                    # where the photo was found
         assert len(spec["hints"]) == 3 and spec["hints"][-1] == minigames.PUZZLE_HINT_MOVE
         assert minigames.verify(g, place, minigames.solve(g, place))
         assert not minigames.verify(g, place, {"swaps": []})
@@ -81,6 +85,7 @@ def test_every_rub_to_reveal_motif_is_shown_and_can_be_revealed(index):
         look = minigames.MOTIFS["scratch"][(index + variant) % 5]
         assert spec["motif"] == look["id"] and spec["cover"] == look["cover"]
         ET.fromstring(spec["image"])
+        assert place in spec["story"]
         assert minigames.verify(g, place, minigames.solve(g, place))
         assert not minigames.verify(g, place, {"cells": [0, 1, 2]})
 
@@ -129,18 +134,30 @@ def test_rehearsal_mode_and_old_games_keep_the_first_pictures():
     g = logic.start(g, "t1", {1, 2, 3, 4, 5}, 0, seed=logic.DEMO_SEED, fixed_case=True)
     assert g["motifs"] is None
     g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 1)
-    assert {minigames.spec(g, p)["motif"] for p in places_of(g, "puzzle")} == {"camera"}
-    assert {minigames.spec(g, p)["motif"] for p in places_of(g, "scratch")} <= {"note"}
+    assert {minigames.spec(g, p)["motif"] for p in places_of(g, "puzzle")} == {"atrium"}
+    assert {minigames.spec(g, p)["motif"] for p in places_of(g, "scratch")} <= {"skylight"}
     del g["motifs"]                                                      # a game saved before motifs existed
-    assert {minigames.spec(g, p)["motif"] for p in places_of(g, "puzzle")} == {"camera"}
+    assert {minigames.spec(g, p)["motif"] for p in places_of(g, "puzzle")} == {"atrium"}
 
 
-def test_ai_cases_get_their_own_words_in_every_picture():
+def test_the_pictures_show_the_campus_never_the_case():
+    """The same NOVA SBE picture for case #001 and for an AI case: no victim, no case words."""
     story = fake_story()
     for index in range(5):
         g = game_with({"puzzle": index, "scratch": index}, story=story)
         for spec in minigames.specs(g):
             if spec["kind"] in ("puzzle", "scratch"):
-                assert "Vale" not in spec["image"] and "VALE" not in spec["image"]   # never case #001's victim
-                assert story["victim_short"] in spec["image"] or spec["location"].upper() in spec["image"] \
-                    or spec["location"] in spec["image"]
+                assert "Vale" not in spec["image"] and story["victim_short"] not in spec["image"]
+                look = next(m for m in minigames.MOTIFS[spec["kind"]] if m["id"] == spec["motif"])
+                assert spec["image"] == minigames.picture(look["file"])
+                assert spec["location"] in spec["story"]
+
+
+def test_every_picture_names_its_nova_sbe_place():
+    names = {"atrium": "HOVIONE ATRIUM", "library": "SOARES DOS SANTOS LIBRARY", "campus": "NOVA SCHOOL",
+             "deck": "MAIN DECK", "auditorium": "GRAND AUDITORIUM", "skylight": "HOVIONE ATRIUM",
+             "library-night": "SOARES DOS SANTOS LIBRARY", "facade": "nova", "stairs": "FLOOR 1",
+             "beach": "PRAIA DE CARCAVELOS"}
+    for kind in ("puzzle", "scratch"):
+        for look in minigames.MOTIFS[kind]:
+            assert names[look["id"]] in minigames.picture(look["file"]), look["id"]

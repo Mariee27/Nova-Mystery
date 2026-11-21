@@ -7,8 +7,8 @@ phone shows – the proof is checked here, in Python, against data the phone nev
 
 Four kinds, spread over the five places of a case:
   code     🔐  a keypad lock; the 4-digit code follows from the case timeline
-  scratch  🕵️  rub a blank page to raise the writing pressed into it
-  puzzle   🧩  a torn camera still: tap two pieces to swap them
+  scratch  🕵️  rub the coating off a photo print of a NOVA SBE place
+  puzzle   🧩  a torn photo of a NOVA SBE place: tap two pieces to swap them
   cipher   🧠  a note in shifted letters: turn the cipher wheel until it reads
 
 Everything is built from the case seed, the story and the fixed times of the night
@@ -30,9 +30,9 @@ KINDS = ("code", "scratch", "puzzle", "cipher")
 KIND_INFO = {
     "code": {"icon": "🔐", "name": "Crack the code", "exhibit": "The locked cash box",
              "verb": "Enter the 4-digit code."},
-    "scratch": {"icon": "🕵️", "name": "Rub to reveal", "exhibit": "The pressed-in note",
-                "verb": "Rub the page with your finger."},
-    "puzzle": {"icon": "🧩", "name": "Reconstruct the still", "exhibit": "The torn camera still",
+    "scratch": {"icon": "🕵️", "name": "Rub to reveal", "exhibit": "The covered photo print",
+                "verb": "Rub the coating away with your finger."},
+    "puzzle": {"icon": "🧩", "name": "Reassemble the photo", "exhibit": "The torn photo",
                "verb": "Tap two pieces to swap them."},
     "cipher": {"icon": "🧠", "name": "Decode the note", "exhibit": "The shifted-letter note",
                "verb": "Turn the wheel until the note makes sense."},
@@ -54,75 +54,84 @@ MAX_PROOF_ITEMS = SCRATCH_COLS * SCRATCH_ROWS
 # words change; how a puzzle is solved, checked and rewarded never does. logic.start picks a
 # first motif per kind for the game (choose_motifs) and stores it in game["motifs"]; a second
 # place of the same kind gets the next motif, so no picture repeats within a game. Without a
-# stored choice (rehearsal mode, games from before) every place shows the first motif, the
-# picture case #001 always had. Pictures are SVG files with <text data-slot="..."> elements
-# that get this case's words (fill), so no picture contradicts the story.
+# stored choice (rehearsal mode, games from before) every place shows the first motif.
+# Pictures are SVG files; a <text data-slot="..."> element in one would get this case's words
+# (fill, escaped). The NOVA SBE pictures need none: they show the campus, not the case.
 
 ASSETS = pathlib.Path(__file__).resolve().parent / "assets" / "minigames"
 PUZZLE_HINT_MOVE = "PIECE"   # the third puzzle hint: replaced on the phone by a concrete move
 
+# Pictures of real places on the NOVA SBE campus, drawn as flat illustrations. The puzzle and the
+# scratch card only show a picture; the clue a player earns never depends on which one it is.
 MOTIFS = {
     "puzzle": [
-        {"id": "camera", "file": "puzzles/camera.svg", "name": "Reconstruct the still",
-         "exhibit": "The torn camera still",
-         "story": "A security still from the camera in the {location}, torn into {pieces} pieces and left in a bin. "
+        {"id": "atrium", "file": "puzzles/atrium.svg", "name": "Reassemble the photo",
+         "exhibit": "The torn photo of the Hovione Atrium",
+         "story": "A photo of the Hovione Atrium, found torn into {pieces} pieces in the {location}. "
+                  "Someone kept it for a reason. Put it back together.",
+         "hints": ["The blue glass roof fills the top row; its white grid lines run toward the middle.",
+                   "The window and the name plate sit in the centre; the stone floor and the people are at the bottom."],
+         "slots": {}},
+        {"id": "library", "file": "puzzles/library.svg", "name": "Reassemble the photo",
+         "exhibit": "The torn photo of the library",
+         "story": "A photo of the Teresa e Alexandre Soares dos Santos Library, found torn into {pieces} pieces "
+                  "in the {location}. Put it back together.",
+         "hints": ["The library's name runs across the white façade at the top left; the side of the building is on the right.",
+                   "The lit glass entrance is in the middle of the bottom half; the steps and lamps are below it."],
+         "slots": {}},
+        {"id": "campus", "file": "puzzles/campus.svg", "name": "Reassemble the photo",
+         "exhibit": "The torn photo of the campus",
+         "story": "A photo of the NOVA SBE campus at sunset, found torn into {pieces} pieces in the {location}. "
                   "Put it back together.",
-         "hints": ["The camera writes its number top-left and the time bottom-left.",
-                   "The name of the place runs across the top row; the floor lines meet in the middle."],
-         "slots": {"camera": "CAM {number:02d}", "place": "{PLACE}", "time": "23:{minute:02d}:{second:02d}",
-                   "icon": "{icon}"}},
-        {"id": "letter", "file": "puzzles/letter.svg", "name": "Piece the letter together",
-         "exhibit": "The torn letter",
-         "story": "A letter found in the {location}, torn into {pieces} pieces. Somebody did not want it read. "
+         "hints": ["The sunset sky is in the top row; the sea and the sun sit just above the long white building.",
+                   "The school's name runs across the middle; the lawns, paths and trees are at the bottom."],
+         "slots": {}},
+        {"id": "deck", "file": "puzzles/deck.svg", "name": "Reassemble the photo",
+         "exhibit": "The torn photo of the Main Deck",
+         "story": "A photo of the Main Deck at night, found torn into {pieces} pieces in the {location}. "
                   "Put it back together.",
-         "hints": ["The letterhead runs across the top row; the place and the hour sit top-right.",
-                   "The red wax seal is bottom-left, the signature bottom-right; the lines of writing fill the middle."],
-         "slots": {"place": "{location}", "victim": "Dear {victim},"}},
-        {"id": "corridor", "file": "puzzles/corridor.svg", "name": "Reconstruct the photo",
-         "exhibit": "The torn photo of the corridor",
-         "story": "A photo of the dark corridor by the {location}, printed and torn into {pieces} pieces. "
-                  "Someone stands at the far end. Put it back together.",
-         "hints": ["The sign with the place name and the lamps are in the top row; the floor lines meet in the middle.",
-                   "The open door with its light is on the right; the figure stands at the far end, in the centre."],
-         "slots": {"place": "{PLACE}"}},
-        {"id": "photograph", "file": "puzzles/photograph.svg", "name": "Restore the photograph",
-         "exhibit": "The torn group photo",
-         "story": "An old photograph pinned up in the {location}, torn into {pieces} pieces. One face is circled in red. "
+         "hints": ["The moon is at the top centre; the white wings close in from the left and the right.",
+                   "The wooden deck widens toward the bottom, where its name plate and a bench are."],
+         "slots": {}},
+        {"id": "auditorium", "file": "puzzles/auditorium.svg", "name": "Reassemble the photo",
+         "exhibit": "The torn photo of the Grand Auditorium",
+         "story": "A photo of the empty Grand Auditorium, found torn into {pieces} pieces in the {location}. "
                   "Put it back together.",
-         "hints": ["The red pushpin holds the top-left corner; the arched windows run across the top.",
-                   "The red circle is around one face on the right; the caption is written along the bottom."],
-         "slots": {"place": "{location}"}},
-        {"id": "document", "file": "puzzles/document.svg", "name": "Reassemble the memo",
-         "exhibit": "The shredded memo",
-         "story": "A confidential memo from the {location}, torn into {pieces} pieces before anyone could read it. "
-                  "Put it back together.",
-         "hints": ["The paperclip and the heading are top-left; the red CONFIDENTIAL stamp is top-right.",
-                   "The black bars are in the middle; the signature and the coffee ring are at the bottom."],
-         "slots": {"victim": "RE: {victim}", "place": "LOCATION: {location}"}},
+         "hints": ["The screen with the NOVA name is at the top centre, between the wooden walls.",
+                   "The stage and the lectern are in the middle; the red rows of seats fan out across the bottom."],
+         "slots": {}},
     ],
     "scratch": [
-        {"id": "note", "file": "scratchcards/note.svg", "name": "Rub to reveal", "exhibit": "The pressed-in note",
-         "verb": "Rub the page with your finger.", "cover": "RUB THE PAGE",
-         "story": "A blank notepad page from the {location}. Whoever wrote on the sheet above pressed hard. "
-                  "Rub it like a pencil to raise the writing.",
-         "slots": {"victim": "{victim} –", "place": "{location}", "time": "{murder_time} ?"}},
-        {"id": "fingerprint", "file": "scratchcards/fingerprint.svg", "name": "Dust for prints",
-         "exhibit": "The dusted fingerprint", "verb": "Brush the powder with your finger.", "cover": "BRUSH THE POWDER",
-         "story": "A glass left on a desk in the {location}. Brush the powder across it to raise the fingerprint.",
-         "slots": {"place": "{location}"}},
-        {"id": "symbol", "file": "scratchcards/symbol.svg", "name": "Rub away the dust",
-         "exhibit": "The carved symbol", "verb": "Rub the dust away with your finger.", "cover": "RUB AWAY THE DUST",
-         "story": "Under a desk in the {location}, something was carved into the wood. Rub away the dust to see it.",
-         "slots": {"place": "{PLACE}"}},
-        {"id": "photo", "file": "scratchcards/photo.svg", "name": "Clean the photograph",
-         "exhibit": "The torn photograph", "verb": "Rub the grime away with your finger.", "cover": "RUB IT CLEAN",
-         "story": "Half a photograph, stuck face down under grime in the {location}. Rub it clean.",
-         "slots": {"victim": "{victim}", "place": "{location}"}},
-        {"id": "watch", "file": "scratchcards/watch.svg", "name": "Polish the watch",
-         "exhibit": "The stopped pocket watch", "verb": "Rub the tarnish away with your finger.",
-         "cover": "RUB AWAY THE TARNISH",
-         "story": "A pocket watch under a cloth in the {location}, black with tarnish. Rub it until you can read it.",
-         "slots": {"place": "{PLACE}"}},
+        {"id": "skylight", "file": "scratchcards/skylight.svg", "name": "Rub to reveal",
+         "exhibit": "The print of the atrium roof", "verb": "Rub the coating away with your finger.",
+         "cover": "RUB TO REVEAL",
+         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
+                  "where it was taken.",
+         "slots": {}},
+        {"id": "library-night", "file": "scratchcards/library-night.svg", "name": "Rub to reveal",
+         "exhibit": "The print of the library at night", "verb": "Rub the coating away with your finger.",
+         "cover": "RUB TO REVEAL",
+         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
+                  "where it was taken.",
+         "slots": {}},
+        {"id": "facade", "file": "scratchcards/facade.svg", "name": "Rub to reveal",
+         "exhibit": "The print of the building's corner", "verb": "Rub the coating away with your finger.",
+         "cover": "RUB TO REVEAL",
+         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
+                  "where it was taken.",
+         "slots": {}},
+        {"id": "stairs", "file": "scratchcards/stairs.svg", "name": "Rub to reveal",
+         "exhibit": "The print of the staircase", "verb": "Rub the coating away with your finger.",
+         "cover": "RUB TO REVEAL",
+         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
+                  "where it was taken.",
+         "slots": {}},
+        {"id": "beach", "file": "scratchcards/beach.svg", "name": "Rub to reveal",
+         "exhibit": "The print of Carcavelos beach", "verb": "Rub the coating away with your finger.",
+         "cover": "RUB TO REVEAL",
+         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
+                  "where it was taken.",
+         "slots": {}},
     ],
 }
 
@@ -430,12 +439,3 @@ def first_misplaced(spec_, swaps):
         if piece != slot:
             return slot + 1, piece + 1
     return None
-
-
-# ---------------------------------------------------------------- the camera still (SVG)
-
-def camera_still(location, number, minute, second):
-    """The camera still (the first puzzle motif) of a place, 300 × 300."""
-    look = MOTIFS["puzzle"][0]
-    return picture(look["file"], **_words(look["slots"], PLACE=location.upper(), number=number, minute=minute,
-                                          second=second, icon=content.PLACES.get(location, {}).get("icon", "📷")))

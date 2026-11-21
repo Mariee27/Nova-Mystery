@@ -247,12 +247,13 @@ const BUILD = {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       canvas.width = width * dpr; canvas.height = height * dpr; w = width; hgt = height;
       ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const g = ctx.createLinearGradient(0, 0, width, height); g.addColorStop(0, '#F1E8D4'); g.addColorStop(1, '#E2D6BC');
+      // A silver scratch-off coating over the photo print, with a fine diagonal sheen.
+      const g = ctx.createLinearGradient(0, 0, width, height);
+      g.addColorStop(0, '#C9CDD3'); g.addColorStop(.45, '#E6E9ED'); g.addColorStop(.55, '#D3D7DD'); g.addColorStop(1, '#AEB4BC');
       ctx.fillStyle = g; ctx.fillRect(0, 0, width, height);
-      ctx.strokeStyle = 'rgba(80,110,160,.25)'; ctx.lineWidth = 1;
-      for (let y = 40; y < height; y += 28) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-      ctx.strokeStyle = 'rgba(200,60,60,.35)'; ctx.beginPath(); ctx.moveTo(36, 0); ctx.lineTo(36, height); ctx.stroke();
-      ctx.fillStyle = 'rgba(60,50,40,.35)'; ctx.font = '600 15px Courier Prime, monospace'; ctx.textAlign = 'center';
+      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1;
+      for (let x = -height; x < width; x += 6) { ctx.beginPath(); ctx.moveTo(x, height); ctx.lineTo(x + height, 0); ctx.stroke(); }
+      ctx.fillStyle = 'rgba(40,48,60,.45)'; ctx.font = '600 15px Courier Prime, monospace'; ctx.textAlign = 'center';
       ctx.fillText(data.cover || 'RUB THE PAGE', width / 2, height / 2);
       brush = Math.max(26, width / 9);
       cells.clear();

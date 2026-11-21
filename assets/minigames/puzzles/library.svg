@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+<!-- The Teresa e Alexandre Soares dos Santos Library at dusk: a white modern block with its
+     name across the façade, ribbon windows lit warm, a glass entrance, the plaza in front. -->
+<defs>
+  <linearGradient id="lb-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0f1d38"/><stop offset=".65" stop-color="#2e3f6b"/><stop offset="1" stop-color="#b86b4b"/></linearGradient>
+  <linearGradient id="lb-front" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4f4f1"/><stop offset="1" stop-color="#d8dbdf"/></linearGradient>
+  <linearGradient id="lb-side" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#aeb6c2"/><stop offset="1" stop-color="#c9cfd8"/></linearGradient>
+  <linearGradient id="lb-plaza" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b5f6a"/><stop offset="1" stop-color="#2b2e36"/></linearGradient>
+</defs>
+<rect width="300" height="300" fill="url(#lb-sky)"/>
+<g fill="#f6efd8"><circle cx="40" cy="30" r="1.3"/><circle cx="96" cy="18" r="1"/><circle cx="170" cy="36" r="1.2"/><circle cx="250" cy="22" r="1.4"/><circle cx="276" cy="58" r="1"/></g>
+<!-- the building: front and side -->
+<polygon points="236,78 284,96 284,224 236,212" fill="url(#lb-side)"/>
+<rect x="16" y="78" width="220" height="134" fill="url(#lb-front)"/>
+<rect x="16" y="78" width="220" height="6" fill="#ffffff"/>
+<!-- the name across the top -->
+<text x="28" y="101" font-family="Helvetica, Arial, sans-serif" font-size="9.4" font-weight="bold" letter-spacing="1.2" fill="#2a3346">TERESA E ALEXANDRE</text>
+<text x="28" y="113" font-family="Helvetica, Arial, sans-serif" font-size="9.4" font-weight="bold" letter-spacing="1.2" fill="#2a3346">SOARES DOS SANTOS LIBRARY</text>
+<!-- ribbon windows, lit -->
+<rect x="16" y="124" width="220" height="24" fill="#2b3550"/>
+<g fill="#ffcf7a">
+  <rect x="22" y="128" width="30" height="16"/><rect x="58" y="128" width="30" height="16" opacity=".75"/><rect x="94" y="128" width="30" height="16"/>
+  <rect x="130" y="128" width="30" height="16" opacity=".6"/><rect x="166" y="128" width="30" height="16"/><rect x="202" y="128" width="28" height="16" opacity=".85"/>
+</g>
+<g fill="#3b2a1a" opacity=".55"><rect x="26" y="134" width="22" height="2"/><rect x="98" y="134" width="22" height="2"/><rect x="170" y="134" width="22" height="2"/></g>
+<polygon points="236,124 284,136 284,158 236,148" fill="#2b3550"/>
+<g fill="#ffcf7a" opacity=".7"><polygon points="242,128 262,133 262,150 242,145"/><polygon points="266,134 280,138 280,154 266,151"/></g>
+<!-- ground floor: glass entrance between white piers -->
+<rect x="16" y="160" width="220" height="52" fill="#e3e6ea"/>
+<rect x="96" y="166" width="64" height="46" fill="#ffd98f"/>
+<g stroke="#e3e6ea" stroke-width="3"><line x1="117" y1="166" x2="117" y2="212"/><line x1="139" y1="166" x2="139" y2="212"/></g>
+<g fill="#b8c1cc"><rect x="28" y="166" width="10" height="46"/><rect x="62" y="166" width="10" height="46"/><rect x="184" y="166" width="10" height="46"/><rect x="218" y="166" width="10" height="46"/></g>
+<path d="M126 212 v-14 q0 -6 6 -6 h0" stroke="#3b2a1a" stroke-width="0" fill="none"/>
+<g fill="#3a2e22" opacity=".85"><circle cx="130" cy="186" r="3.6"/><path d="M126 206 q0 -15 4 -15 q4 0 4 15 z"/></g>
+<!-- plaza, steps, lamps, a pine -->
+<polygon points="0,212 300,224 300,300 0,300" fill="url(#lb-plaza)"/>
+<g stroke="#6e7380" stroke-width="1"><path d="M0 232 L300 242 M0 256 L300 264 M0 282 L300 288"/></g>
+<polygon points="90,212 166,212 176,226 82,226" fill="#8c919b"/>
+<polygon points="82,226 176,226 184,236 74,236" fill="#767b86"/>
+<polygon points="96,236 162,236 210,300 48,300" fill="#ffd98f" opacity=".14"/>
+<g><rect x="40" y="196" width="2.4" height="54" fill="#1a1f2a"/><circle cx="41.2" cy="194" r="5" fill="#ffe2a0"/><circle cx="41.2" cy="194" r="14" fill="#ffe2a0" opacity=".18"/></g>
+<g><rect x="252" y="206" width="2.4" height="52" fill="#1a1f2a"/><circle cx="253.2" cy="204" r="5" fill="#ffe2a0"/><circle cx="253.2" cy="204" r="14" fill="#ffe2a0" opacity=".18"/></g>
+<g fill="#16261f"><rect x="286" y="180" width="4" height="50"/><ellipse cx="288" cy="172" rx="22" ry="12"/><ellipse cx="282" cy="160" rx="16" ry="9"/></g>
+<rect width="300" height="300" fill="none" stroke="#0d1a2e" stroke-width="6"/>
+</svg>

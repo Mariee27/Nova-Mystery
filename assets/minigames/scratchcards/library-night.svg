@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+<!-- The library seen through its own tall windows at night: rows of shelves and reading tables
+     under warm pendant lights, the building's name on the glass. -->
+<defs>
+  <linearGradient id="ln-room" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a2b20"/><stop offset="1" stop-color="#5b4330"/></linearGradient>
+  <linearGradient id="ln-floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a6a48"/><stop offset="1" stop-color="#4a3624"/></linearGradient>
+  <radialGradient id="ln-lamp" cx="50%" cy="0%" r="100%"><stop offset="0" stop-color="#ffe2a0" stop-opacity=".55"/><stop offset="1" stop-color="#ffe2a0" stop-opacity="0"/></radialGradient>
+</defs>
+<rect width="400" height="500" fill="#e9ebee"/>
+<!-- the white frame of the façade -->
+<rect x="0" y="0" width="400" height="74" fill="#f4f4f1"/>
+<text x="200" y="34" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="bold" letter-spacing="1.6" fill="#2a3346" text-anchor="middle">TERESA E ALEXANDRE</text>
+<text x="200" y="54" font-family="Helvetica, Arial, sans-serif" font-size="13" font-weight="bold" letter-spacing="1.6" fill="#2a3346" text-anchor="middle">SOARES DOS SANTOS LIBRARY</text>
+<!-- the room inside -->
+<rect x="24" y="74" width="352" height="402" fill="url(#ln-room)"/>
+<polygon points="24,340 376,340 376,476 24,476" fill="url(#ln-floor)"/>
+<!-- shelves along the back -->
+<g>
+  <rect x="40" y="120" width="320" height="190" fill="#2a1d14"/>
+  <g fill="#3f2c1e"><rect x="40" y="166" width="320" height="6"/><rect x="40" y="214" width="320" height="6"/><rect x="40" y="262" width="320" height="6"/></g>
+  <g fill="#8e2f2f"><rect x="46" y="134" width="8" height="32"/><rect x="104" y="182" width="9" height="32"/><rect x="220" y="230" width="8" height="32"/><rect x="300" y="134" width="9" height="32"/></g>
+  <g fill="#2f5d8e"><rect x="56" y="138" width="7" height="28"/><rect x="160" y="182" width="8" height="32"/><rect x="250" y="134" width="7" height="32"/><rect x="330" y="230" width="9" height="32"/></g>
+  <g fill="#c9a24e"><rect x="70" y="134" width="6" height="32"/><rect x="190" y="230" width="7" height="32"/><rect x="280" y="182" width="6" height="32"/><rect x="130" y="230" width="6" height="32"/></g>
+  <g fill="#e6dcc6"><rect x="80" y="140" width="10" height="26"/><rect x="118" y="186" width="10" height="28"/><rect x="236" y="138" width="9" height="28"/><rect x="310" y="186" width="10" height="28"/><rect x="76" y="234" width="10" height="28"/><rect x="270" y="234" width="9" height="28"/></g>
+  <g fill="#4e7a52"><rect x="94" y="138" width="7" height="28"/><rect x="204" y="186" width="7" height="28"/><rect x="346" y="138" width="7" height="28"/><rect x="150" y="234" width="7" height="28"/></g>
+</g>
+<!-- pendant lamps and their light -->
+<g stroke="#1a120c" stroke-width="1.5"><path d="M120 74 v60 M200 74 v76 M280 74 v60"/></g>
+<g fill="#ffe2a0"><ellipse cx="120" cy="138" rx="16" ry="6"/><ellipse cx="200" cy="154" rx="16" ry="6"/><ellipse cx="280" cy="138" rx="16" ry="6"/></g>
+<polygon points="100,142 140,142 190,380 50,380" fill="url(#ln-lamp)"/><polygon points="180,158 220,158 270,400 130,400" fill="url(#ln-lamp)"/><polygon points="260,142 300,142 350,380 210,380" fill="url(#ln-lamp)"/>
+<!-- reading tables -->
+<g fill="#c08a55"><rect x="60" y="360" width="120" height="10"/><rect x="220" y="360" width="120" height="10"/></g>
+<g fill="#6e4426"><rect x="66" y="370" width="5" height="40"/><rect x="169" y="370" width="5" height="40"/><rect x="226" y="370" width="5" height="40"/><rect x="329" y="370" width="5" height="40"/></g>
+<g fill="#ffd27a"><path d="M104 346 l6 -14 h6 l-4 14 z"/><path d="M284 346 l6 -14 h6 l-4 14 z"/></g>
+<g fill="#e6dcc6"><rect x="130" y="352" width="24" height="8"/><rect x="236" y="352" width="22" height="8"/></g>
+<g fill="#1c140e"><circle cx="146" cy="330" r="9"/><path d="M134 362 q0 -24 12 -24 q12 0 12 24 z"/></g>
+<!-- window mullions and reflections -->
+<g fill="#f4f4f1"><rect x="0" y="74" width="24" height="426"/><rect x="376" y="74" width="24" height="426"/><rect x="194" y="74" width="12" height="402"/><rect x="0" y="476" width="400" height="24"/></g>
+<g stroke="#ffffff" stroke-width="3" opacity=".12"><path d="M40 100 l60 80 M230 90 l90 120 M60 300 l40 50"/></g>
+</svg>
