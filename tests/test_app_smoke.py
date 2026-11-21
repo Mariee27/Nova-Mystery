@@ -27,6 +27,10 @@ class Rerun(Exception):
     pass
 
 
+class Stop(Exception):
+    pass
+
+
 class Block:
     """Stands in for columns, tabs, expanders and forms."""
 
@@ -106,6 +110,9 @@ class FakeStreamlit(types.ModuleType):
     def rerun(self, **kwargs):
         raise Rerun()
 
+    def stop(self):
+        raise Stop()
+
     def _make_components(self):
         """st.components.v2: a component returns the trigger values the test put in
         values["component"] (e.g. a puzzle's proof), and records what it was given."""
@@ -178,6 +185,8 @@ class Browser:
                     break
                 except Rerun:
                     continue
+                except Stop:       # st.stop(): the page ends here
+                    break
         finally:
             del sys.modules["streamlit"]
         return "\n".join(self.st.shown)
@@ -559,3 +568,21 @@ def test_when_the_ai_limit_is_reached_the_host_is_told_and_can_play_case_001(gam
         assert db.load(conn, code)["phase"] == "REVEAL"
     finally:
         conn.close()
+
+
+def test_a_database_error_shows_a_short_message_and_no_details(game_db, monkeypatch):
+    import sqlite3
+
+    def broken(target):
+        raise sqlite3.OperationalError("unable to open database file /srv/xyzzy/murder.db")
+    monkeypatch.setattr(db, "shared", broken)
+    board = Browser()
+    page = board.run(press=["Create room"])
+    assert "cannot reach its database" in page
+    assert "xyzzy" not in page and "OperationalError" not in page
+
+
+def test_players_never_see_the_details_of_an_error():
+    import tomllib
+    config = tomllib.loads((ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8"))
+    assert config["client"]["showErrorDetails"] == "none"

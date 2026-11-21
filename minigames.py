@@ -455,7 +455,9 @@ def feedback(game, location, proof):
     if kind == "order":
         picked = proof.get("order")
         answer = _order_answer(_order_start(game, location))
-        if not isinstance(picked, list) or sorted(picked) != list(range(len(answer))):
+        if (not isinstance(picked, list) or len(picked) != len(answer)
+                or not all(isinstance(i, int) and not isinstance(i, bool) for i in picked)
+                or sorted(picked) != list(range(len(answer)))):
             return "Tap every entry once, earliest first."
         right = sum(1 for a, b in zip(picked, answer) if a == b)
         return f"Not quite – {right} of {len(answer)} entries are in the right place. Check the times again."
