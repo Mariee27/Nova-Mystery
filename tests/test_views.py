@@ -268,3 +268,19 @@ def test_dw18_text_of_only_control_characters_is_rejected():
     from conftest import assert_rejected_unchanged
     g = started_in("INVESTIGATION")
     assert_rejected_unchanged(lambda x: logic.question(x, "t1", 2, "\x00\n", 5), g)
+
+
+def test_ballots_are_secret_while_voting_and_public_in_the_result():
+    g = started_in("INVESTIGATION", tokens=SECURE_TOKENS)
+    g = advance_to(g, "VOTE")
+    murderer = murderer_pid(g)
+    voter, other = innocent_pids(g)[0], innocent_pids(g)[1]
+    g = cast_votes(g, {voter: murderer, other: voter})
+    during = logic.public_view(g, online_all(g))
+    assert during["result"] is None                          # nobody sees a ballot while voting
+    assert '"votes"' not in dump(during)                       # no ballot hides anywhere in the view
+    g = advance_to(g, "RESULT")
+    result = logic.public_view(g, online_all(g))["result"]
+    assert result["votes"][str(voter)] == murderer           # afterwards every ballot is shown
+    assert result["votes"][str(other)] == voter
+    assert set(result["votes"]) == {str(voter), str(other)}  # players who did not vote are not invented

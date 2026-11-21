@@ -518,6 +518,11 @@ def _compute_result(game):
         "murder_location": game["case"]["murder_location"],
         "tally": tally,
         "scene_tally": scene_tally,
+        # Every single ballot, so the room can see afterwards who voted for whom.
+        # The result only becomes public in RESULT (see public_view), so the ballots
+        # stay secret while people are still voting.
+        "votes": dict(game["votes"]),                     # str(voter pid) -> accused pid
+        "scene_votes": dict(game.get("scene_votes", {})),  # str(voter pid) -> location
         "secrets_kept": secrets_kept,
     }
 

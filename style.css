@@ -362,6 +362,47 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .alibis .bad { font-family: var(--mono); font-size: .7rem; color: #f87171; letter-spacing: .12em; }
 .alibis .sec { color: var(--muted); font-size: .8rem; }
 
+/* ---------- how everyone voted ---------- */
+/* Each ballot flips in after the one before it (--i comes from ui.vote_table). */
+.ballots { margin: .3rem 0 1.6rem; }
+/* Upright cards side by side: all ballots fit in one row on the board, two per row on a phone. */
+.ballot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: .8rem; }
+.ballot-grid .ballot { margin: 0; flex-direction: column; flex-wrap: nowrap; align-items: center; text-align: center;
+  gap: .45rem; padding: .9rem .7rem .8rem; border-left-width: 1px; border-top: 4px solid #4b5563; }
+.ballot-grid .ballot.right { border-top-color: #22c55e; }
+.ballot-grid .ballot.killer { border-top-color: var(--blood); }
+.ballot-grid .ballot .tag { margin-left: 0; }
+.ballot-grid .ballot .arrow::after { content: " ↓"; }
+.ballot-grid .ballot .arrow + .who { font-size: 1.15rem; }     /* the accused stands out */
+.ballot-grid .ballot .where { flex-basis: auto; }
+.ballot-grid .ballot .award { margin-top: auto; width: 100%; }        /* titles line up at the bottom */
+@media (max-width: 640px) { .ballot-grid { grid-template-columns: repeat(2, 1fr); } }
+.ballots .sum { font-family: var(--mono); font-size: .68rem; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); margin-bottom: .5rem; }
+.ballot { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; margin: .45rem 0; padding: .6rem .75rem;
+  background: rgba(31,41,55,.75); border: 1px solid rgba(156,163,175,.18); border-left: 4px solid #4b5563; border-radius: 3px;
+  animation: ballotIn .5s cubic-bezier(.2,.8,.2,1) calc(var(--i) * .35s + .3s) both; }
+.ballot .who { display: inline-flex; align-items: center; gap: .4rem; font-weight: 600; }
+.ballot .face { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: inline-grid; place-items: center;
+  background: var(--gold); color: #1b1b1b; font-family: var(--serif); font-size: .85rem; }
+.ballot .arrow { font-family: var(--mono); font-size: .62rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.ballot .arrow::after { content: " →"; }
+.ballot .tag { margin-left: auto; font-family: var(--mono); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase;
+  padding: .15rem .45rem; border: 1px solid currentColor; border-radius: 2px; color: #9ca3af; }
+.ballot .where { flex-basis: 100%; font-size: .8rem; color: #cbd5e1; }
+.ballot.right { border-left-color: #22c55e; background: rgba(22,101,52,.25); }
+.ballot.right .tag { color: #86efac; }
+.ballot.killer { border-left-color: var(--blood); background: rgba(127,29,29,.35); box-shadow: 0 0 24px rgba(185,28,28,.25); }
+.ballot.killer .tag { color: #fca5a5; }
+.ballot.killer > .who:first-child .face { background: var(--blood); color: var(--ivory); }
+.ballot.none { opacity: .6; }
+.ballot.killer { animation-delay: calc(var(--i) * .35s + 1.5s); }   /* a pause before the punchline */
+.ballot .award { flex-basis: 100%; margin-top: .2rem; padding-top: .45rem; border-top: 1px dashed rgba(245,241,232,.15);
+  font-family: var(--serif); font-style: italic; font-size: 1rem; color: var(--ivory); }
+@keyframes ballotIn {
+  from { opacity: 0; transform: translateX(-18px) rotate(-1.5deg) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
 .bars { margin: .3rem 0 1rem; }
 .bar { display: grid; grid-template-columns: minmax(110px, 30%) 1fr 2.2rem; gap: .6rem; align-items: center; margin: .35rem 0; font-size: .85rem; }
 .bar .track { height: 8px; background: rgba(156,163,175,.12); border-radius: 1px; overflow: hidden; }
