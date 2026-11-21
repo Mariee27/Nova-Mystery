@@ -215,11 +215,6 @@ def test_first_misplaced_names_a_real_move():
     assert minigames.first_misplaced(spec, [["x"]]) is not None          # bad input: falls back to the start
 
 
-def test_camera_still_escapes_the_place_name():
-    svg = minigames.camera_still("<script>&", 1, 25, 30)
-    assert "<script>" not in svg and "&lt;SCRIPT&gt;" in svg and svg.startswith("<svg")
-
-
 # ---------------------------------------------------------------- logic.search with mini-games
 
 def test_search_is_refused_without_a_valid_proof():

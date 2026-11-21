@@ -123,8 +123,8 @@ In every room created by the app, each place's clue is a **sealed exhibit**. Tap
 | Game | What you do | Solvable from |
 |---|---|---|
 | 🔐 Crack the code | Tap a 4-digit code on a keypad | The case timeline: death ≈ 23:30, body found 23:47 (e.g. 17 minutes, then 23 → `1723`) |
-| 🕵️ Rub to reveal | Rub a blank notepad page (finger or mouse) to raise the pressed-in writing | Just rubbing: 55 % of the page |
-| 🧩 Reconstruct the still | Tap two pieces to swap them (9 or 6 pieces of a camera still) | The picture: camera number, place name, timestamp |
+| 🕵️ Rub to reveal | Rub the surface (finger or mouse) to reveal a picture: one of 5 motifs | Just rubbing: 55 % of it |
+| 🧩 Reassemble the photo | Tap two pieces to swap them (9 or 6 pieces of a picture): one of 5 motifs | The picture itself; the hints say where its parts are |
 | 🧠 Decode the note | Turn a cipher wheel until the shifted-letter note reads | The note is signed with the victim's name |
 
 - **Checked in Python, never on the phone.** The phone only reports what the player did (digits, rubbed cells,
@@ -138,6 +138,20 @@ In every room created by the app, each place's clue is a **sealed exhibit**. Tap
 - **Phone first:** one custom Streamlit component (`st.components.v2`, no new package), pointer events for touch and
   mouse, tap targets of at least 48 px, no horizontal scrolling at 320 px. Sound is off by default (🔇/🔊 in the
   puzzle header) and only starts after a tap, as mobile browsers require. Reduced motion is respected.
+- **Pictures of the NOVA SBE campus**, hand-drawn flat SVG illustrations in `assets/minigames/` (no AI, no photos):
+  - *jigsaw* (`puzzles/`, 300 × 300): the Hovione Atrium under its blue glass roof, the Teresa e Alexandre Soares
+    dos Santos Library, the campus by the sea at sunset, the Main Deck at night, the Grand Auditorium;
+  - *rub to reveal* (`scratchcards/`, 400 × 500): looking up into the atrium's glass roof, the library through its
+    windows at night, a building corner with sun fins and the "nova" lettering, a white staircase with a glass
+    balustrade, Carcavelos beach and its fort seen from the campus.
+
+  The pictures show the campus, never the case, so they fit case #001 and every AI case alike; the story text says
+  where in this case the photo was found. `logic.start` picks the first picture of each kind for the game
+  (`minigames.choose_motifs`) and keeps it in the game, so it stays the same on every reload and for every player;
+  a second place of the same kind shows the next picture, so none repeats within a game. Rehearsal mode keeps the
+  first pictures (Hovione Atrium, atrium roof). Story text, exhibit name and the jigsaw hints belong to each picture;
+  the mechanics, the checks and the rewards are the same for all. New pictures are added to `minigames.MOTIFS`
+  (a picture may still carry `data-slot` texts for case words).
 - Every puzzle is built from the case seed and the story, so it works for case #001 and AI-written cases, and
   every player in a room gets the same puzzle for the same place. Demo bots skip the puzzles and wait until every
   human has moved, so they never snatch a place from someone who is solving it.

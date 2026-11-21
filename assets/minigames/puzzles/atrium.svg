@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+<!-- The Hovione Atrium at night: the large roof of blue glass panes over a bright white hall
+     with galleries on both sides, the far wall with its window and stairs. Semi-flat illustration. -->
+<defs>
+  <linearGradient id="at-wall-l" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#cfd3d8"/><stop offset="1" stop-color="#eef0f2"/></linearGradient>
+  <linearGradient id="at-wall-r" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#bfc5cc"/><stop offset="1" stop-color="#e6e9ec"/></linearGradient>
+  <linearGradient id="at-floor" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#c9c2b3"/><stop offset="1" stop-color="#e9e4d8"/></linearGradient>
+  <linearGradient id="at-glow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff1cf" stop-opacity="0"/><stop offset="1" stop-color="#ffe3a3" stop-opacity=".45"/></linearGradient>
+</defs>
+<rect width="300" height="300" fill="#0d1a2e"/>
+<!-- the glass roof: blue panes on a white grid, running toward the far end -->
+<polygon points="0,0 300,0 230,112 70,112" fill="#1c4f8f"/>
+<g opacity=".95">
+  <polygon points="0,0 60,0 82,38 28,38" fill="#2f6fb8"/><polygon points="120,0 180,0 172,38 128,38" fill="#3b82c8"/>
+  <polygon points="240,0 300,0 272,38 218,38" fill="#255d9f"/><polygon points="60,0 120,0 128,38 82,38" fill="#1f5a9c"/>
+  <polygon points="180,0 240,0 218,38 172,38" fill="#2a68ad"/>
+  <polygon points="28,38 82,38 96,72 50,72" fill="#2a68ad"/><polygon points="128,38 172,38 166,72 134,72" fill="#2f6fb8"/>
+  <polygon points="218,38 272,38 250,72 204,72" fill="#3b82c8"/><polygon points="82,38 128,38 134,72 96,72" fill="#3b82c8"/>
+  <polygon points="172,38 218,38 204,72 166,72" fill="#1f5a9c"/>
+  <polygon points="50,72 96,72 104,112 70,112" fill="#1f5a9c"/><polygon points="134,72 166,72 162,112 138,112" fill="#2a68ad"/>
+  <polygon points="204,72 250,72 230,112 196,112" fill="#2f6fb8"/><polygon points="96,72 134,72 138,112 104,112" fill="#2f6fb8"/>
+  <polygon points="166,72 204,72 196,112 162,112" fill="#3b82c8"/>
+</g>
+<g stroke="#e9eef4" stroke-width="3" fill="none">
+  <path d="M60 0 L104 112 M120 0 L138 112 M180 0 L162 112 M240 0 L196 112"/>
+  <path d="M10 18 H290 M28 38 H272 M50 72 H250 M70 112 H230"/>
+</g>
+<path d="M150 0 L150 112" stroke="#e9eef4" stroke-width="1.2" opacity=".5"/>
+<circle cx="214" cy="20" r="8" fill="#f4f1e4" opacity=".9"/>
+<path d="M40 10 l30 22 M196 50 l22 16" stroke="#ffffff" stroke-width="2" opacity=".35"/>
+<!-- the white walls with two galleries each side -->
+<polygon points="0,0 70,112 70,232 0,300" fill="url(#at-wall-l)"/>
+<polygon points="300,0 230,112 230,232 300,300" fill="url(#at-wall-r)"/>
+<g stroke="#9aa6b4" stroke-width="2">
+  <path d="M0 120 L70 150 M0 190 L70 192"/><path d="M300 120 L230 150 M300 190 L230 192"/>
+</g>
+<g fill="#7fb3d9" opacity=".55">
+  <polygon points="0,104 70,140 70,150 0,120"/><polygon points="0,174 70,184 70,192 0,190"/>
+  <polygon points="300,104 230,140 230,150 300,120"/><polygon points="300,174 230,184 230,192 300,190"/>
+</g>
+<g fill="#ffd88a">
+  <rect x="14" y="132" width="12" height="16" opacity=".9"/><rect x="38" y="143" width="10" height="13" opacity=".8"/>
+  <rect x="268" y="135" width="12" height="15" opacity=".85"/><rect x="246" y="146" width="10" height="12" opacity=".8"/>
+</g>
+<!-- the far end: big window, stairs, the name -->
+<rect x="70" y="112" width="160" height="120" fill="#f3f4f5"/>
+<rect x="92" y="120" width="116" height="62" fill="#14335c"/>
+<g stroke="#f3f4f5" stroke-width="2.5"><line x1="121" y1="120" x2="121" y2="182"/><line x1="150" y1="120" x2="150" y2="182"/><line x1="179" y1="120" x2="179" y2="182"/><line x1="92" y1="151" x2="208" y2="151"/></g>
+<polygon points="196,232 230,186 230,196 206,232" fill="#b9c0c8"/>
+<g stroke="#9aa6b4" stroke-width="1.5"><path d="M200 226 h10 M206 218 h10 M212 210 h10 M218 202 h10"/></g>
+<rect x="96" y="190" width="108" height="16" rx="2" fill="#1a2a44"/>
+<text x="150" y="201.5" font-family="Helvetica, Arial, sans-serif" font-size="8.5" font-weight="bold" letter-spacing="2" fill="#f2d79a" text-anchor="middle">HOVIONE ATRIUM</text>
+<!-- the stone floor -->
+<polygon points="0,300 70,232 230,232 300,300" fill="url(#at-floor)"/>
+<g stroke="#b5ad9c" stroke-width="1"><path d="M150 232 L60 300 M150 232 L120 300 M150 232 L180 300 M150 232 L240 300 M40 252 H260 M20 274 H280"/></g>
+<rect x="0" y="112" width="300" height="188" fill="url(#at-glow)"/>
+<!-- people -->
+<g fill="#243247">
+  <circle cx="112" cy="238" r="4"/><path d="M107 262 q0 -18 5 -18 q5 0 5 18 z"/>
+  <circle cx="186" cy="244" r="5"/><path d="M180 274 q0 -24 6 -24 q6 0 6 24 z"/>
+</g>
+<g fill="#5a6a80"><circle cx="152" cy="236" r="2.6"/><path d="M149 250 q0 -11 3 -11 q3 0 3 11 z"/></g>
+<rect width="300" height="300" fill="none" stroke="#0d1a2e" stroke-width="6"/>
+</svg>

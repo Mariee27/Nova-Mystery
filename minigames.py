@@ -7,8 +7,8 @@ phone shows – the proof is checked here, in Python, against data the phone nev
 
 Four kinds, spread over the five places of a case:
   code     🔐  a keypad lock; the 4-digit code follows from the case timeline
-  scratch  🕵️  rub a blank page to raise the writing pressed into it
-  puzzle   🧩  a torn camera still: tap two pieces to swap them
+  scratch  🕵️  rub the coating off a photo print of a NOVA SBE place
+  puzzle   🧩  a torn photo of a NOVA SBE place: tap two pieces to swap them
   cipher   🧠  a note in shifted letters: turn the cipher wheel until it reads
 
 Everything is built from the case seed, the story and the fixed times of the night
@@ -16,7 +16,10 @@ Everything is built from the case seed, the story and the fixed times of the nig
 AI-written case, and every player of a room gets the same puzzle for the same place.
 """
 
+import functools
+import html
 import math
+import pathlib
 import random
 import re
 
@@ -27,9 +30,9 @@ KINDS = ("code", "scratch", "puzzle", "cipher")
 KIND_INFO = {
     "code": {"icon": "🔐", "name": "Crack the code", "exhibit": "The locked cash box",
              "verb": "Enter the 4-digit code."},
-    "scratch": {"icon": "🕵️", "name": "Rub to reveal", "exhibit": "The pressed-in note",
-                "verb": "Rub the page with your finger."},
-    "puzzle": {"icon": "🧩", "name": "Reconstruct the still", "exhibit": "The torn camera still",
+    "scratch": {"icon": "🕵️", "name": "Rub to reveal", "exhibit": "The covered photo print",
+                "verb": "Rub the coating away with your finger."},
+    "puzzle": {"icon": "🧩", "name": "Reassemble the photo", "exhibit": "The torn photo",
                "verb": "Tap two pieces to swap them."},
     "cipher": {"icon": "🧠", "name": "Decode the note", "exhibit": "The shifted-letter note",
                "verb": "Turn the wheel until the note makes sense."},
@@ -43,6 +46,127 @@ MAX_SWAPS = 400
 # browser's developer tools; this, and the limit on wrong answers, makes it slow and pointless.
 MIN_SECONDS = {"code": 3, "cipher": 3, "scratch": 4, "puzzle": 4}
 MAX_PROOF_ITEMS = SCRATCH_COLS * SCRATCH_ROWS
+
+
+# ---------------------------------------------------------------- motifs: what a puzzle shows
+#
+# Each kind can show one of several pictures (assets/minigames/...). Only the picture and its
+# words change; how a puzzle is solved, checked and rewarded never does. logic.start picks a
+# first motif per kind for the game (choose_motifs) and stores it in game["motifs"]; a second
+# place of the same kind gets the next motif, so no picture repeats within a game. Without a
+# stored choice (rehearsal mode, games from before) every place shows the first motif.
+# Pictures are SVG files; a <text data-slot="..."> element in one would get this case's words
+# (fill, escaped). The NOVA SBE pictures need none: they show the campus, not the case.
+
+ASSETS = pathlib.Path(__file__).resolve().parent / "assets" / "minigames"
+PUZZLE_HINT_MOVE = "PIECE"   # the third puzzle hint: replaced on the phone by a concrete move
+
+# Pictures of real places on the NOVA SBE campus, drawn as flat illustrations. The puzzle and the
+# scratch card only show a picture; the clue a player earns never depends on which one it is.
+MOTIFS = {
+    "puzzle": [
+        {"id": "atrium", "file": "puzzles/atrium.svg", "name": "Reassemble the photo",
+         "exhibit": "The torn photo of the Hovione Atrium",
+         "story": "A photo of the Hovione Atrium, found torn into {pieces} pieces in the {location}. "
+                  "Someone kept it for a reason. Put it back together.",
+         "hints": ["The blue glass roof fills the top row; its white grid lines run toward the middle.",
+                   "The window and the name plate sit in the centre; the stone floor and the people are at the bottom."],
+         "slots": {}},
+        {"id": "library", "file": "puzzles/library.svg", "name": "Reassemble the photo",
+         "exhibit": "The torn photo of the library",
+         "story": "A photo of the Teresa e Alexandre Soares dos Santos Library, found torn into {pieces} pieces "
+                  "in the {location}. Put it back together.",
+         "hints": ["The library's name runs across the white façade at the top left; the side of the building is on the right.",
+                   "The lit glass entrance is in the middle of the bottom half; the steps and lamps are below it."],
+         "slots": {}},
+        {"id": "campus", "file": "puzzles/campus.svg", "name": "Reassemble the photo",
+         "exhibit": "The torn photo of the campus",
+         "story": "A photo of the NOVA SBE campus at sunset, found torn into {pieces} pieces in the {location}. "
+                  "Put it back together.",
+         "hints": ["The sunset sky is in the top row; the sea and the sun sit just above the long white building.",
+                   "The school's name runs across the middle; the lawns, paths and trees are at the bottom."],
+         "slots": {}},
+        {"id": "deck", "file": "puzzles/deck.svg", "name": "Reassemble the photo",
+         "exhibit": "The torn photo of the Main Deck",
+         "story": "A photo of the Main Deck at night, found torn into {pieces} pieces in the {location}. "
+                  "Put it back together.",
+         "hints": ["The moon is at the top centre; the white wings close in from the left and the right.",
+                   "The wooden deck widens toward the bottom, where its name plate and a bench are."],
+         "slots": {}},
+        {"id": "auditorium", "file": "puzzles/auditorium.svg", "name": "Reassemble the photo",
+         "exhibit": "The torn photo of the Grand Auditorium",
+         "story": "A photo of the empty Grand Auditorium, found torn into {pieces} pieces in the {location}. "
+                  "Put it back together.",
+         "hints": ["The screen with the NOVA name is at the top centre, between the wooden walls.",
+                   "The stage and the lectern are in the middle; the red rows of seats fan out across the bottom."],
+         "slots": {}},
+    ],
+    "scratch": [
+        {"id": "skylight", "file": "scratchcards/skylight.svg", "name": "Rub to reveal",
+         "exhibit": "The print of the atrium roof", "verb": "Rub the coating away with your finger.",
+         "cover": "RUB TO REVEAL",
+         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
+                  "where it was taken.",
+         "slots": {}},
+        {"id": "library-night", "file": "scratchcards/library-night.svg", "name": "Rub to reveal",
+         "exhibit": "The print of the library at night", "verb": "Rub the coating away with your finger.",
+         "cover": "RUB TO REVEAL",
+         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
+                  "where it was taken.",
+         "slots": {}},
+        {"id": "facade", "file": "scratchcards/facade.svg", "name": "Rub to reveal",
+         "exhibit": "The print of the building's corner", "verb": "Rub the coating away with your finger.",
+         "cover": "RUB TO REVEAL",
+         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
+                  "where it was taken.",
+         "slots": {}},
+        {"id": "stairs", "file": "scratchcards/stairs.svg", "name": "Rub to reveal",
+         "exhibit": "The print of the staircase", "verb": "Rub the coating away with your finger.",
+         "cover": "RUB TO REVEAL",
+         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
+                  "where it was taken.",
+         "slots": {}},
+        {"id": "beach", "file": "scratchcards/beach.svg", "name": "Rub to reveal",
+         "exhibit": "The print of Carcavelos beach", "verb": "Rub the coating away with your finger.",
+         "cover": "RUB TO REVEAL",
+         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
+                  "where it was taken.",
+         "slots": {}},
+    ],
+}
+
+
+def choose_motifs(seed):
+    """The first motif of each kind for a new game: random, but fixed by the game's seed."""
+    rng = random.Random(f"{seed}|motifs")
+    return {kind: rng.randrange(len(options)) for kind, options in MOTIFS.items()}
+
+
+def motif(game, kind, variant):
+    """The motif of a place: the game's first motif of this kind, then the next ones for further
+    places of the same kind. Without a stored choice: always the first motif."""
+    options = MOTIFS[kind]
+    chosen = game.get("motifs")
+    if not chosen:
+        return options[0]
+    return options[(chosen.get(kind, 0) + variant) % len(options)]
+
+
+@functools.lru_cache(maxsize=None)
+def _picture(name):
+    return (ASSETS / name).read_text(encoding="utf-8")
+
+
+def picture(name, **words):
+    """An SVG asset with its <text data-slot="..."> elements filled (every word escaped)."""
+    def fill(match):
+        slot = match.group(2)
+        return match.group(1) + (html.escape(str(words[slot])) if slot in words else match.group(3)) + match.group(4)
+    return re.sub(r'(<text\b[^>]*\bdata-slot="([a-z_]+)"[^>]*>)(.*?)(</text>)', fill, _picture(name), flags=re.S)
+
+
+def _words(spec_slots, **values):
+    return {slot: template.format(**values) for slot, template in spec_slots.items()}
 
 
 def _minutes(clock):
@@ -171,25 +295,30 @@ def spec(game, location):
             facts=[["Time of death", f"≈ {content.MURDER_TIME}"], ["Body found", content.FOUND_TIME]],
             hints=_code_hints(variant))
     elif kind == "scratch":
+        look = motif(game, kind, variant)
+        words = _words(look["slots"], location=location, PLACE=location.upper(), victim=victim,
+                       murder_time=content.MURDER_TIME)
         base.update(
-            story=f"A blank notepad page from the {location}. Whoever wrote on the sheet above pressed hard. "
-                  "Rub it like a pencil to raise the writing.",
+            motif=look["id"], name=look["name"], exhibit=look["exhibit"], verb=look["verb"], cover=look["cover"],
+            story=look["story"].format(location=location),
             cols=SCRATCH_COLS, rows=SCRATCH_ROWS, needed=SCRATCH_NEEDED,
-            lines=[f"{victim} –", f"{location}", f"{content.MURDER_TIME} ?", "don't tell anyone"],
-            hints=["Rub with your finger over the whole page, not just one spot.",
-                   "The writing is spread across the page – work from edge to edge.",
-                   f"Rub a little more than half of the page ({int(SCRATCH_NEEDED * 100)} %) and it opens."])
+            image=picture(look["file"], **words),
+            hints=["Rub with your finger over the whole surface, not just one spot.",
+                   "The picture is spread across the whole surface – work from edge to edge.",
+                   f"Rub a little more than half of it ({int(SCRATCH_NEEDED * 100)} %) and it opens."])
     elif kind == "puzzle":
         cols, rows = _puzzle_grid(variant)
         rng = _rng(game, location, "still")
+        look = motif(game, kind, variant)
+        words = _words(look["slots"], location=location, PLACE=location.upper(), victim=victim, number=number,
+                       minute=rng.randint(20, 29), second=rng.randint(10, 59),
+                       icon=content.PLACES.get(location, {}).get("icon", "📷"))
         base.update(
-            story=f"A security still from the camera in the {location}, torn into {cols * rows} pieces "
-                  "and left in a bin. Put it back together.",
+            motif=look["id"], name=look["name"], exhibit=look["exhibit"],
+            story=look["story"].format(location=location, pieces=cols * rows),
             cols=cols, rows=rows, start=_puzzle_start(game, location, variant),
-            image=camera_still(location, number, rng.randint(20, 29), rng.randint(10, 59)),
-            hints=["The camera writes its number top-left and the time bottom-left.",
-                   "The name of the place runs across the top row; the floor lines meet in the middle.",
-                   "PIECE"])   # replaced on the phone by a concrete move (see first_misplaced)
+            image=picture(look["file"], **words),
+            hints=look["hints"] + [PUZZLE_HINT_MOVE])   # the move: see first_misplaced
     else:
         sig = _signature(game)
         key = _cipher_key(game, location)
@@ -310,37 +439,3 @@ def first_misplaced(spec_, swaps):
         if piece != slot:
             return slot + 1, piece + 1
     return None
-
-
-# ---------------------------------------------------------------- the camera still (SVG)
-
-def camera_still(location, number, minute, second):
-    """A stylised security-camera frame of a place, 300 × 300. Every piece looks different."""
-    from html import escape
-    place = escape(location.upper())
-    icon = content.PLACES.get(location, {}).get("icon", "📷")
-    lines = "".join(f'<line x1="150" y1="165" x2="{x}" y2="300" stroke="#1f6f7a" stroke-width="1.4"/>'
-                    for x in range(-150, 451, 60))
-    rows = "".join(f'<line x1="0" y1="{y}" x2="300" y2="{y}" stroke="#1f6f7a" stroke-width="1" opacity=".7"/>'
-                   for y in (190, 215, 250, 295))
-    return (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">'
-        '<defs><radialGradient id="g" cx="50%" cy="40%" r="75%"><stop offset="0" stop-color="#20384a"/>'
-        '<stop offset="1" stop-color="#05080d"/></radialGradient></defs>'
-        '<rect width="300" height="300" fill="url(#g)"/>'
-        f'{lines}{rows}'
-        '<rect x="30" y="70" width="70" height="95" fill="#0b1520" stroke="#3b82a0" stroke-width="2"/>'
-        '<rect x="200" y="60" width="72" height="50" fill="#132433" stroke="#3b82a0" stroke-width="2"/>'
-        '<line x1="200" y1="85" x2="272" y2="85" stroke="#3b82a0"/><line x1="236" y1="60" x2="236" y2="110" stroke="#3b82a0"/>'
-        '<circle cx="85" cy="120" r="4" fill="#d4a853"/>'
-        '<rect x="120" y="120" width="70" height="40" rx="3" fill="#1b2a38" stroke="#5aa9bf"/>'
-        f'<text x="155" y="105" font-size="44" text-anchor="middle">{icon}</text>'
-        '<rect x="0" y="0" width="300" height="34" fill="rgba(0,0,0,.55)"/>'
-        f'<text x="10" y="22" font-family="monospace" font-size="15" fill="#e2e8f0">CAM {number:02d}</text>'
-        f'<text x="290" y="22" font-family="monospace" font-size="13" fill="#f5f1e8" text-anchor="end">{place}</text>'
-        '<circle cx="96" cy="17" r="5" fill="#ef4444"/><text x="106" y="22" font-family="monospace" font-size="13" fill="#ef4444">REC</text>'
-        '<rect x="0" y="266" width="300" height="34" fill="rgba(0,0,0,.6)"/>'
-        f'<text x="10" y="289" font-family="monospace" font-size="15" fill="#d4a853">23:{minute:02d}:{second:02d}</text>'
-        '<text x="290" y="289" font-family="monospace" font-size="12" fill="#94a3b8" text-anchor="end">NOVA SECURITY</text>'
-        '<path d="M8 44 v-8 h8 M292 44 v-8 h-8 M8 256 v8 h8 M292 256 v8 h-8" stroke="#e2e8f0" fill="none" stroke-width="2"/>'
-        '</svg>')

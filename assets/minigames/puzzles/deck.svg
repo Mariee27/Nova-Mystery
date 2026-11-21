@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+<!-- The Main Deck at night: the wooden boardwalk between the white teaching wings, lamps along
+     it, lawns on both sides, the sea at its end. -->
+<defs>
+  <linearGradient id="dk-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d1730"/><stop offset="1" stop-color="#3b4677"/></linearGradient>
+  <linearGradient id="dk-wood" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#8a5a34"/><stop offset="1" stop-color="#c08a55"/></linearGradient>
+  <linearGradient id="dk-wing-l" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#c4c9d1"/><stop offset="1" stop-color="#eceef1"/></linearGradient>
+  <linearGradient id="dk-wing-r" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#b3bac4"/><stop offset="1" stop-color="#e2e5e9"/></linearGradient>
+</defs>
+<rect width="300" height="300" fill="url(#dk-sky)"/>
+<g fill="#f6efd8"><circle cx="60" cy="24" r="1.2"/><circle cx="130" cy="14" r="1"/><circle cx="210" cy="30" r="1.3"/><circle cx="262" cy="16" r="1"/></g>
+<circle cx="150" cy="70" r="10" fill="#f4f1e4" opacity=".85"/>
+<rect x="100" y="104" width="100" height="14" fill="#25375f"/>
+<path d="M120 110 h60" stroke="#f4f1e4" stroke-width="1.2" opacity=".6"/>
+<!-- the two wings, stepping toward the viewer -->
+<polygon points="0,40 104,100 104,170 0,218" fill="url(#dk-wing-l)"/>
+<polygon points="300,40 196,100 196,170 300,218" fill="url(#dk-wing-r)"/>
+<g fill="#24304a"><polygon points="0,92 104,128 104,142 0,118"/><polygon points="300,92 196,128 196,142 300,118"/></g>
+<g fill="#ffcf7a">
+  <polygon points="8,98 30,105 30,114 8,108"/><polygon points="44,110 62,116 62,124 44,119" opacity=".7"/><polygon points="76,120 92,125 92,132 76,128"/>
+  <polygon points="292,98 270,105 270,114 292,108" opacity=".8"/><polygon points="256,110 238,116 238,124 256,119"/><polygon points="224,120 208,125 208,132 224,128" opacity=".6"/>
+</g>
+<g stroke="#8e98a8" stroke-width="1.4"><path d="M0 60 L104 108 M300 60 L196 108"/></g>
+<!-- lawns -->
+<polygon points="0,218 104,170 120,170 0,262" fill="#2f4a2e"/><polygon points="300,218 196,170 180,170 300,262" fill="#2a4229"/>
+<!-- the deck -->
+<polygon points="120,170 180,170 300,300 0,300" fill="url(#dk-wood)"/>
+<g stroke="#6e4426" stroke-width="1.2"><path d="M128 178 H172 M118 188 H182 M104 202 H196 M86 220 H214 M62 244 H238 M30 276 H270"/></g>
+<g stroke="#e6e1d6" stroke-width="2"><path d="M120 170 L0 300 M180 170 L300 300"/></g>
+<g stroke="#e6e1d6" stroke-width="1.4"><path d="M120 162 L0 280 M180 162 L300 280"/><path d="M108 174 v-12 M84 200 v-14 M52 234 v-18 M192 174 v-12 M216 200 v-14 M248 234 v-18"/></g>
+<!-- lamps -->
+<g fill="#1a1f2a"><rect x="98" y="150" width="2" height="30"/><rect x="200" y="150" width="2" height="30"/><rect x="62" y="166" width="3" height="54"/><rect x="235" y="166" width="3" height="54"/></g>
+<g fill="#ffe2a0"><circle cx="99" cy="149" r="3"/><circle cx="201" cy="149" r="3"/><circle cx="63.5" cy="164" r="4.5"/><circle cx="236.5" cy="164" r="4.5"/></g>
+<g fill="#ffe2a0" opacity=".2"><circle cx="63.5" cy="164" r="14"/><circle cx="236.5" cy="164" r="14"/></g>
+<ellipse cx="150" cy="250" rx="70" ry="22" fill="#ffd98f" opacity=".12"/>
+<!-- a bench and a figure -->
+<g fill="#3a2614"><rect x="196" y="236" width="40" height="5"/><rect x="198" y="241" width="3" height="10"/><rect x="231" y="241" width="3" height="10"/></g>
+<g fill="#141820"><circle cx="150" cy="186" r="3.6"/><path d="M146 206 q0 -16 4 -16 q4 0 4 16 z"/></g>
+<rect x="104" y="248" width="92" height="16" rx="2" fill="#1a2a44" opacity=".9"/>
+<text x="150" y="259.5" font-family="Helvetica, Arial, sans-serif" font-size="8.5" font-weight="bold" letter-spacing="2.2" fill="#f2d79a" text-anchor="middle">MAIN DECK</text>
+<rect width="300" height="300" fill="none" stroke="#0d1a2e" stroke-width="6"/>
+</svg>

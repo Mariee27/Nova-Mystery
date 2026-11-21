@@ -114,6 +114,7 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
   repeating-linear-gradient(115deg,rgba(255,255,255,.03) 0 2px,transparent 2px 5px),radial-gradient(circle at 30% 30%,#3a3a40,#1d1d21);}
 .under p{margin:0 0 6px;font-family:var(--hand);font-size:clamp(26px,8vw,36px);line-height:1.15;color:rgba(255,255,255,.88);
   text-shadow:0 1px 0 rgba(0,0,0,.6);transform:rotate(-2deg)}
+.under img.motif{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#141519}
 .under p:nth-child(2){padding-left:18px}.under p:nth-child(4){font-size:clamp(20px,6vw,26px);color:rgba(255,255,255,.65)}
 canvas{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:crosshair;transition:opacity .9s}
 canvas.gone{opacity:0}
@@ -121,7 +122,7 @@ canvas.gone{opacity:0}
 .meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8a6d2f,var(--gold));transition:width .2s}
 /* ---- puzzle ---- */
 .grid{display:grid;gap:4px;padding:4px;background:#05080D;border-radius:10px;border:1px solid #2a3446;transition:gap .5s,padding .5s}
-.tile{position:relative;aspect-ratio:1/1;border-radius:6px;border:2px solid rgba(255,255,255,.12);background-repeat:no-repeat;
+.tile{position:relative;aspect-ratio:1/1;border-radius:6px;border:2px solid rgba(255,255,255,.12);background-repeat:no-repeat;background-origin:border-box;
   min-height:48px;transition:transform .18s,border-color .2s,box-shadow .2s}
 .tile .n{position:absolute;left:4px;top:3px;font-family:var(--mono);font-size:11px;color:#fff;background:rgba(0,0,0,.55);
   border-radius:4px;padding:0 4px}
@@ -226,7 +227,10 @@ const BUILD = {
   scratch(root, data) {
     const paper = el('div', 'paper', null, root);
     const under = el('div', 'under', null, paper); under.setAttribute('aria-hidden', 'true');
-    data.lines.forEach(t => el('p', null, t, under));
+    if (data.image) {     // the motif: an SVG picture from the game, shown whole and never stretched
+      const img = el('img', 'motif', null, under); img.alt = '';
+      img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(data.image)));
+    } else (data.lines || []).forEach(t => el('p', null, t, under));
     const canvas = el('canvas', null, null, paper);
     canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', 'A blank page. Rub it with your finger or the mouse.');
     const meter = el('div', 'meter', null, root); const fill = el('i', null, null, meter);
@@ -243,13 +247,14 @@ const BUILD = {
       const dpr = Math.min(2, window.devicePixelRatio || 1);
       canvas.width = width * dpr; canvas.height = height * dpr; w = width; hgt = height;
       ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const g = ctx.createLinearGradient(0, 0, width, height); g.addColorStop(0, '#F1E8D4'); g.addColorStop(1, '#E2D6BC');
+      // A silver scratch-off coating over the photo print, with a fine diagonal sheen.
+      const g = ctx.createLinearGradient(0, 0, width, height);
+      g.addColorStop(0, '#C9CDD3'); g.addColorStop(.45, '#E6E9ED'); g.addColorStop(.55, '#D3D7DD'); g.addColorStop(1, '#AEB4BC');
       ctx.fillStyle = g; ctx.fillRect(0, 0, width, height);
-      ctx.strokeStyle = 'rgba(80,110,160,.25)'; ctx.lineWidth = 1;
-      for (let y = 40; y < height; y += 28) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-      ctx.strokeStyle = 'rgba(200,60,60,.35)'; ctx.beginPath(); ctx.moveTo(36, 0); ctx.lineTo(36, height); ctx.stroke();
-      ctx.fillStyle = 'rgba(60,50,40,.35)'; ctx.font = '600 15px Courier Prime, monospace'; ctx.textAlign = 'center';
-      ctx.fillText('RUB THE PAGE', width / 2, height / 2);
+      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1;
+      for (let x = -height; x < width; x += 6) { ctx.beginPath(); ctx.moveTo(x, height); ctx.lineTo(x + height, 0); ctx.stroke(); }
+      ctx.fillStyle = 'rgba(40,48,60,.45)'; ctx.font = '600 15px Courier Prime, monospace'; ctx.textAlign = 'center';
+      ctx.fillText(data.cover || 'RUB THE PAGE', width / 2, height / 2);
       brush = Math.max(26, width / 9);
       cells.clear();
     }
@@ -291,7 +296,7 @@ const BUILD = {
     const n = data.cols * data.rows;
     const grid = el('div', 'grid', null, root);
     grid.style.gridTemplateColumns = 'repeat(' + data.cols + ',1fr)';
-    grid.setAttribute('role', 'group'); grid.setAttribute('aria-label', 'Torn camera still, ' + n + ' pieces');
+    grid.setAttribute('role', 'group'); grid.setAttribute('aria-label', (data.exhibit || 'Torn picture') + ', ' + n + ' pieces');
     const count = el('div', 'count', null, root); count.setAttribute('aria-live', 'polite');
     const status = el('div', 'status', 'Tap a piece, then the slot it belongs in', root);
     const src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(data.image)));
@@ -302,6 +307,9 @@ const BUILD = {
       const t = el('button', 'tile', null, grid); t.type = 'button'; el('span', 'n', String(s + 1), t);
       t.style.backgroundImage = 'url("' + src + '")';
       t.style.backgroundSize = (data.cols * 100) + '% ' + (data.rows * 100) + '%';
+      // A piece shows 1/cols of the picture's width and 1/rows of its height: give it that shape,
+      // so a square picture in 3 × 2 pieces is not stretched.
+      t.style.aspectRatio = data.rows + ' / ' + data.cols;
       t.onclick = () => tap(s); tiles.push(t);
     }
     function paint() {

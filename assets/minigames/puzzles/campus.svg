@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+<!-- The NOVA SBE campus from the land side at sunset: the long white main building with solar
+     panels on its roof and its glass ground floor, the school's name, the sea behind. -->
+<defs>
+  <linearGradient id="cp-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b2445"/><stop offset=".55" stop-color="#6b4a72"/><stop offset="1" stop-color="#e48a52"/></linearGradient>
+  <linearGradient id="cp-sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d98a5f"/><stop offset="1" stop-color="#2d3e66"/></linearGradient>
+  <linearGradient id="cp-white" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f6f4ef"/><stop offset="1" stop-color="#d4d6da"/></linearGradient>
+  <linearGradient id="cp-lawn" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3f5a3a"/><stop offset="1" stop-color="#1e2c1d"/></linearGradient>
+</defs>
+<rect width="300" height="300" fill="url(#cp-sky)"/>
+<circle cx="236" cy="118" r="20" fill="#ffd3a1" opacity=".9"/>
+<rect x="0" y="122" width="300" height="34" fill="url(#cp-sea)"/>
+<g stroke="#ffd3a1" stroke-width="1.2" opacity=".6"><path d="M206 130 h60 M214 138 h44 M222 146 h28"/></g>
+<!-- the main building -->
+<polygon points="10,104 290,96 290,104 10,112" fill="#2b3550"/>
+<g fill="#4568a8"><polygon points="24,104 92,102 92,105 24,107"/><polygon points="104,102 180,100 180,103 104,105"/><polygon points="192,100 276,98 276,101 192,103"/></g>
+<rect x="10" y="110" width="280" height="56" fill="url(#cp-white)"/>
+<rect x="10" y="110" width="280" height="4" fill="#ffffff"/>
+<g fill="#2b3550"><rect x="20" y="122" width="260" height="12"/></g>
+<g fill="#ffcf7a"><rect x="24" y="124" width="22" height="8"/><rect x="72" y="124" width="22" height="8" opacity=".7"/><rect x="120" y="124" width="22" height="8"/><rect x="168" y="124" width="22" height="8" opacity=".6"/><rect x="216" y="124" width="22" height="8"/><rect x="254" y="124" width="22" height="8" opacity=".8"/></g>
+<rect x="10" y="144" width="280" height="22" fill="#1f2a42"/>
+<g fill="#ffd98f" opacity=".85"><rect x="16" y="147" width="54" height="16"/><rect x="78" y="147" width="54" height="16"/><rect x="168" y="147" width="54" height="16"/><rect x="230" y="147" width="54" height="16"/></g>
+<rect x="138" y="144" width="24" height="22" fill="#ffe7b0"/>
+<!-- the name, on a white band -->
+<text x="150" y="141" font-family="Helvetica, Arial, sans-serif" font-size="7.2" font-weight="bold" letter-spacing="1.6" fill="#2a3346" text-anchor="middle">NOVA SCHOOL OF BUSINESS &amp; ECONOMICS</text>
+<!-- the wings stepping down toward the viewer -->
+<polygon points="30,166 90,166 96,200 24,200" fill="url(#cp-white)"/>
+<polygon points="120,166 180,166 186,200 114,200" fill="url(#cp-white)"/>
+<polygon points="210,166 270,166 276,200 204,200" fill="url(#cp-white)"/>
+<g fill="#ffcf7a" opacity=".85"><rect x="34" y="176" width="52" height="8"/><rect x="124" y="176" width="52" height="8"/><rect x="214" y="176" width="52" height="8"/></g>
+<!-- lawns and paths -->
+<rect x="0" y="200" width="300" height="100" fill="url(#cp-lawn)"/>
+<polygon points="96,200 114,200 150,300 60,300" fill="#c9b79a" opacity=".55"/>
+<polygon points="186,200 204,200 240,300 150,300" fill="#c9b79a" opacity=".4"/>
+<g fill="#16261f"><rect x="18" y="214" width="4" height="40"/><ellipse cx="20" cy="206" rx="24" ry="12"/><rect x="276" y="222" width="4" height="40"/><ellipse cx="278" cy="214" rx="22" ry="11"/></g>
+<g><rect x="150" y="218" width="2.4" height="40" fill="#141820"/><circle cx="151.2" cy="216" r="4.5" fill="#ffe2a0"/><circle cx="151.2" cy="216" r="12" fill="#ffe2a0" opacity=".2"/></g>
+<g fill="#141820"><circle cx="70" cy="262" r="4"/><path d="M65 290 q0 -24 5 -24 q5 0 5 24 z"/></g>
+<rect width="300" height="300" fill="none" stroke="#0d1a2e" stroke-width="6"/>
+</svg>
