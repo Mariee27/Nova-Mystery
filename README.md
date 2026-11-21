@@ -51,10 +51,17 @@ There is no interrogation in the app: the players sit in one room and question, 
 defend their alibis out loud. A player with nothing left to search or share is told so and is
 not waited for.
 
-**The campus map.** A simplified plan of NOVA SBE Carcavelos, floor 0, seen from above: buildings are
-rectangles, all positions are percent of the map (`content.BUILDINGS`, `content.PLACES`), so phone and
-board draw the same plan. Every case happens at 5 of 8 places (Library, Horizon Hall, Auditorium,
-Main Deck, ICA Canteen, Santander Hall, Beach, Parking). Each place holds exactly one clue. Pins are
+**The campus map.** A simplified plan of NOVA SBE Carcavelos, seen from above the way the campus is usually
+shown (the architects' rendering): north to the upper left, the beach to the bottom right. Gallery / Main Deck
+(I) is the long main building from left to right, adjoining the Hovione Atrium (A) at its left end; the
+academic halls B, C, D and E hang below it as parallel wings; the Library (H) and Horizon Hall (G) stand
+just above it and the Grand Auditorium (F) just past its right end. As on the aerial views, the N6-7 runs
+along the bottom into the roundabout below the campus and the big road passes its right end; the beach of
+Carcavelos and the sea begin beyond that road, in the bottom right corner. The buildings carry the letters
+of the official campus map. There is no car park and no canteen on the plan. The drawing is one SVG of
+building outlines, roads and grounds; it and the pins use percent of the map (`content.BUILDINGS`,
+`GROUNDS`, `ROADS`, `PLACES`), so phone and board draw the same plan. Every case happens at 5 of 7 places
+(Library, Horizon Hall, Auditorium, Main Deck, Hovione Atrium, Santander Hall, Beach). Each place holds exactly one clue. Pins are
 red (open), grey with a tick (searched) or dashed with a lock (locked). Two places are locked at the
 start – the crime scene and one other – and open in rounds 2 and 3. The board names the round a place
 was searched in, never who searched it, so the murderer's planted clue does not stand out.

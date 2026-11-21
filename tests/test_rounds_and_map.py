@@ -326,12 +326,76 @@ def test_the_campus_plan_places_pins_by_percent_and_links_only_when_given():
     assert "\n\n" not in html
 
 
-def test_the_plan_draws_every_building_and_the_beach_from_the_data():
+OFFICIAL_BUILDINGS = {   # the official NOVA SBE campus map
+    "A": "Hovione Atrium", "B": "Cascais Academic Hall", "C": "CTT Student Hall",
+    "D": "Santander Academic Hall", "E": "Ming C. Hsu Executive Hall",
+    "F": "Jerónimo Martins Grand Auditorium", "G": "Horizon Hall",
+    "H": "Teresa e Alexandre Soares dos Santos Library", "I": "Gallery / Main Deck",
+}
+
+
+def inside(point, polygon):
+    """Ray casting: is the point inside the polygon?"""
+    x, y = point
+    hit = False
+    for (x1, y1), (x2, y2) in zip(polygon, polygon[1:] + polygon[:1]):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            hit = not hit
+    return hit
+
+
+def test_the_plan_draws_every_building_of_the_official_campus_map():
     html = ui.campus_map([])
-    for label, (left, top, width, height) in content.BUILDINGS.items():
-        assert f'left:{left}%;top:{top}%;width:{width}%;height:{height}%' in html
-        assert f"<span>{label}</span>" in html
-    assert 'class="beach"' in html and "Floor 0" in html
+    for label, name in OFFICIAL_BUILDINGS.items():
+        building = content.BUILDINGS[label]
+        assert building["name"] == name
+        assert f'points="{ui._points(building["shape"])}"' in html
+        assert f"<title>{label} · {name}</title>" in html             # its name, without a legend
+    tag = 'class="btag" style="left:{}%;top:{}%">{}</span>'
+    assert tag.format(*content.BUILDINGS["B"]["tag"], "B") in html    # a hall without a place: its letter
+    assert tag.format(*content.BUILDINGS["D"]["tag"], "D") not in html  # Santander Hall's pin shows the D
+    assert "plan-key" not in html and 'class="path"' not in html
+    assert 'class="g-lawn"' in html and 'class="g-sand"' in html and 'class="g-sea"' in html and "Floor 0" not in html
+    assert html.startswith('<div class="plan2"') and "\n" not in html
+
+
+def test_every_place_pin_sits_in_its_building_or_area():
+    where = {"Library": "H", "Horizon Hall": "G", "Auditorium": "F", "Main Deck": "I",
+             "Hovione Atrium": "A", "Santander Hall": "D"}
+    grounds = dict(content.GROUNDS)
+    for place, label in where.items():
+        spot = content.PLACES[place]
+        assert inside((spot["x"], spot["y"]), content.BUILDINGS[label]["shape"]), place
+        assert spot["letter"] == label
+    assert inside((content.PLACES["Beach"]["x"], content.PLACES["Beach"]["y"]), grounds["sand"])
+
+
+def test_the_map_has_no_parking():
+    """No car park on the plan: not as a place, a pin, an area or a label."""
+    assert "Parking" not in content.PLACES
+    html = ui.campus_map([]) + ui.campus_map([], board=True)
+    assert "parking" not in html.lower() and "car park" not in html.lower() and "🅿" not in html
+    assert not any(css in ("lot", "parking") for css, _ in content.GROUNDS)
+
+
+def test_every_place_has_exactly_one_pin_that_links_to_it_on_the_phone():
+    places = list(content.PLACES)
+    view = {"round": 1, "places": [{"name": p, "state": "open", "opens_in": None, "found_in": None}
+                                    for p in places]}
+    links = {p: f"?step=search&place={p}" for p in places}
+    html = ui.campus_map([], view=view, links=links)
+    assert html.count('class="pin2') == len(places)
+    for place in places:
+        assert html.count(f'href="?step=search&amp;place={ui.h(place)}"') == 1
+        assert html.count(f'<span class="pn">{ui.h(place)}</span>') == 1
+
+
+def test_pins_stay_far_enough_apart_to_tap_them_on_a_phone():
+    spots = [(p["x"], p["y"]) for p in content.PLACES.values()]
+    for i, (x1, y1) in enumerate(spots):
+        assert 6 <= x1 <= 94 and 6 <= y1 <= 90                      # the label fits on the plan
+        for x2, y2 in spots[i + 1:]:
+            assert ((x1 - x2) * 1.25) ** 2 + (y1 - y2) ** 2 >= 14 ** 2
 
 
 def test_pins_show_open_searched_and_locked_and_the_board_says_when():
@@ -354,7 +418,9 @@ def test_the_plan_is_greyed_out_after_the_players_move_and_marks_the_selected_pl
 
 
 def test_every_place_on_the_campus_has_a_spot_on_the_map():
-    assert len(content.PLACES) == 8
+    assert list(content.PLACES) == ["Library", "Horizon Hall", "Auditorium", "Main Deck",
+                                    "Hovione Atrium", "Santander Hall", "Beach"]    # every searchable place, names unchanged
+    assert "ICA Canteen" not in content.PLACES                     # no longer a place, so never a crime scene
     for place in content.PLACES.values():
         assert 0 <= place["x"] <= 100 and 0 <= place["y"] <= 100 and place["icon"] and place["letter"]
     assert all(place in content.PLACES for place in content.LOCATIONS)

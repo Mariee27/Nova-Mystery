@@ -35,7 +35,7 @@ FAKE_ANSWER = {
          "neutral_clue": "A stack of exam covers waits to be stapled."},
         {"name": "Beach", "icon": "🚣", "flavor": "Oars drip onto the wooden floor.",
          "neutral_clue": "A life jacket hangs on its hook, perfectly dry."},
-        {"name": "ICA Canteen", "icon": "🏛️", "flavor": "Rain drums on the glass roof.",
+        {"name": "Horizon Hall", "icon": "🏛️", "flavor": "Rain drums on the glass roof.",
          "neutral_clue": "A vending machine hums with a full row of water bottles."},
     ],
     "suspects": [
@@ -350,7 +350,7 @@ def test_the_ai_case_texts_reach_the_screens():
     g = start(lobby_with_ai())
     story = logic.story_view(g)
     assert "The Silent Regatta" in ui.case_file(story)
-    assert "ICA Canteen" in ui.campus_map([], story=story)
+    assert "Horizon Hall" in ui.campus_map([], story=story)
     assert "Library" in ui.campus_map([], story=story)
 
 
@@ -650,10 +650,10 @@ def test_the_ai_writes_about_five_given_campus_places():
 
 
 def test_answer_texts_are_matched_to_the_given_places_by_name_or_order():
-    places = ["Library", "Auditorium", "Main Deck", "Beach", "ICA Canteen"]
+    places = ["Library", "Auditorium", "Main Deck", "Beach", "Horizon Hall"]
     answer = copy.deepcopy(FAKE_ANSWER)
     answer["locations"].reverse()                       # any order
-    answer["locations"][0]["name"] = "Canteen"          # a shortened name
+    answer["locations"][0]["name"] = "Horizon"          # a shortened name
     story = ai.parse_story(json.dumps(answer), places)
     assert story["locations"] == places
     assert logic.validate_story(story) == []

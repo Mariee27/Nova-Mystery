@@ -199,8 +199,12 @@ gets a random theme and a random first letter for the victim, so rooms get diffe
   `private_view(...)["puzzles"]` maps every place to its spec during INVESTIGATION (else `{}`).
 - Proofs: code `{"code": "1723"}`; scratch `{"cells": [cell indices]}` (at least 55 % of 10 × 14);
   puzzle `{"swaps": [[a, b], ...]}` replayed on the seeded starting order; cipher `{"shift": n}`.
-- `content.BUILDINGS` (label -> left, top, width, height in percent), `content.BEACH` and `content.PLACES`
-  (8 places with pin centre `x`, `y` in percent, icon and letter) describe the plan. Every story's
+- `content.BUILDINGS` (letter of the official campus map -> `name`, `shape`: outline as [(x, y), ...] and
+  `tag`: where the letter sits, all in percent), `content.GROUNDS` ((css class, outline): lawn,
+  open land, sand, sea), `content.ROADS` ((name, line, angle of the name)) and `content.PLACES` (7 places,
+  no car park and no canteen, with pin centre `x`, `y`
+  in percent, icon and letter) describe the plan. `ui.campus_map` draws them as one SVG with the pins as
+  HTML on top. Every story's
   locations must be places of `content.PLACES`.
 - On the phone every tap is a link: `?step=search|share|plant` plus the selection
   (`place`, `clue`, `blame`). An unknown step (for example an old `question` link) opens "Your move.". `app.handle_move_links` copies them into
