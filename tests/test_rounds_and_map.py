@@ -51,7 +51,7 @@ def test_refused_a_second_move_in_the_same_round():
     g = started_in("INVESTIGATION")
     g = logic.search(g, "t1", open_places(g)[0], 5)
     assert_rejected_unchanged(lambda x: logic.search(x, "t1", open_places(x)[0], 6), g)
-    assert_rejected_unchanged(lambda x: logic.question(x, "t1", 2, "Where were you?", 6), g)
+    assert_rejected_unchanged(lambda x: logic.share(x, "t1", my_clues(x, "t1")[0], 6), g)
 
 
 def test_allowed_a_new_move_in_the_next_round():
@@ -123,37 +123,14 @@ def test_cases_have_no_second_clue_per_place():
         assert sorted(c["location"] for c in case["location_clues"]) == sorted(content.LOCATIONS)
 
 
-# ---------------------------------------------------------------- interrogate
-
-def test_allowed_a_question_of_five_characters():
-    g = logic.question(started_in("INVESTIGATION"), "t1", 2, "Where", 5)
-    assert g["log"][-1]["text"] == "Where" and g["log"][-1]["round"] == 1
-
-
-def test_refused_a_question_shorter_than_five_characters():
-    g = started_in("INVESTIGATION")
-    with pytest.raises(logic.Rejected, match="at least 5 characters"):
-        logic.question(g, "t1", 2, "  Why ", 5)
-
-
-def test_refused_questioning_yourself_or_a_player_from_another_room():
-    g = started_in("INVESTIGATION")
-    assert_rejected_unchanged(lambda x: logic.question(x, "t1", 1, "Where were you?", 5), g)
-    assert_rejected_unchanged(lambda x: logic.question(x, "t1", 99, "Where were you?", 5), g)
-
-
-def test_allowed_confronting_with_public_evidence_and_refused_with_hidden_evidence():
-    g = started_in("INVESTIGATION")
-    g = logic.search(g, "t1", open_places(g)[0], 5)
-    exhibit = g["log"][-1]["id"]
-    assert logic.question(g, "t2", 3, "Explain this.", 6, evidence_id=exhibit)["log"][-1]["evidence"] == exhibit
-    assert_rejected_unchanged(lambda x: logic.question(x, "t2", 3, "Explain this.", 6, evidence_id=999), g)
-
-
 # ---------------------------------------------------------------- share a clue
 
 def my_clues(g, token):
     return [c["id"] for c in logic.private_view(g, token)["clues"]]
+
+
+def unshared(g, token):
+    return [c["id"] for c in logic.private_view(g, token)["clues"] if not c["shared"]]
 
 
 def test_allowed_sharing_one_of_your_own_clues():
@@ -220,43 +197,39 @@ def test_there_are_three_rounds_of_at_most_five_minutes():
     assert g["round"] == 1 and g["deadline"] - g["phase_started"] == 300
 
 
-def everybody_asks(g, now=5):
-    for pid in pids_of(g):
-        g = logic.question(g, token_of(g, pid), 1 if pid != 1 else 2, "Where were you?", now)
+def everybody_shares(g, pids, now=5):
+    for pid in pids:
+        g = logic.share(g, token_of(g, pid), unshared(g, token_of(g, pid))[0], now)
     return g
 
 
-def answer_all(g, now=6):
-    for e in [e for e in g["log"] if e["kind"] == "question" and not e["answered"]]:
-        g = logic.answer(g, token_of(g, e["target"]), e["id"], "In the Library.", now)
+def without_moves_for(g, pid):
+    """Every place searched and every clue of pid public: pid has nothing left to do."""
+    g = copy.deepcopy(g)
+    g["searched"] = list(logic.story_of(g)["locations"])
+    for clue in next(c for c in g["case"]["characters"] if c["pid"] == pid)["clues"]:
+        g["log"].append({"id": len(g["log"]) + 1, "kind": "share", "by": pid, "text": clue["text"],
+                         "clue_id": clue["id"], "round": g["round"]})
     return g
 
 
-def test_refused_ending_a_round_early_while_a_question_of_this_round_is_unanswered():
-    g = everybody_asks(started_in("INVESTIGATION"))
-    assert logic.tick(g, ON5, 6)["round"] == 1                       # waits for the answers
-    assert logic.tick(g, ON5, g["deadline"])["round"] == 2            # but never past the timer
-
-
-def test_allowed_a_round_ends_early_when_everybody_moved_and_every_question_is_answered():
-    g = answer_all(everybody_asks(started_in("INVESTIGATION")))
+def test_allowed_a_round_ends_early_when_everybody_moved():
+    g = everybody_shares(started_in("INVESTIGATION"), pids_of(started_in("INVESTIGATION")))
     assert logic.tick(g, ON5, 7)["round"] == 2
 
 
-def test_allowed_the_round_does_not_wait_for_an_answer_from_a_player_who_is_offline():
-    g = everybody_asks(started_in("INVESTIGATION"))
-    for e in g["log"]:
-        if e["kind"] == "question" and e["target"] != 2:
-            g = logic.answer(g, token_of(g, e["target"]), e["id"], "Home.", 6)
-    assert logic.tick(g, ON5, 7)["round"] == 1                        # player 2 has not answered
-    assert logic.tick(g, ON5 - {2}, 7)["round"] == 2                  # ... and is offline now
+def test_refused_ending_a_round_early_while_a_player_can_still_move():
+    g = everybody_shares(started_in("INVESTIGATION"), [1, 2, 3, 4])
+    assert logic.has_move(g, 5)
+    assert logic.tick(g, ON5, 7)["round"] == 1                        # waits for player 5
+    assert logic.tick(g, ON5, g["deadline"])["round"] == 2            # but never past the timer
 
 
-def test_allowed_answering_does_not_use_up_your_move():
-    g = logic.question(started_in("INVESTIGATION"), "t1", 2, "Where were you?", 5)
-    g = logic.answer(g, "t2", g["log"][-1]["id"], "Library.", 6)
-    assert g["acted"] == [1]
-    assert logic.search(g, "t2", open_places(g)[0], 7)["acted"] == [1, 2]
+def test_allowed_the_round_does_not_wait_for_a_player_with_nothing_left_to_do():
+    """Nothing left to search or share: the player questions the others out loud instead."""
+    g = without_moves_for(everybody_shares(started_in("INVESTIGATION"), [1, 2, 3, 4]), 5)
+    assert not logic.has_move(g, 5)
+    assert logic.tick(g, ON5, 7)["round"] == 2
 
 
 def test_allowed_a_player_who_misses_the_timer_simply_loses_the_move():
@@ -282,8 +255,10 @@ def test_demo_suspects_still_end_every_round_when_nothing_is_left_to_search():
     g = logic.end_phase(g, "t1", logic.with_bots(g, {1}), 0)
     now = 0
     while g["phase"] == "INVESTIGATION":
-        g = logic.search(g, "t1", open_places(g)[0], now) if open_places(g) and 1 not in g["acted"] else (
-            g if 1 in g["acted"] else logic.question(g, "t1", 2, "Where?", now))
+        if 1 not in g["acted"] and open_places(g):
+            g = logic.search(g, "t1", open_places(g)[0], now)
+        elif 1 not in g["acted"] and unshared(g, "t1"):
+            g = logic.share(g, "t1", unshared(g, "t1")[0], now)
         now += 30
         g = logic.bot_moves(logic.tick(g, logic.with_bots(g, {1}), now), now)
         g = logic.tick(g, logic.with_bots(g, {1}), now)
@@ -453,16 +428,6 @@ def test_the_evidence_board_is_newest_first_and_never_names_who_searched():
     html = ui.evidence_board(log, lambda pid: f"Name{pid}")
     assert html.index("Shared by Name2") < html.index("Exhibit 1")
     assert "Name1" not in html and "R1" in html
-
-
-def test_the_live_interrogation_shows_the_question_and_then_the_answer():
-    g = started_in("INVESTIGATION")
-    g = logic.question(g, "t1", 2, "Where were you?", 5)
-    name, role = (lambda pid: f"Name{pid}"), (lambda pid: f"Role{pid}")
-    waiting = ui.interrogation(logic.public_view(g, ON5)["log"], name, role)
-    assert "Name1 (Role1) asks Name2 (Role2)" in waiting and "is typing" in waiting
-    g = logic.answer(g, "t2", g["log"][-1]["id"], "In the Library.", 6)
-    assert "In the Library." in ui.interrogation(logic.public_view(g, ON5)["log"], name, role)
 
 
 def test_demo_suspects_leave_the_last_open_place_to_a_human_who_has_not_moved():

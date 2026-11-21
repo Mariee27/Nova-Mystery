@@ -43,8 +43,9 @@ PHASE_TITLES = {
 PHASE_SUBTITLES = {
     "LOBBY": "Scan the code or enter the room code on your phone. 4 to 6 suspects.",
     "REVEAL": "Every phone now holds a private file. One of you is lying about everything.",
-    "INVESTIGATION": "One move per round: search a place on the map, interrogate a suspect, or share what you know.",
-    "DISCUSSION": "Answer the open questions. Compare the alibis. Everybody may lie.",
+    "INVESTIGATION": "One move per round: search a place on the map or share what you know. "
+                     "Question each other out loud.",
+    "DISCUSSION": "Question each other face to face. Compare the alibis. Everybody may lie.",
     "VOTE": "Name the suspect – and the place where {victim} really died.",
     "RESULT": "",
     "ABORTED": "",
@@ -460,7 +461,7 @@ def board_live(code):
 
 def board_round(code, public):
     """The board during the rounds: header with room, round and timer; the campus plan on
-    the left; on the right who has moved, the evidence board and the interrogation."""
+    the left; on the right who has moved and the evidence board."""
     story = public["story"]
     show(ui.board_head(code, public["map"]["round"], public["map"]["rounds"], seconds_left(public)))
     st.markdown(f'<div class="kicker">{ui.h(case_kicker(public))}</div>', unsafe_allow_html=True)
@@ -470,9 +471,6 @@ def board_round(code, public):
     with right:
         show(ui.detectives(public["players"]))
         show(ui.evidence_board(public["log"], lambda pid: name_of(public, pid), story=story))
-        show(ui.interrogation(public["log"], lambda pid: name_of(public, pid),
-                              lambda pid: next((p.get("role") or "" for p in public["players"]
-                                                if p["pid"] == pid), "")))
 
 
 def board_screen(code):
@@ -488,14 +486,14 @@ def board_screen(code):
 
 def signature(public, me):
     """Changes whenever the buttons on the phone have to change: also when new evidence
-    arrives, so that the search list and the 'confront with evidence' list stay current."""
+    arrives, so that the search list stays current."""
     evidence = sum(1 for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS)
     # Who is in the room and online: the host's Start button depends on it.
     players = tuple((p["pid"], p["online"]) for p in public["players"])
     # The round and the state of every place: the map's markers depend on them.
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
-            tuple(q["id"] for q in me["open_questions"]), evidence, me["host_note"], players, places)
+            evidence, me["host_note"], players, places)
 
 
 @st.fragment(run_every=POLL_SECONDS)
@@ -624,18 +622,6 @@ def host_controls(code, token, public, me):
             act(code, lambda g, on, now: logic.end_phase(g, token, on, now))
 
 
-def answer_forms(code, token, public, me):
-    by_id = {entry["id"]: entry for entry in public["log"]}
-    for asked in me["open_questions"]:
-        with st.form(f"answer_{asked['id']}", clear_on_submit=True):
-            entry = by_id.get(asked["id"], dict(asked, kind="question", target=me["pid"]))
-            show(ui.log_entry(entry, lambda pid: name_of(public, pid), by_id))
-            text = st.text_input("Your answer (you may lie)", max_chars=logic.MAX_TEXT)
-            if st.form_submit_button("Answer"):
-                question_id = asked["id"]
-                act(code, lambda g, on, now: logic.answer(g, token, question_id, text, now))
-
-
 # ---------------------------------------------------------------- the move, step by step
 #
 # Every tap on the phone (an action card, a pin, a player row, an evidence chip, a clue)
@@ -643,9 +629,9 @@ def answer_forms(code, token, public, me):
 # parameters into session_state["move"] and removes them from the address at once.
 # Every link carries the whole selection, so nothing gets lost on the reload.
 
-MOVE_STEPS = ("search", "question", "share", "plant")
-MOVE_KEYS = ("place", "ask", "ev", "clue", "blame")
-NUMBER_KEYS = ("ask", "ev", "blame")
+MOVE_STEPS = ("search", "share", "plant")
+MOVE_KEYS = ("place", "clue", "blame")
+NUMBER_KEYS = ("blame",)
 
 
 def move_link(code, token, move):
@@ -679,25 +665,27 @@ def handle_move_links():
 
 
 def choose_action(code, token, public, me):
-    """'Your move.': three big cards (four for the murderer while planting is possible)."""
+    """'Your move.': two big cards (three for the murderer while planting is possible).
+    Interrogations are not a move in the app: the players question each other out loud."""
     open_places = sum(1 for p in public["map"]["places"] if p["state"] == "open")
-    others = sum(1 for p in public["players"] if p["pid"] != me["pid"])
     unshared = sum(1 for c in me["clues"] if not c["shared"])
     cards = [
         {"href": move_link(code, token, {"step": "search"}) if open_places else None, "icon": "search",
          "title": "Search a place", "text": "Look for evidence somewhere on campus.",
          "info": f"{open_places} place{'s' if open_places != 1 else ''} open" if open_places else "Nothing open"},
-        {"href": move_link(code, token, {"step": "question"}), "icon": "question",
-         "title": "Interrogate a player", "text": "Ask one suspect a question in public.",
-         "info": f"{others} suspects"},
         {"href": move_link(code, token, {"step": "share"}) if unshared else None, "icon": "share",
          "title": "Share a clue", "text": "Reveal one of your private clues to everyone.",
          "info": f"{unshared} private clue{'s' if unshared != 1 else ''}" if unshared else "All shared"},
     ]
-    show(ui.step_head("Your move.", "One action per round. Choose wisely."))
+    if open_places or unshared:
+        show(ui.step_head("Your move.", "One action per round. Choose wisely."))
+    else:
+        show(ui.step_head("Nothing left to search or share.",
+                          "The round goes on without you. Question the others out loud."))
     if me["can_plant"]:
         cards.append(plant_card(code, token))
     show(ui.action_cards(cards))
+    show('<div class="hint">Interrogations happen face to face: ask, accuse, defend your alibi.</div>')
 
 
 def plant_card(code, token):
@@ -849,31 +837,6 @@ def puzzle_hints(key, spec, state):
             st.rerun(scope="fragment")
 
 
-def question_step(code, token, public, me, move):
-    show(ui.back_link(move_link(code, token, {})))
-    show(ui.step_head("Interrogate", "Question and answer appear on the board for everyone."))
-    others = [p for p in public["players"] if p["pid"] != me["pid"]]
-    ask = move.get("ask") if any(p["pid"] == move.get("ask") for p in others) else None
-    show(ui.label("Ask"))
-    show(ui.pick_rows([(move_link(code, token, dict(move, ask=p["pid"])), p["name"], p.get("role"),
-                        p["pid"] == ask) for p in others]))
-    exhibits = [e for e in reversed(public["log"]) if e["kind"] in logic.EVIDENCE_KINDS]
-    evidence = move.get("ev") if any(e["id"] == move.get("ev") for e in exhibits) else None
-    show(ui.label("Confront with evidence · optional"))
-    show(ui.chips([(move_link(code, token, dict(move, ev=None if e["id"] == evidence else e["id"])),
-                    f"#{e['id']} {e['text']}", e["id"] == evidence) for e in exhibits]))
-    show(ui.label("Your question"))
-    text = st.text_input("Your question", max_chars=logic.MAX_TEXT, placeholder="Where were you at 23:30?",
-                         label_visibility="collapsed", key="question_text")
-    if st.button("Ask in public", type="primary", use_container_width=True):
-        if ask is None:
-            st.error("Choose who you want to ask.")
-        elif len((text or "").strip()) < logic.MIN_QUESTION:
-            st.error(f"Write a question first (at least {logic.MIN_QUESTION} characters).")
-        else:
-            act(code, lambda g, on, now: logic.question(g, token, ask, text, now, evidence_id=evidence))
-
-
 def share_step(code, token, public, me, move):
     show(ui.back_link(move_link(code, token, {})))
     show(ui.step_head("Share a clue", "Only you know these. Once shared, everyone sees it."))
@@ -924,8 +887,6 @@ def move_made(code, token, public, me):
         show(minigame_ui.reward(me["puzzles"][last["location"]], last["text"], last["id"], done, total, False))
     elif last["kind"] == "search":
         show(ui.move_made(f"New evidence · {last.get('location', '')}", f"Exhibit {last['id']}", last["text"]))
-    elif last["kind"] == "question":
-        show(ui.move_made("Question sent", f"To {name_of(public, last['target'])}", f"“{last['text']}”"))
     else:
         show(ui.move_made("Clue shared", f"Exhibit {last['id']}", last["text"]))
     show(ui.waiting_list(public["players"], me["pid"]))
@@ -949,8 +910,6 @@ def investigation_actions(code, token, public, me):
         puzzle_step(code, token, public, me, move)
     elif step == "search":
         search_step(code, token, public, me, move)
-    elif step == "question":
-        question_step(code, token, public, me, move)
     elif step == "share":
         share_step(code, token, public, me, move)
     else:
@@ -1015,12 +974,10 @@ def player_screen(code, token):
         sealed_card(code, me, public["story"])
         st.info("Read your file. The investigation starts in a moment.")
     elif phase == "INVESTIGATION":
-        answer_forms(code, token, public, me)    # the round waits for your answer
         investigation_actions(code, token, public, me)
         show_card(me, expanded=False)
     elif phase == "DISCUSSION":
         pending_reward(code, public)             # an exhibit solved in the very last second
-        answer_forms(code, token, public, me)
         st.info("Talk to each other. Compare the alibis. Who is lying?")
         show_card(me, expanded=False)
     elif phase == "VOTE":

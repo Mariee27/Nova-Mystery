@@ -58,19 +58,19 @@ The start button is disabled, and a forced start is also rejected by the rules. 
 **… a non-host wants to start the game or end a phase?**
 They don't have the button, and the rules reject it as well. (DW 5)
 
-**… a question is never answered?**
-At the end of the discussion the log states that no answer came. (DW 8)
+**… we want to interrogate someone?**
+Do it out loud. The players sit in one room and question, accuse and defend their alibis face to face; the app has no question-and-answer function. (`test_dw07_interrogations_are_not_an_action_in_the_app`)
 
 **… nobody does anything?**
-The timers advance the phases: 30 s cards, 3 investigation rounds of up to 5 minutes each (a round ends early when everybody has moved and every question of the round is answered), 3 min discussion, 1 min vote. (DW 6)
+The timers advance the phases: 30 s cards, 3 investigation rounds of up to 5 minutes each (a round ends early when everybody has moved or has nothing left to search or share), 3 min discussion, 1 min vote. (DW 6)
 
 ## Security
 
 **… someone wants to see another player's card?**
 The server sends each phone only its own card. Before the reveal, the board and the public log contain neither the murderer nor secrets nor private clues. (DW 17)
 
-**… someone types HTML or formatting into a question?**
-It appears as plain text, nothing is executed. At most 140 characters. (DW 18)
+**… someone types HTML or formatting into their name?**
+It appears as plain text, nothing is executed. At most 20 characters. (DW 18)
 
 **… someone guesses a link?**
 The token has 22 random characters. The room code alone is only enough for watching and, in the lobby, for joining.
@@ -146,14 +146,14 @@ Exactly one of them finds the clue; the other is told "This place has already be
 **What if I reload the page after tapping a place?**
 Nothing is searched: a tap only selects a place. Searching needs the "Search <place>" button, and a second move in the same round would be refused anyway.
 
-**What if I ask a question and nobody answers?**
-The round waits for answers to its questions, but never longer than its timer. A player who is offline is not waited for. Unanswered questions can still be answered in the discussion. (`test_refused_ending_a_round_early_while_a_question_of_this_round_is_unanswered`)
+**What if I have nothing left to search or share?**
+The phone says "Nothing left to search or share." and the round does not wait for you; question the others out loud meanwhile. A player who can still move is waited for, but never longer than the timer. (`test_allowed_the_round_does_not_wait_for_a_player_with_nothing_left_to_do`, `test_refused_ending_a_round_early_while_a_player_can_still_move`)
 
 **What if the timer runs out before I choose?**
 Your move for that round is lost; the next round starts and you get a new one. (`test_allowed_a_player_who_misses_the_timer_simply_loses_the_move`)
 
-**What if I press "Ask in public" without choosing someone, or with a very short question?**
-The screen says "Choose who you want to ask." or "Write a question first (at least 5 characters)." and your move is not used up.
+**What if I press "Share with everyone" without choosing a clue?**
+The screen says "Choose a clue to share." and your move is not used up. (`test_the_phone_guides_through_one_move_and_explains_mistakes`)
 
 **Can the map give the solution away?**
 No. It shows which places are open, searched or locked – public facts. The crime scene is always one of the two locked places at the start, so that the hunt has a middle; which of the two it is, the map does not say. (`test_the_map_never_gives_the_solution_away`)

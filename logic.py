@@ -17,11 +17,10 @@ import minigames
 PHASES = ["LOBBY", "REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE", "RESULT", "ABORTED"]
 DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
 # The investigation has ROUNDS rounds. Each round lasts at most DURATIONS["INVESTIGATION"]
-# seconds and ends early when every online player has made their one move and every
-# question asked in this round has been answered.
+# seconds and ends early when every online player has made their one move or has no move
+# left (nothing to search, nothing to share). Interrogations happen out loud, not in the app.
 ROUNDS = 3
 LOCKED_PLACES = 2      # places that are locked at the start (the crime scene is always one)
-MIN_QUESTION = 5       # a question needs at least this many characters
 NEXT_PHASE = {
     "REVEAL": "INVESTIGATION",
     "INVESTIGATION": "DISCUSSION",
@@ -213,14 +212,6 @@ def _story_for_start(game, fixed_case):
 
 def _enter_phase(game, phase, now):
     """Change the phase of an already copied game."""
-    if phase == "VOTE":  # we are leaving DISCUSSION: close open questions
-        for entry in list(game["log"]):
-            if entry["kind"] == "question" and not entry["answered"]:
-                entry["answered"] = True
-                asked = _name(game, entry["target"])
-                _add_log(game, "system", None,
-                         f"{asked} gave no answer to question #{entry['id']}.",
-                         question_id=entry["id"])
     game["phase"] = phase
     game["phase_started"] = now
     game["deadline"] = now + DURATIONS[phase] if phase in DURATIONS else None
@@ -262,10 +253,14 @@ def locked_until(game, location):
     return opens
 
 
-def unanswered_this_round(game, online):
-    """Questions of the current round that an online player has not answered yet."""
-    return [e for e in game["log"] if e["kind"] == "question" and not e["answered"]
-            and e.get("round") == game.get("round") and e["target"] in online]
+def has_move(game, pid):
+    """Whether the player could still make a move this round: an open place nobody has
+    searched yet, or one of their own clues that is not public yet."""
+    if any(locked_until(game, loc) is None and loc not in game["searched"]
+           for loc in story_of(game)["locations"]):
+        return True
+    public = {e.get("clue_id") for e in game["log"]}
+    return any(c["id"] not in public for c in _character(game, pid)["clues"])
 
 
 def _name(game, pid):
@@ -315,9 +310,9 @@ def tick(game, online, now):
             )
             return new
         # 3. Timer, 4. early end.
-        everyone_acted = all(pid in game["acted"] for pid in online_players)
-        if game["phase"] == "INVESTIGATION" and unanswered_this_round(game, online):
-            everyone_acted = False      # the round waits for the answers (not longer than the timer)
+        # A player with nothing left to search or share is not waited for.
+        everyone_acted = game["phase"] == "INVESTIGATION" and all(
+            pid in game["acted"] or not has_move(game, pid) for pid in online_players)
         everyone_voted = all(str(pid) in game["votes"] for pid in online_players)
         if (
             now >= game["deadline"]
@@ -332,7 +327,7 @@ def tick(game, online, now):
 # ---------------------------------------------------------------- actions
 
 def _begin_action(game, token):
-    """Checks shared by search, question and share. Returns the acting player."""
+    """Checks shared by search and share. Returns the acting player."""
     _require_phase(game, "INVESTIGATION")
     player = _player_by_token(game, token)
     if player["pid"] in game["acted"]:
@@ -368,48 +363,7 @@ def search(game, token, location, now, proof=None):
     return game
 
 
-EVIDENCE_KINDS = ("search", "share")   # log entries a player may confront someone with
-
-
-def question(game, token, target_pid, text, now, evidence_id=None):
-    """Interrogate another player in public. Optionally confront them with a piece of
-    evidence that is already public (the log id of a search result or a shared clue)."""
-    player = _begin_action(game, token)
-    if target_pid == player["pid"]:
-        raise Rejected("You cannot question yourself.")
-    if target_pid not in _player_ids(game):
-        raise Rejected("Unknown player.")
-    if not isinstance(text, str) or len(text.strip()) < MIN_QUESTION:
-        raise Rejected(f"Write a question first (at least {MIN_QUESTION} characters).")
-    text = clean_text(text, MAX_TEXT)
-    if len(text) < MIN_QUESTION:
-        raise Rejected(f"Write a question first (at least {MIN_QUESTION} characters).")
-    if evidence_id is not None and not any(
-            e["id"] == evidence_id and e["kind"] in EVIDENCE_KINDS for e in game["log"]):
-        raise Rejected("You can only confront someone with evidence that is already public.")
-    game = copy.deepcopy(game)
-    game["acted"].append(player["pid"])
-    extra = {} if evidence_id is None else {"evidence": evidence_id}
-    _add_log(game, "question", player["pid"], text, target=target_pid, answered=False, **extra)
-    return game
-
-
-def answer(game, token, question_id, text, now):
-    _require_phase(game, "INVESTIGATION", "DISCUSSION")
-    player = _player_by_token(game, token)
-    asked = next((e for e in game["log"]
-                  if e["kind"] == "question" and e["id"] == question_id), None)
-    if asked is None:
-        raise Rejected("Unknown question.")
-    if asked["target"] != player["pid"]:
-        raise Rejected("This question was not asked to you.")
-    if asked["answered"]:
-        raise Rejected("This question has already been answered.")
-    text = clean_text(text, MAX_TEXT)
-    game = copy.deepcopy(game)
-    next(e for e in game["log"] if e["id"] == question_id)["answered"] = True
-    _add_log(game, "answer", player["pid"], text, question_id=question_id)
-    return game
+EVIDENCE_KINDS = ("search", "share")   # log entries that are public evidence
 
 
 def share(game, token, clue_id, now):
@@ -629,24 +583,23 @@ def _bot_investigate(game, bot, index, now):
     clue = next((c for c in _character(game, pid)["clues"] if c["id"] not in public), None)
     if clue is not None:
         return share(game, bot["token"], clue["id"], now)
-    # Nothing left to search or share: ask someone, so the round can still end early.
-    others = [p for p in _player_ids(game) if p != pid]
-    return question(game, bot["token"], others[index % len(others)], "Where were you at 23:30?", now)
+    # Nothing it would rather do: a guilty bot searches its own place after all, so the round
+    # can still end early. Places it leaves to a waiting human stay theirs.
+    rest = [loc for loc in places if loc not in game["searched"]]
+    if rest and not humans_waiting:
+        return search(game, bot["token"], rest[index % len(rest)], now)
+    return game       # nothing left at all: the round does not wait for it (has_move)
 
 
 def bot_moves(game, now):
     """Let every bot make the moves that are due. Returns the same game if nothing happens."""
     bots = [p for p in game["players"] if p.get("bot")]
-    if not bots or game["phase"] not in ("INVESTIGATION", "DISCUSSION", "VOTE"):
+    if not bots or game["phase"] not in ("INVESTIGATION", "VOTE"):
         return game
     elapsed = now - game["phase_started"]
     for index, bot in enumerate(bots):
         pid = bot["pid"]
         due = elapsed >= BOT_FIRST_MOVE + BOT_STEP * index
-        if game["phase"] in ("INVESTIGATION", "DISCUSSION"):
-            for asked in [e for e in game["log"] if e["kind"] == "question"
-                          and e["target"] == pid and not e["answered"]]:
-                game = answer(game, bot["token"], asked["id"], _character(game, pid)["alibi"], now)
         if game["phase"] == "INVESTIGATION" and due and pid not in game["acted"]:
             game = _bot_investigate(game, bot, index, now)
         if game["phase"] == "VOTE" and due and str(pid) not in game["votes"]:
@@ -728,7 +681,6 @@ def private_view(game, token):
         "clues": [],
         "can_plant": False,
         "plant_locations": [],
-        "open_questions": [],
         "last_move": None,
         "puzzles": {},
     }
@@ -751,11 +703,6 @@ def private_view(game, token):
         ],
         "can_plant": can_plant,
         "plant_locations": plant_locations(game) if can_plant else [],
-        "open_questions": [
-            {"id": e["id"], "by": e["by"], "text": e["text"]}
-            for e in game["log"]
-            if e["kind"] == "question" and e["target"] == pid and not e["answered"]
-        ],
         "last_move": last_move(game, pid),
         # The sealed exhibits of this case (mini-games). Never contains an answer.
         "puzzles": ({p["location"]: p for p in minigames.specs(game)}
@@ -770,7 +717,7 @@ def last_move(game, pid):
     if game["phase"] != "INVESTIGATION":
         return None
     for entry in reversed(game["log"]):
-        if (entry["by"] == pid and entry["kind"] in ("search", "question", "share")
+        if (entry["by"] == pid and entry["kind"] in ("search", "share")
                 and entry.get("round") == game.get("round")):
             return {key: entry[key] for key in ("id", "kind", "text", "location", "target", "evidence")
                     if key in entry}

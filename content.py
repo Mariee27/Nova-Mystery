@@ -205,8 +205,8 @@ ENDINGS = {
 HOW_TO_PLAY = """Each player is one of 4 to 6 suspects. One of you killed the victim – and only that player knows.
 
 1. **Read your card:** your role, your alibi, your secret and two clues only you know.
-2. **Investigate – 3 rounds:** each round you take **one** action: search a place on the campus map, interrogate someone (you may confront them with evidence), or share a clue. Some places are locked until a later round.
-3. **Discuss:** answer questions and argue. Everybody may lie.
+2. **Investigate – 3 rounds:** each round you take **one** action in the app: search a place on the campus map or share a clue. Some places are locked until a later round. Interrogations happen out loud: question each other face to face, confront each other with the evidence, defend your alibi.
+3. **Discuss:** question each other in person and argue. Everybody may lie.
 4. **Accuse:** vote for a suspect **and** for the place where the victim really died. Name both correctly for the full truth.
 """
 

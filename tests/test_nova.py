@@ -1,14 +1,12 @@
-"""Features of NOVA MYSTERY: the scene accusation and its endings, confronting a
-suspect with evidence, the demo suspects (bots), and the HTML building blocks."""
+"""Features of NOVA MYSTERY: the scene accusation and its endings, the demo
+suspects (bots), and the HTML building blocks."""
 import re
-
-import pytest
 
 import content
 import logic
 import ui
 from conftest import (
-    assert_rejected_unchanged, innocent_pids, last_log_id, make_lobby, make_started,
+    assert_rejected_unchanged, innocent_pids, make_lobby, make_started,
     murderer_pid, started_in, token_of,
 )
 
@@ -90,36 +88,6 @@ def test_old_games_without_scene_votes_still_finish():
     assert finish(g)["result"]["scene_tally"] == {}
 
 
-# ---------------------------------------------------------------- confronting with evidence
-
-def test_question_can_confront_with_a_public_exhibit():
-    g = started_in("INVESTIGATION")
-    g = logic.search(g, "t1", content.LOCATIONS[0], 0)
-    exhibit = last_log_id(g)
-    g = logic.question(g, "t2", 3, "Explain this.", 0, evidence_id=exhibit)
-    assert g["log"][-1]["evidence"] == exhibit
-    shown = logic.public_view(g, {1, 2, 3, 4, 5})["log"][-1]
-    assert shown["evidence"] == exhibit
-
-
-def test_question_without_evidence_has_no_evidence_key():
-    g = logic.question(started_in("INVESTIGATION"), "t2", 3, "Where were you?", 0)
-    assert "evidence" not in g["log"][-1]
-
-
-@pytest.mark.parametrize("bad", [999, 0])
-def test_confronting_with_unknown_evidence_is_rejected(bad):
-    g = started_in("INVESTIGATION")
-    assert_rejected_unchanged(lambda x: logic.question(x, "t2", 3, "Hm?", 0, evidence_id=bad), g)
-
-
-def test_a_question_is_not_evidence():
-    g = started_in("INVESTIGATION")
-    g = logic.question(g, "t1", 2, "First?", 0)
-    q = last_log_id(g)
-    assert_rejected_unchanged(lambda x: logic.question(x, "t3", 2, "Again?", 0, evidence_id=q), g)
-
-
 # ---------------------------------------------------------------- demo suspects
 
 def demo_lobby(humans=1, bots=4):
@@ -171,16 +139,6 @@ def test_bot_moves_do_nothing_without_bots_or_outside_play():
     assert logic.bot_moves(g, 1000) is g
     lobby = demo_lobby(1, 4)
     assert logic.bot_moves(lobby, 1000) is lobby
-
-
-def test_bots_answer_questions_with_their_alibi():
-    g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=1)
-    g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
-    g = logic.question(g, "t1", 2, "Where were you at 23:30?", 0)
-    g = logic.bot_moves(g, 0)
-    reply = g["log"][-1]
-    assert reply["kind"] == "answer" and reply["by"] == 2
-    assert reply["text"] == next(c for c in g["case"]["characters"] if c["pid"] == 2)["alibi"]
 
 
 def test_a_guilty_bot_does_not_search_its_own_traces():
@@ -246,10 +204,18 @@ def test_h_escapes_html_quotes_and_math():
 
 
 def test_log_cards_escape_player_text():
-    entries = {1: {"id": 1, "kind": "search", "by": None, "text": EVIL, "location": content.LOCATIONS[0]}}
-    question = {"id": 2, "kind": "question", "by": 1, "target": 2, "text": EVIL, "evidence": 1}
-    html = ui.log_entry(question, lambda pid: EVIL, entries)
-    assert "<script>" not in html and "Confronted with Exhibit 1" in html
+    shared = {"id": 2, "kind": "share", "by": 1, "text": EVIL}
+    html = ui.log_entry(shared, lambda pid: EVIL, {})
+    assert "<script>" not in html and "Witness statement" in html
+
+
+def test_question_and_answer_entries_of_old_games_still_show_as_plain_notes():
+    """Rooms saved before interrogations moved off the app may still hold such entries."""
+    old = [{"id": 1, "kind": "question", "by": 1, "target": 2, "text": EVIL, "answered": False},
+           {"id": 2, "kind": "answer", "by": 2, "text": EVIL, "question_id": 1}]
+    for entry in old:
+        assert "<script>" not in ui.log_entry(entry, lambda pid: EVIL, {})
+    assert "<script>" not in ui.evidence_wall(old, lambda pid: EVIL)
 
 
 def test_no_card_leaks_a_forgery_before_the_result():
@@ -263,14 +229,13 @@ def test_no_card_leaks_a_forgery_before_the_result():
 def test_evidence_wall_pins_every_kind_escaped_with_a_fixed_tilt():
     log = [{"id": 1, "kind": "search", "by": None, "text": EVIL, "location": content.LOCATIONS[0]},
            {"id": 2, "kind": "share", "by": 1, "text": EVIL},
-           {"id": 3, "kind": "question", "by": 1, "target": 2, "text": EVIL, "evidence": 1},
-           {"id": 4, "kind": "answer", "by": 2, "text": EVIL, "question_id": 3}]
+           {"id": 3, "kind": "system", "by": None, "text": EVIL}]
     html = ui.evidence_wall(log, lambda pid: EVIL)
     assert "<script>" not in html and "$" not in html
-    for css in ("pin photo", "pin typed", "pin hand", "pin hand reply"):
+    for css in ("pin photo", "pin typed", "pin slip"):
         assert css in html
     assert content.LOCATION_ICONS[content.LOCATIONS[0]] in html     # the polaroid shows the place
-    assert html.count(" new") == 1 and 'pin hand reply new"' in html  # only the newest drops in
+    assert html.count(" new") == 1 and 'pin slip new"' in html      # only the newest drops in
     assert html == ui.evidence_wall(log, lambda pid: EVIL)          # same tilt on every refresh
     assert f"--tilt:{ui.tilt(3)}deg" in html
 

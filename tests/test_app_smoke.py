@@ -194,7 +194,7 @@ def test_full_game_through_the_screens(game_db):
     assert "only that player knows" in page               # the rules are on the board in the lobby
 
     phones = []
-    for name in ["Ana", "Ben", "Caro", "Dev", "Eli"]:
+    for name in ["Ana", "Ben", "<b>Caro</b>", "Dev", "Eli"]:   # a name is the only free text
         phone = Browser(room=code)
         phone.run(press=["Join"], **{"Your name": name})
         assert phone.st.query_params.get("t"), f"{name} got no token"
@@ -229,15 +229,11 @@ def test_full_game_through_the_screens(game_db):
         tap_on_map(phones[1], conn, code)
         assert "step" not in phones[1].st.query_params        # a reload does not search twice
         assert "Move made." in phones[1].run()
-        # free text arrives escaped on the page
-        asked_pid = 4
-        tap(phones[2], step="question", ask=asked_pid)
-        phones[2].run(press=["Ask in public"], **{"Your question": "<b>x</b>"})
-        phones[3].run(press=["Answer"], **{"Your answer (you may lie)": "I was *not* there"})
         game = db.load(conn, code)
-        clue = logic.private_view(game, token_of_phone(phones[4]))["clues"][0]["id"]
-        tap(phones[4], step="share", clue=clue)
-        phones[4].run(press=["Share with everyone"])
+        for phone in (phones[2], phones[4]):
+            clue = logic.private_view(game, token_of_phone(phone))["clues"][0]["id"]
+            tap(phone, step="share", clue=clue)
+            phone.run(press=["Share with everyone"])
         murderer_phone = phones[murderer_pid - 1]
         target = 1 if murderer_pid != 1 else 2
         spot = logic.plant_locations(db.load(conn, code))[0]
@@ -247,11 +243,12 @@ def test_full_game_through_the_screens(game_db):
         assert game["planted"] is True
         assert sorted(game["acted"]) == [2, 3, 5]
         kinds = [entry["kind"] for entry in game["log"]]
-        assert kinds.count("search") == 2 and "question" in kinds and "answer" in kinds
+        assert kinds.count("search") == 2 and kinds.count("share") == 2
+        assert "question" not in kinds and "answer" not in kinds   # interrogations happen out loud
 
         page = board.run()
-        assert "&lt;b&gt;x&lt;/b&gt;" in page      # shown as text, not as HTML
-        assert "<b>x</b>" not in page
+        assert "&lt;b&gt;Caro&lt;/b&gt;" in page      # a name is shown as text, not as HTML
+        assert "<b>Caro</b>" not in page
         assert "planted" not in page                 # the fake clue does not stand out
         assert "acted" not in page                   # no "acted" marks that give it away
 
@@ -456,12 +453,10 @@ def test_the_phone_guides_through_one_move_and_explains_mistakes(game_db):
     phone.run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
     phone.run(press=["End phase (host)"])                     # on to INVESTIGATION
     page = phone.run()
-    assert "Your move." in page and page.count('class="act') >= 3
-    page = tap(phone, step="question")
-    assert "Interrogate" in page and "Change action" in page
-    assert "Choose who you want to ask." in phone.run(press=["Ask in public"], **{"Your question": "Where were you?"})
-    tap(phone, step="question", ask=2)
-    assert "at least 5 characters" in phone.run(press=["Ask in public"], **{"Your question": "Why"})
+    assert "Your move." in page and page.count('class="act') >= 2
+    assert "Interrogate" not in page and "Interrogations happen face to face" in page
+    page = tap(phone, step="share")
+    assert "Change action" in page
     assert "Your move." in tap(phone, step="home")            # "Change action" goes back
     tap(phone, step="share")
     assert "Choose a clue to share." in phone.run(press=["Share with everyone"])
@@ -477,3 +472,35 @@ def test_the_stand_in_keeps_one_components_object_like_streamlit():
     test reuse a freed id and get an earlier test's component (a flaky mini-game test)."""
     fake = FakeStreamlit()
     assert fake.components is fake.components and fake.components.v2 is fake.components.v2
+
+
+def test_interrogations_are_out_loud_and_an_old_question_link_goes_back_to_your_move(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    phone.run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
+    phone.run(press=["End phase (host)"])                     # on to INVESTIGATION
+    page = tap(phone, step="question", ask=2)                 # a link from before the change
+    assert "Your move." in page and "Ask in public" not in page and "Your question" not in page
+
+    def nothing_left_for_player_1(g):
+        g["searched"] = list(logic.story_of(g)["locations"])
+        for clue in next(c for c in g["case"]["characters"] if c["pid"] == 1)["clues"]:
+            g["log"].append({"id": len(g["log"]) + 1, "kind": "share", "by": 1, "text": clue["text"],
+                             "clue_id": clue["id"], "round": g["round"]})
+        return g
+
+    conn = db.connect(game_db)
+    try:
+        db.apply(conn, code, nothing_left_for_player_1)
+        page = phone.run()
+        assert "Nothing left to search or share." in page and "Question the others out loud." in page
+        for _ in range(logic.ROUNDS + 1):                      # end every round, at most once each
+            if db.load(conn, code)["phase"] == "DISCUSSION":
+                break
+            phone.run(press=["End phase (host)"])
+        assert db.load(conn, code)["phase"] == "DISCUSSION"
+    finally:
+        conn.close()
+    page = phone.run()
+    assert "Question each other face to face" in page and "Your answer" not in page
