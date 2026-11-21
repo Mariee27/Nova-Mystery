@@ -11,7 +11,7 @@ def demo_round(game_db):
     phone = Browser()
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
-    phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+    phone.run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
     phone.run(press=["End phase (host)"])
     conn = db.connect(game_db)
     assert db.load(conn, code)["phase"] == "INVESTIGATION"

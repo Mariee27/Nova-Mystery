@@ -211,7 +211,7 @@ def test_full_game_through_the_screens(game_db):
         # only the host has a start button: pressing it elsewhere does nothing
         phones[1].run(press=["Start game"])
         assert phase() == "LOBBY"
-        host.run(press=["Start game"], **{"Use the fixed demo case": True})
+        host.run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
         assert phase() == "REVEAL"
         game = db.load(conn, code)
         murderer_pid = game["case"]["murderer"]
@@ -293,17 +293,40 @@ def test_play_a_demo_seats_you_with_four_demo_suspects(game_db):
         assert sum(1 for p in game["players"] if p.get("bot")) == 4
         assert game["host"] == 1 and not game["players"][0].get("bot")
         assert "Board for the projector" in phone.run()     # the host is told where the board is
-        phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+        phone.run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
         assert db.load(conn, code)["phase"] == "REVEAL"      # bots count as online
     finally:
         conn.close()
+
+
+def test_home_page_names_the_real_number_of_rounds(game_db):
+    page = Browser().run()
+    assert f"{logic.ROUNDS} rounds, 15 to 30 minutes" in page and "5 rounds" not in page
+
+
+def test_host_lobby_folds_away_add_demo_suspect_once_there_are_enough_players(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    page = phone.run()
+    assert "Add or remove players (5 of 6)" in page
+    assert "Keep this page open" not in page             # the host starts the game, so no hint
+    page = phone.run(press=["Add demo suspect"])
+    conn = db.connect(game_db)
+    try:
+        assert len(db.load(conn, code)["players"]) == 6
+    finally:
+        conn.close()
+    page = phone.run()
+    assert "Remove a player (6 of 6)" in page
+    assert "Add or remove" not in page
 
 
 def test_board_shows_the_evidence_board_and_the_phone_the_move_made(game_db):
     phone = Browser()
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
-    phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+    phone.run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
     phone.run(press=["End phase (host)"])                     # on to INVESTIGATION
     conn = db.connect(game_db)
     try:
@@ -347,7 +370,7 @@ def test_phone_shows_the_most_important_thing_first(game_db):
     board = Browser(room=code, view="board")
     conn = db.connect(game_db)
     try:
-        phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+        phone.run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
         assert db.load(conn, code)["phase"] == "REVEAL"
         page = phone.run()
         assert page.index("Your card") < page.index('class="slist"') < page.index("Evidence &amp; statements")
@@ -372,7 +395,7 @@ def test_reveal_shows_a_sealed_envelope_that_stays_open_during_the_session(game_
     phone = Browser()
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
-    phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+    phone.run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
     conn = db.connect(game_db)
     try:
         game = db.load(conn, code)
@@ -399,7 +422,7 @@ def test_only_the_murderer_sees_the_murderer_stamp_and_the_board_never(game_db):
         phone = Browser(room=code)
         phone.run(press=["Join"], **{"Your name": name})
         phones.append(phone)
-    phones[0].run(press=["Start game"], **{"Use the fixed demo case": True})
+    phones[0].run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
     conn = db.connect(game_db)
     try:
         murderer = db.load(conn, code)["case"]["murderer"]
@@ -427,7 +450,7 @@ def test_the_phone_guides_through_one_move_and_explains_mistakes(game_db):
     phone = Browser()
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
-    phone.run(press=["Start game"], **{"Use the fixed demo case": True})
+    phone.run(press=["Start game"], **{"Rehearsal mode: same case and culprit every time": True})
     phone.run(press=["End phase (host)"])                     # on to INVESTIGATION
     page = phone.run()
     assert "Your move." in page and page.count('class="act') >= 3

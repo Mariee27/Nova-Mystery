@@ -565,6 +565,18 @@ def stamp_slams_now(code, me):
     return True
 
 
+REHEARSAL_LABEL = "Rehearsal mode: same case and culprit every time"
+REHEARSAL_HELP = ("Plays case #001 with the same roles and clues every time, so a presentation "
+                  "can be rehearsed. Off: the roles are shuffled, and an AI case is used if one is ready.")
+
+
+def add_demo_suspect_button(code, token, full):
+    if st.button("Add demo suspect", disabled=full,
+                 help="A computer player for presentations. It plays by the same rules "
+                      "and only knows its own card and the public evidence."):
+        act(code, lambda g, on, now: logic.add_bot(g, token, now))
+
+
 def host_controls(code, token, public, me):
     if not me["is_host"]:
         return
@@ -575,11 +587,12 @@ def host_controls(code, token, public, me):
         url = base_url()
         if url:
             st.caption(f"Board for the projector: {url}/?room={code}&view=board")
-        demo = st.checkbox("Use the fixed demo case",
-                           help="Presentation mode: always the same case, so a demo can be rehearsed.")
+        rehearsal = st.checkbox(REHEARSAL_LABEL, help=REHEARSAL_HELP)
+        players = public["players"]
+        full = len(players) >= logic.MAX_PLAYERS
+        missing = logic.MIN_PLAYERS - online
         ready = logic.MIN_PLAYERS <= online <= logic.MAX_PLAYERS
         if not ready:
-            missing = logic.MIN_PLAYERS - online
             if missing > 0:
                 st.warning(f"{online} online – the game needs {logic.MIN_PLAYERS} to {logic.MAX_PLAYERS} "
                            f"players, so {missing} more. Let them join with the room code {code}, "
@@ -588,20 +601,24 @@ def host_controls(code, token, public, me):
                 st.warning(f"{online} online – at most {logic.MAX_PLAYERS} players can play. "
                            "Remove a player below.")
         if st.button("Start game", type="primary", disabled=not ready):
-            seed = logic.DEMO_SEED if demo else None
-            act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=demo))
-        full = len(public["players"]) >= logic.MAX_PLAYERS
-        if st.button("Add demo suspect", disabled=full,
-                     help="A computer player for presentations. It plays by the same rules "
-                          "and only knows its own card and the public evidence."):
-            act(code, lambda g, on, now: logic.add_bot(g, token, now))
-        others = [p["pid"] for p in public["players"] if p["pid"] != me["pid"]]
-        if others:
-            with st.expander("Remove a player"):
-                victim = st.selectbox("Player", others, key="kick_target",
-                                      format_func=lambda pid: name_of(public, pid))
-                if st.button("Remove from room"):
-                    act(code, lambda g, on, now: logic.kick(g, token, victim, now))
+            seed = logic.DEMO_SEED if rehearsal else None
+            act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=rehearsal))
+        # "Add demo suspect" is rendered exactly once per run: in plain sight while players
+        # are missing, otherwise folded into the expander (and not at all once the room is full).
+        if missing > 0:
+            add_demo_suspect_button(code, token, full)
+        others = [p["pid"] for p in players if p["pid"] != me["pid"]]
+        can_add = missing <= 0 and not full
+        if can_add or others:
+            title = "Add or remove players" if can_add else "Remove a player"
+            with st.expander(f"{title} ({len(players)} of {logic.MAX_PLAYERS})"):
+                if can_add:
+                    add_demo_suspect_button(code, token, full)
+                if others:
+                    victim = st.selectbox("Player", others, key="kick_target",
+                                          format_func=lambda pid: name_of(public, pid))
+                    if st.button("Remove from room"):
+                        act(code, lambda g, on, now: logic.kick(g, token, victim, now))
     elif public["phase"] in logic.DURATIONS:
         if st.button("End phase (host)"):
             act(code, lambda g, on, now: logic.end_phase(g, token, on, now))
@@ -985,7 +1002,8 @@ def player_screen(code, token):
     # Your card follows (folded away once you have read it), then the suspects, then the evidence.
     if phase == "LOBBY":
         host_controls(code, token, public, me)   # the host's "Start game" is the main thing here
-        st.info("Keep this page open. The host starts the game.")
+        if not me["is_host"]:
+            st.info("Keep this page open. The host starts the game.")
         show(ui.sealed_file())
         player_suspects(code, me["pid"])         # who has joined so far
         show_rules(expanded=True)
