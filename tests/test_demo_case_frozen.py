@@ -5,6 +5,8 @@ They were set once more on purpose when the clue cards were repaired (the cards 
 culprit away by their kind, and some sightings were physically impossible). Story, roles,
 culprit, crime scene and false alibi stayed exactly the same; only the cards and the place
 clues changed. The story text changed in two words: the campus is in Carcavelos, not Lisbon. AI cases additionally get difficulty balancing (balance.py); case #001 never does.
+The words of the mini-games (story["minigames"]) are not part of the story fingerprint: they
+decide nothing about the case and are checked in tests/test_case_minigames.py.
 """
 import hashlib
 import json
@@ -36,8 +38,12 @@ def fingerprint(data):
     return hashlib.sha256(json.dumps(data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
 
 
+def without_minigames(story):
+    return {key: value for key, value in story.items() if key != "minigames"}
+
+
 def test_the_story_of_case_001_is_unchanged():
-    assert fingerprint(content.DEFAULT_STORY) == STORY_FINGERPRINT
+    assert fingerprint(without_minigames(content.DEFAULT_STORY)) == STORY_FINGERPRINT
 
 
 @pytest.mark.parametrize("n", [4, 5, 6])
@@ -55,7 +61,7 @@ def test_the_demo_switch_starts_exactly_the_same_game_as_before(n):
     for i in range(1, n + 1):
         game = logic.join(game, f"P{i}", f"t{i}", 0)
     game = logic.start(game, "t1", set(range(1, n + 1)), 0, seed=logic.DEMO_SEED, fixed_case=True)
-    assert game["story"] is content.DEFAULT_STORY or fingerprint(game["story"]) == STORY_FINGERPRINT
+    assert game["story"] is content.DEFAULT_STORY or fingerprint(without_minigames(game["story"])) == STORY_FINGERPRINT
     assert fingerprint(game["case"]) == FINGERPRINTS[f"demo-{n}"]
     assert "solution" not in game["case"] and "balance" not in game["case"]
 

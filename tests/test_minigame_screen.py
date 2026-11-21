@@ -78,7 +78,7 @@ def test_solving_unlocks_the_evidence_with_a_reward_and_continue(game_db):
     entries = [e for e in game["log"] if e["kind"] == "search" and e["location"] == place]
     assert len(entries) == 1
     assert "Access granted" in page and "New evidence discovered" in page
-    assert "The shifted-letter note" in page and entries[0]["text"] in page
+    assert "Vale&#x27;s coded note" in page and entries[0]["text"] in page      # case #001's own exhibit
     assert any(name == "nova_chime" for name, _, _ in phone.st.mounted)      # optional sound, once
     page = phone.run()                                                       # the reward stays …
     assert "Access granted" in page and 'class="mg-reward celebrate"' not in page   # … calm now

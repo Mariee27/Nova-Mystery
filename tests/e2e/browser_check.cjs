@@ -65,6 +65,12 @@ try {
   } else if (await page.locator('img.motif').count() > 0) {   // rub to reveal: the picture under the cover
     const width = await page.locator('img.motif').evaluate((img) => img.complete ? img.naturalWidth : 0);
     check(width > 0, 'the picture under the cover loads');
+  } else if (await page.locator('.olist .ev').count() > 0) {   // order the evening: four entries to tap
+    const entries = page.locator('.olist .ev');
+    check(await entries.count() === 4, 'the diary shows four entries');
+    for (let i = 0; i < 4; i++) { await entries.nth(i).click(); await page.waitForTimeout(150); }
+    check(await page.locator('.olist .ev.on').count() === 4 && !(await page.locator('.mg .go').isDisabled()),
+          'tapping numbers every entry and the order can be checked');
   }
 
   for (let i = 0; i < 6 && !(await text()).includes('Who did it?'); i++) await click('End phase (host)');

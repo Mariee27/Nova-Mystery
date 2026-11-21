@@ -90,7 +90,7 @@ def test_cipher_is_a_shift_whose_signature_is_the_victim():
     assert 3 <= key <= 23 and key != 13
     plain = minigames.shift_text(spec["cipher"], -key)
     assert plain.split()[-1] == "VALE"
-    assert minigames._letters(loc) in plain
+    assert plain == "NOBODY PASSES WITHOUT ME VALE"            # case #001's own note
     assert spec["signature_length"] == 4
 
 

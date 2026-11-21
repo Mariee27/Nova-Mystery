@@ -119,13 +119,17 @@ Phases end early when everybody is done, and the host can skip ahead.
 
 In every room created by the app, each place's clue is a **sealed exhibit**. Tap a pin, press
 *Search &lt;place&gt;*, and solve that place's puzzle on your phone; solving it is your move for the round.
+A case has five places and there are five games, so **every place has a different game**; which place gets
+which game changes from game to game. The games are made of things the victim left behind that night, in
+the case's own words (see *Mini-games that fit the case* below).
 
 | Game | What you do | Solvable from |
 |---|---|---|
 | 🔐 Crack the code | Tap a 4-digit code on a keypad | The case timeline: death ≈ 23:30, body found 23:47 (e.g. 17 minutes, then 23 → `1723`) |
-| 🕵️ Rub to reveal | Rub the surface (finger or mouse) to reveal a picture: one of 5 motifs | Just rubbing: 55 % of it |
-| 🧩 Reassemble the photo | Tap two pieces to swap them (9 or 6 pieces of a picture): one of 5 motifs | The picture itself; the hints say where its parts are |
-| 🧠 Decode the note | Turn a cipher wheel until the shifted-letter note reads | The note is signed with the victim's name |
+| 🕵️ Rub to reveal | Rub the dust (finger or mouse) off a find: a note, a printout, a phone screen or a photo | Just rubbing: 55 % of it |
+| 🧩 Reassemble the still | Tap two pieces to swap them (9 or 6 pieces of the night camera's still of the place) | The picture itself; the hints say where its parts are |
+| 🧠 Decode the note | Turn a cipher wheel until the victim's shifted-letter note reads | The note is signed with the victim's name |
+| 🗂️ Order the evening | Tap four torn diary entries in the order they happened | Their times, written in different ways ("quarter to eleven", "10:10 pm", "22:45") |
 
 - **Checked in Python, never on the phone.** The phone only reports what the player did (digits, rubbed cells,
   swaps, wheel setting). `minigames.verify` checks it against data the phone never gets (the code, the cipher
@@ -138,20 +142,22 @@ In every room created by the app, each place's clue is a **sealed exhibit**. Tap
 - **Phone first:** one custom Streamlit component (`st.components.v2`, no new package), pointer events for touch and
   mouse, tap targets of at least 48 px, no horizontal scrolling at 320 px. Sound is off by default (🔇/🔊 in the
   puzzle header) and only starts after a tap, as mobile browsers require. Reduced motion is respected.
-- **Pictures of the NOVA SBE campus**, hand-drawn flat SVG illustrations in `assets/minigames/` (no AI, no photos):
-  - *jigsaw* (`puzzles/`, 300 × 300): the Hovione Atrium under its blue glass roof, the Teresa e Alexandre Soares
-    dos Santos Library, the campus by the sea at sunset, the Main Deck at night, the Grand Auditorium;
-  - *rub to reveal* (`scratchcards/`, 400 × 500): looking up into the atrium's glass roof, the library through its
-    windows at night, a building corner with sun fins and the "nova" lettering, a white staircase with a glass
-    balustrade, Carcavelos beach and its fort seen from the campus.
-
-  The pictures show the campus, never the case, so they fit case #001 and every AI case alike; the story text says
-  where in this case the photo was found. `logic.start` picks the first picture of each kind for the game
-  (`minigames.choose_motifs`) and keeps it in the game, so it stays the same on every reload and for every player;
-  a second place of the same kind shows the next picture, so none repeats within a game. Rehearsal mode keeps the
-  first pictures (Hovione Atrium, atrium roof). Story text, exhibit name and the jigsaw hints belong to each picture;
-  the mechanics, the checks and the rewards are the same for all. New pictures are added to `minigames.MOTIFS`
-  (a picture may still carry `data-slot` texts for case words).
+- **Mini-games that fit the case.** Every case brings the words of its five games (`story["minigames"]`):
+  the victim's locked object, the victim's coded note, the find under the dust (style and lines), the caption
+  of the camera still, and four entries of the victim's last evening. Case #001 has its own
+  (`content.CASE_MINIGAMES`: Vale's grade cabinet, his coded note, his phone, his diary). An AI case writes
+  them in the same request as its story, so they cost no extra AI request. Code checks every piece
+  (`minigames.clean_content`): it names no suspect and none of "murder", "kill", "culprit", "guilty", every
+  line fits its picture, the diary has four entries in time order, at least 10 minutes apart and none after
+  23:30. A piece that fails is replaced by a neutral one that fits every case (`content.MINIGAME_FALLBACK`),
+  so a weak answer never costs the case. The words decide nothing: the answers (the code, the cipher key,
+  the order, the starting order of the pieces) come from code, and the clue a player earns is the same
+  whatever a game shows.
+- **The pictures are drawn from those words** (`exhibits.py`, SVG, every word escaped): the jigsaw is the
+  night camera's still of the place, the campus illustration of the place (`assets/minigames/puzzles/`:
+  Hovione Atrium, Library, Main Deck, Auditorium, otherwise the campus by the sea) with REC, camera number,
+  place, time and the case's caption; the scratch card is a handwritten note, a receipt or printout, a phone
+  screen with messages, or a photo print of the campus (`assets/minigames/scratchcards/`) with a caption.
 - Every puzzle is built from the case seed and the story, so it works for case #001 and AI-written cases, and
   every player in a room gets the same puzzle for the same place. Demo bots skip the puzzles and wait until every
   human has moved, so they never snatch a place from someone who is solving it.

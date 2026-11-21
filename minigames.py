@@ -5,37 +5,41 @@ before it hands out a clue, so evidence can never be unlocked by changing what t
 phone shows – the proof is checked here, in Python, against data the phone never gets
 (the code, the cipher key) or cannot change (the starting order of the puzzle pieces).
 
-Four kinds, spread over the five places of a case:
+The kinds, one per place of a case:
   code     🔐  a keypad lock; the 4-digit code follows from the case timeline
-  scratch  🕵️  rub the coating off a photo print of a NOVA SBE place
-  puzzle   🧩  a torn photo of a NOVA SBE place: tap two pieces to swap them
-  cipher   🧠  a note in shifted letters: turn the cipher wheel until it reads
+  scratch  🕵️  rub the dust off a find of this case: a note, a printout, a phone, a photo
+  puzzle   🧩  a torn still of the night camera at the place: tap two pieces to swap them
+  cipher   🧠  the victim's note in shifted letters: turn the cipher wheel until it reads
+  order    🗂️  the victim's last evening, torn apart: tap the entries in the right order
+
+Five kinds for the five places of a case, so no game comes twice. The words of each game
+come from the case (story["minigames"]; see "what a puzzle shows" below).
 
 Everything is built from the case seed, the story and the fixed times of the night
 (content.MURDER_TIME, content.FOUND_TIME), so it works for case #001 and for every
 AI-written case, and every player of a room gets the same puzzle for the same place.
 """
 
-import functools
-import html
 import math
-import pathlib
 import random
 import re
 
 import content
+import exhibits
 
-KINDS = ("code", "scratch", "puzzle", "cipher")
+KINDS = ("code", "scratch", "puzzle", "cipher", "order")   # five kinds for the five places of a case
 
 KIND_INFO = {
     "code": {"icon": "🔐", "name": "Crack the code", "exhibit": "The locked cash box",
              "verb": "Enter the 4-digit code."},
-    "scratch": {"icon": "🕵️", "name": "Rub to reveal", "exhibit": "The covered photo print",
-                "verb": "Rub the coating away with your finger."},
-    "puzzle": {"icon": "🧩", "name": "Reassemble the photo", "exhibit": "The torn photo",
+    "scratch": {"icon": "🕵️", "name": "Rub to reveal", "exhibit": "The dusty find",
+                "verb": "Rub the dust away with your finger."},
+    "puzzle": {"icon": "🧩", "name": "Reassemble the still", "exhibit": "The torn camera still",
                "verb": "Tap two pieces to swap them."},
     "cipher": {"icon": "🧠", "name": "Decode the note", "exhibit": "The shifted-letter note",
                "verb": "Turn the wheel until the note makes sense."},
+    "order": {"icon": "🗂️", "name": "Order the evening", "exhibit": "The torn diary page",
+              "verb": "Tap the entries in the order they happened."},
 }
 
 SCRATCH_COLS, SCRATCH_ROWS = 10, 14     # the page is checked in this grid of cells
@@ -44,129 +48,136 @@ MAX_SWAPS = 400
 # Faster than a person can solve it: an answer that comes sooner is ignored (seconds after the
 # puzzle opened). A puzzle that runs in the browser can always be faked by someone with the
 # browser's developer tools; this, and the limit on wrong answers, makes it slow and pointless.
-MIN_SECONDS = {"code": 3, "cipher": 3, "scratch": 4, "puzzle": 4}
+MIN_SECONDS = {"code": 3, "cipher": 3, "scratch": 4, "puzzle": 4, "order": 4}
 MAX_PROOF_ITEMS = SCRATCH_COLS * SCRATCH_ROWS
 
 
-# ---------------------------------------------------------------- motifs: what a puzzle shows
+# ---------------------------------------------------------------- what a puzzle shows: the case's own words
 #
-# Each kind can show one of several pictures (assets/minigames/...). Only the picture and its
-# words change; how a puzzle is solved, checked and rewarded never does. logic.start picks a
-# first motif per kind for the game (choose_motifs) and stores it in game["motifs"]; a second
-# place of the same kind gets the next motif, so no picture repeats within a game. Without a
-# stored choice (rehearsal mode, games from before) every place shows the first motif.
-# Pictures are SVG files; a <text data-slot="..."> element in one would get this case's words
-# (fill, escaped). The NOVA SBE pictures need none: they show the campus, not the case.
+# Every case brings one piece of words per kind (story["minigames"], see content.CASE_MINIGAMES):
+# the locked object, the victim's note, the document under the dust, the camera caption, the
+# entries of the victim's evening. An AI case writes its own; clean_content keeps only the
+# pieces that pass the checks below, and every missing piece comes from content.MINIGAME_FALLBACK.
+# The words never decide anything: the answers come from code, and no piece may name a suspect,
+# so a puzzle can never point at anybody.
 
-ASSETS = pathlib.Path(__file__).resolve().parent / "assets" / "minigames"
 PUZZLE_HINT_MOVE = "PIECE"   # the third puzzle hint: replaced on the phone by a concrete move
+ORDER_EVENTS = 4
+EVENT_LIMIT = 60             # characters of one diary entry
+STORY_LIMIT = 260            # characters of a puzzle's story
+EXHIBIT_LIMIT = 40
+CAPTION_LIMIT = 26
+FORBIDDEN = ("murder", "kill", "killer", "culprit", "guilty")
+LATEST_EVENT = content.MURDER_TIME   # the diary ends with the victim's last breath
 
-# Pictures of real places on the NOVA SBE campus, drawn as flat illustrations. The puzzle and the
-# scratch card only show a picture; the clue a player earns never depends on which one it is.
-MOTIFS = {
-    "puzzle": [
-        {"id": "atrium", "file": "puzzles/atrium.svg", "name": "Reassemble the photo",
-         "exhibit": "The torn photo of the Hovione Atrium",
-         "story": "A photo of the Hovione Atrium, found torn into {pieces} pieces in the {location}. "
-                  "Someone kept it for a reason. Put it back together.",
-         "hints": ["The blue glass roof fills the top row; its white grid lines run toward the middle.",
-                   "The window and the name plate sit in the centre; the stone floor and the people are at the bottom."],
-         "slots": {}},
-        {"id": "library", "file": "puzzles/library.svg", "name": "Reassemble the photo",
-         "exhibit": "The torn photo of the library",
-         "story": "A photo of the Teresa e Alexandre Soares dos Santos Library, found torn into {pieces} pieces "
-                  "in the {location}. Put it back together.",
-         "hints": ["The library's name runs across the white façade at the top left; the side of the building is on the right.",
-                   "The lit glass entrance is in the middle of the bottom half; the steps and lamps are below it."],
-         "slots": {}},
-        {"id": "campus", "file": "puzzles/campus.svg", "name": "Reassemble the photo",
-         "exhibit": "The torn photo of the campus",
-         "story": "A photo of the NOVA SBE campus at sunset, found torn into {pieces} pieces in the {location}. "
-                  "Put it back together.",
-         "hints": ["The sunset sky is in the top row; the sea and the sun sit just above the long white building.",
-                   "The school's name runs across the middle; the lawns, paths and trees are at the bottom."],
-         "slots": {}},
-        {"id": "deck", "file": "puzzles/deck.svg", "name": "Reassemble the photo",
-         "exhibit": "The torn photo of the Main Deck",
-         "story": "A photo of the Main Deck at night, found torn into {pieces} pieces in the {location}. "
-                  "Put it back together.",
-         "hints": ["The moon is at the top centre; the white wings close in from the left and the right.",
-                   "The wooden deck widens toward the bottom, where its name plate and a bench are."],
-         "slots": {}},
-        {"id": "auditorium", "file": "puzzles/auditorium.svg", "name": "Reassemble the photo",
-         "exhibit": "The torn photo of the Grand Auditorium",
-         "story": "A photo of the empty Grand Auditorium, found torn into {pieces} pieces in the {location}. "
-                  "Put it back together.",
-         "hints": ["The screen with the NOVA name is at the top centre, between the wooden walls.",
-                   "The stage and the lectern are in the middle; the red rows of seats fan out across the bottom."],
-         "slots": {}},
-    ],
-    "scratch": [
-        {"id": "skylight", "file": "scratchcards/skylight.svg", "name": "Rub to reveal",
-         "exhibit": "The print of the atrium roof", "verb": "Rub the coating away with your finger.",
-         "cover": "RUB TO REVEAL",
-         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
-                  "where it was taken.",
-         "slots": {}},
-        {"id": "library-night", "file": "scratchcards/library-night.svg", "name": "Rub to reveal",
-         "exhibit": "The print of the library at night", "verb": "Rub the coating away with your finger.",
-         "cover": "RUB TO REVEAL",
-         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
-                  "where it was taken.",
-         "slots": {}},
-        {"id": "facade", "file": "scratchcards/facade.svg", "name": "Rub to reveal",
-         "exhibit": "The print of the building's corner", "verb": "Rub the coating away with your finger.",
-         "cover": "RUB TO REVEAL",
-         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
-                  "where it was taken.",
-         "slots": {}},
-        {"id": "stairs", "file": "scratchcards/stairs.svg", "name": "Rub to reveal",
-         "exhibit": "The print of the staircase", "verb": "Rub the coating away with your finger.",
-         "cover": "RUB TO REVEAL",
-         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
-                  "where it was taken.",
-         "slots": {}},
-        {"id": "beach", "file": "scratchcards/beach.svg", "name": "Rub to reveal",
-         "exhibit": "The print of Carcavelos beach", "verb": "Rub the coating away with your finger.",
-         "cover": "RUB TO REVEAL",
-         "story": "A photo print found face down in the {location}, covered in grey coating. Rub it clean to see "
-                  "where it was taken.",
-         "slots": {}},
-    ],
+# How the jigsaw picture of each place is laid out (the camera bars run along the top and bottom).
+STILL_HINTS = {
+    "atrium": ["The camera bar with REC is the top row; the blue glass roof fills the top under it.",
+               "The window and the name plate sit in the centre; the stone floor and the people are at the bottom."],
+    "library": ["The camera bar runs along the top; the library's name is on the white façade below it, left.",
+                "The lit glass entrance is in the middle of the bottom half; the time is in the bottom-right corner."],
+    "campus": ["The camera bar runs along the top; the sea and the sun sit above the long white building.",
+               "The school's name runs across the middle; the lawns, paths and the time are at the bottom."],
+    "deck": ["The camera bar runs along the top; the moon is at the top centre, the white wings left and right.",
+             "The wooden deck widens toward the bottom, where its name plate and the time are."],
+    "auditorium": ["The camera bar runs along the top; the screen with the NOVA name is at the top centre.",
+                   "The stage is in the middle; the red rows of seats and the time fill the bottom."],
 }
 
 
-def choose_motifs(seed):
-    """The first motif of each kind for a new game: random, but fixed by the game's seed."""
-    rng = random.Random(f"{seed}|motifs")
-    return {kind: rng.randrange(len(options)) for kind, options in MOTIFS.items()}
+def _fill(text, location, victim):
+    return str(text).replace("{location}", location).replace("{victim}", victim)
 
 
-def motif(game, kind, variant):
-    """The motif of a place: the game's first motif of this kind, then the next ones for further
-    places of the same kind. Without a stored choice: always the first motif."""
-    options = MOTIFS[kind]
-    chosen = game.get("motifs")
-    if not chosen:
-        return options[0]
-    return options[(chosen.get(kind, 0) + variant) % len(options)]
+def _plain(value, limit):
+    """One line of text within `limit` characters, or None."""
+    if not isinstance(value, str):
+        return None
+    text = " ".join(value.split())
+    if not text or len(text) > limit or re.search(r"[\x00-\x1f<>]", text):
+        return None
+    return text
 
 
-@functools.lru_cache(maxsize=None)
-def _picture(name):
-    return (ASSETS / name).read_text(encoding="utf-8")
+def _names_nobody(text, story):
+    low = text.casefold()
+    roles = [role.casefold() for role in story.get("roles", {})]
+    return not any(word in low for word in FORBIDDEN) and not any(role in low for role in roles)
 
 
-def picture(name, **words):
-    """An SVG asset with its <text data-slot="..."> elements filled (every word escaped)."""
-    def fill(match):
-        slot = match.group(2)
-        return match.group(1) + (html.escape(str(words[slot])) if slot in words else match.group(3)) + match.group(4)
-    return re.sub(r'(<text\b[^>]*\bdata-slot="([a-z_]+)"[^>]*>)(.*?)(</text>)', fill, _picture(name), flags=re.S)
+def _clock(value):
+    """'HH:MM' -> minutes after midnight, or None."""
+    match = re.fullmatch(r"([01]\d|2[0-3]):([0-5]\d)", str(value).strip())
+    return int(match.group(1)) * 60 + int(match.group(2)) if match else None
 
 
-def _words(spec_slots, **values):
-    return {slot: template.format(**values) for slot, template in spec_slots.items()}
+def clean_piece(kind, raw, story):
+    """The piece of words for one kind if it passes every check, else None."""
+    if not isinstance(raw, dict):
+        return None
+    probe = {"location": "Main Deck", "victim": story.get("victim_short", "X")[:20]}
+    piece = {}
+    for key, limit in (("exhibit", EXHIBIT_LIMIT), ("story", STORY_LIMIT)):
+        text = _plain(raw.get(key), limit)
+        if text is None or "{location}" not in text and key == "story" or not _names_nobody(text, story):
+            return None
+        piece[key] = text
+    if kind == "cipher":
+        message = _plain(raw.get("message"), 40)
+        letters = _letters(_fill(message or "", probe["location"], probe["victim"]), 60)
+        if not message or not _names_nobody(message, story) or not 12 <= len(letters) <= 40 or len(letters.split()) < 3:
+            return None
+        piece["message"] = message
+    elif kind == "scratch":
+        style = raw.get("style")
+        title = _plain(raw.get("title") or "-", exhibits.TITLE_LIMIT)
+        lines = raw.get("lines")
+        if style not in exhibits.STYLES or title is None or not isinstance(lines, list):
+            return None
+        lines = [_plain(line, exhibits.LINE_LIMIT) for line in lines[:exhibits.MAX_LINES]]
+        wanted = 1 if style == "photo" else 2
+        if len(lines) < wanted or None in lines or not all(_names_nobody(t, story) for t in lines + [title]):
+            return None
+        if any(len(_fill(t, "", probe["victim"])) > exhibits.LINE_LIMIT for t in lines):
+            return None
+        piece.update(style=style, title="" if title == "-" else title, lines=lines)
+    elif kind == "puzzle":
+        caption = _plain(raw.get("caption"), CAPTION_LIMIT)
+        if caption is None or not _names_nobody(caption, story):
+            return None
+        piece["caption"] = caption
+    elif kind == "order":
+        events = raw.get("events")
+        if not isinstance(events, list) or len(events) != ORDER_EVENTS:
+            return None
+        cleaned, times = [], []
+        for event in events:
+            if not isinstance(event, (list, tuple)) or len(event) != 2:
+                return None
+            minutes, text = _clock(event[0]), _plain(event[1], EVENT_LIMIT)
+            if minutes is None or text is None or not _names_nobody(text, story):
+                return None
+            cleaned.append([str(event[0]).strip(), text])
+            times.append(minutes)
+        if (times != sorted(times) or len(set(times)) != len(times) or times[0] < 18 * 60
+                or times[-1] > _clock(LATEST_EVENT) or min(b - a for a, b in zip(times, times[1:])) < 10):
+            return None
+        piece["events"] = cleaned
+    return piece
+
+
+def clean_content(raw, story):
+    """The pieces of an AI case that pass the checks (a dict kind -> piece, maybe empty)."""
+    raw = raw if isinstance(raw, dict) else {}
+    pieces = {kind: clean_piece(kind, raw.get(kind), story) for kind in KINDS}
+    return {kind: piece for kind, piece in pieces.items() if piece is not None}
+
+
+def piece(game, kind):
+    """The words of one kind for this game: the case's own, else the fallback."""
+    story = _story(game)
+    own = (story.get("minigames") or {}).get(kind)
+    return own if own else content.MINIGAME_FALLBACK[kind]
 
 
 def _minutes(clock):
@@ -194,10 +205,13 @@ def enabled(game):
 
 
 def assignment(game):
-    """location -> (kind, variant). The order of kinds starts at a seeded offset."""
+    """location -> (kind, variant). Every place of a case gets a different kind (a case has five
+    places and there are five kinds); which place gets which starts at a seeded offset. The
+    variant (0 or 1: the code's order, the jigsaw's grid) changes from game to game."""
     locations = _story(game)["locations"]
-    offset = game["case"]["seed"] % len(KINDS)
-    return {loc: (KINDS[(i + offset) % len(KINDS)], i // len(KINDS)) for i, loc in enumerate(locations)}
+    seed = game["case"]["seed"]
+    offset = seed % len(KINDS)
+    return {loc: (KINDS[(i + offset) % len(KINDS)], (seed // len(KINDS) + i) % 2) for i, loc in enumerate(locations)}
 
 
 # ---------------------------------------------------------------- the secret parts
@@ -220,11 +234,9 @@ def _signature(game):
 
 
 def _cipher_plain(game, location, variant):
-    place = _letters(location, 18)
-    sig = _signature(game)
-    if variant % 2 == 0:
-        return f"THE {place} KEY IS UNDER THE MAT {sig}"
-    return f"LEAVE THE {place} DOOR OPEN AFTER ELEVEN {sig}"
+    """The victim's note, signed with the victim's name."""
+    message = _fill(piece(game, "cipher")["message"], location, _story(game)["victim_short"])
+    return f"{_letters(message, 40)} {_signature(game)}"
 
 
 def shift_text(text, shift):
@@ -276,10 +288,12 @@ def spec(game, location):
     clue = next(c for c in game["case"]["location_clues"] if c["location"] == location)
     info = KIND_INFO[kind]
     victim = story["victim_short"]
+    words = piece(game, kind)
     base = {
         "id": f"MG-{number:02d}-{kind}", "kind": kind, "variant": variant, "location": location,
         "evidence_id": clue["id"], "evidence_no": number,
-        "icon": info["icon"], "name": info["name"], "exhibit": info["exhibit"], "verb": info["verb"],
+        "icon": info["icon"], "name": info["name"], "verb": info["verb"],
+        "exhibit": _fill(words["exhibit"], location, victim),
     }
     if kind == "code":
         if variant % 2 == 0:
@@ -289,49 +303,97 @@ def spec(game, location):
             riddle = (f"The hour the body of {victim} was found – then the minutes between "
                       "the last breath and the discovery.")
         base.update(
-            story=f"A steel cash box under a desk in the {location}. Its keypad wants four digits. "
-                  "A note is taped inside the drawer:",
+            story=_fill(words["story"], location, victim),
             riddle=riddle,
             facts=[["Time of death", f"≈ {content.MURDER_TIME}"], ["Body found", content.FOUND_TIME]],
             hints=_code_hints(variant))
     elif kind == "scratch":
-        look = motif(game, kind, variant)
-        words = _words(look["slots"], location=location, PLACE=location.upper(), victim=victim,
-                       murder_time=content.MURDER_TIME)
+        lines = [_fill(line, location, victim) for line in words["lines"]]
         base.update(
-            motif=look["id"], name=look["name"], exhibit=look["exhibit"], verb=look["verb"], cover=look["cover"],
-            story=look["story"].format(location=location),
+            story=_fill(words["story"], location, victim), cover="RUB AWAY THE DUST",
             cols=SCRATCH_COLS, rows=SCRATCH_ROWS, needed=SCRATCH_NEEDED,
-            image=picture(look["file"], **words),
+            image=exhibits.document(words["style"], _fill(words["title"], location, victim), lines, location),
             hints=["Rub with your finger over the whole surface, not just one spot.",
-                   "The picture is spread across the whole surface – work from edge to edge.",
+                   "What is underneath fills the whole surface – work from edge to edge.",
                    f"Rub a little more than half of it ({int(SCRATCH_NEEDED * 100)} %) and it opens."])
     elif kind == "puzzle":
         cols, rows = _puzzle_grid(variant)
         rng = _rng(game, location, "still")
-        look = motif(game, kind, variant)
-        words = _words(look["slots"], location=location, PLACE=location.upper(), victim=victim, number=number,
-                       minute=rng.randint(20, 29), second=rng.randint(10, 59),
-                       icon=content.PLACES.get(location, {}).get("icon", "📷"))
+        clock = f"23:{rng.randint(10, 29):02d}:{rng.randint(10, 59):02d}"
         base.update(
-            motif=look["id"], name=look["name"], exhibit=look["exhibit"],
-            story=look["story"].format(location=location, pieces=cols * rows),
+            story=_fill(words["story"], location, victim).replace("{pieces}", str(cols * rows)),
             cols=cols, rows=rows, start=_puzzle_start(game, location, variant),
-            image=picture(look["file"], **words),
-            hints=look["hints"] + [PUZZLE_HINT_MOVE])   # the move: see first_misplaced
+            image=exhibits.camera_still(location, number, clock, _fill(words["caption"], location, victim)),
+            hints=STILL_HINTS[exhibits.still_picture(location)] + [PUZZLE_HINT_MOVE])   # see first_misplaced
+    elif kind == "order":
+        events = _order_events(game, location)
+        start = _order_start(game, location)
+        items = [{"letter": LETTERS[i], "when": events[true][0], "text": events[true][1]}
+                 for i, true in enumerate(start)]
+        answer = _order_answer(start)
+        base.update(
+            story=_fill(words["story"], location, victim), items=items,
+            hints=["Write every time as a 24-hour clock first: “quarter to eleven” at night is 22:45.",
+                   f"The evening starts with entry {LETTERS[answer[0]]}.",
+                   "The right order: " + ", ".join(LETTERS[i] for i in answer) + "."])
     else:
         sig = _signature(game)
         key = _cipher_key(game, location)
         cipher = shift_text(_cipher_plain(game, location, variant), key)
         base.update(
-            story=f"A folded note slipped under the door of the {location}. The letters are shifted – "
-                  "every letter replaced by one a fixed number of steps further along the alphabet.",
+            story=_fill(words["story"], location, victim),
             cipher=cipher, signature_length=len(sig),
             hints=["Notes like this are signed at the end. Whose name would it be?",
                    f"The last word is {sig}. Turn the wheel until the last word reads {sig}.",
                    f"The first letter of the signature, {cipher.split()[-1][0]}, has to become {sig[0]}: "
                    f"turn the wheel to {key}."])
     return base
+
+
+# ---------------------------------------------------------------- the diary (order)
+
+LETTERS = "ABCDEFGH"
+HOURS = ["twelve", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven"]
+PAST = {5: "five past", 10: "ten past", 15: "quarter past", 20: "twenty past", 25: "twenty-five past",
+        30: "half past", 35: "twenty-five to", 40: "twenty to", 45: "quarter to", 50: "ten to", 55: "five to"}
+
+
+def say_time(clock, style):
+    """'22:45' as written in the diary: 'digital' 22:45, 'pm' 10:45 pm, 'words' quarter to eleven."""
+    hours, minutes = _minutes(clock)
+    if style == "pm":
+        return f"{(hours - 1) % 12 + 1}:{minutes:02d} {'pm' if hours >= 12 else 'am'}"
+    if style == "words" and minutes % 5 == 0:
+        if minutes == 0:
+            return "midnight" if hours == 0 else f"{HOURS[hours % 12]} o'clock"
+        target = hours if minutes <= 30 else hours + 1
+        name = "midnight" if target % 24 == 0 else HOURS[target % 12]
+        return f"{PAST[minutes]} {name}"
+    return f"{hours:02d}:{minutes:02d}"
+
+
+def _order_events(game, location):
+    """[(time as written, text)] in the true order. Every entry's time is written another way."""
+    victim = _story(game)["victim_short"]
+    events = piece(game, "order")["events"]
+    rng = _rng(game, location, "order-styles")
+    styles = ["words", "pm", "digital", "words"]
+    rng.shuffle(styles)
+    return [(say_time(clock, style), _fill(text, location, victim)) for (clock, text), style in zip(events, styles)]
+
+
+def _order_start(game, location):
+    """start[i] = the true position of the entry shown at position i (never already in order)."""
+    rng = _rng(game, location, "order")
+    start = list(range(ORDER_EVENTS))
+    while start == sorted(start):
+        rng.shuffle(start)
+    return start
+
+
+def _order_answer(start):
+    """The positions on screen, tapped in the true order."""
+    return [start.index(true) for true in range(len(start))]
 
 
 def _code_hints(variant):
@@ -377,6 +439,8 @@ def verify(game, location, proof):
         if kind == "cipher":
             shift = proof.get("shift")
             return isinstance(shift, int) and not isinstance(shift, bool) and shift % 26 == _cipher_key(game, location)
+        if kind == "order":
+            return proof.get("order") == _order_answer(_order_start(game, location))
     except (ValueError, TypeError, AttributeError):
         return False
     return False
@@ -407,6 +471,13 @@ def feedback(game, location, proof):
         return f"Still gibberish: with setting {shift % 26} the signature reads “{word}”."
     if kind == "puzzle":
         return "Some pieces are still out of place."
+    if kind == "order":
+        picked = proof.get("order")
+        answer = _order_answer(_order_start(game, location))
+        if not isinstance(picked, list) or sorted(picked) != list(range(len(answer))):
+            return "Tap every entry once, earliest first."
+        right = sum(1 for a, b in zip(picked, answer) if a == b)
+        return f"Not quite – {right} of {len(answer)} entries are in the right place. Check the times again."
     return "Keep rubbing – the writing is not readable yet."
 
 
@@ -419,6 +490,8 @@ def solve(game, location):
         return {"cells": list(range(MAX_PROOF_ITEMS))}
     if kind == "cipher":
         return {"shift": _cipher_key(game, location)}
+    if kind == "order":
+        return {"order": _order_answer(_order_start(game, location))}
     start = _puzzle_start(game, location, variant)
     order, swaps = list(start), []
     for slot in range(len(order)):
