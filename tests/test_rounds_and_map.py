@@ -354,7 +354,7 @@ def test_the_plan_draws_every_building_of_the_official_campus_map():
     tag = 'class="btag" style="left:{}%;top:{}%">{}</span>'
     assert tag.format(*content.BUILDINGS["B"]["tag"], "B") in html    # a hall without a place: its letter
     assert tag.format(*content.BUILDINGS["D"]["tag"], "D") not in html  # Santander Hall's pin shows the D
-    assert 'class="g-lawn"' in html and 'class="g-sand"' in html and 'class="g-sea"' in html and "Floor 0" in html
+    assert 'class="g-lawn"' in html and 'class="g-sand"' in html and 'class="g-sea"' in html and "Floor 0" not in html
     assert html.startswith('<div class="plan2"') and "\n" not in html
 
 

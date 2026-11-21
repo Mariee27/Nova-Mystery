@@ -325,7 +325,7 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
     css = "plan2" + ("" if active else " off") + (" board" if board else "")
     return (f'<div class="{css}" role="group" aria-label="Campus map">{_plan_ground(pinned)}{"".join(pins)}'
             f'<div class="compass" aria-label="North is to the upper left">↖ N</div>'
-            f'<div class="plan-foot">NOVA SBE Carcavelos · Floor 0</div></div>{plan_key()}')
+            f'</div>{plan_key()}')
 
 
 def place_card(name, item=None, entries=(), story=None):
