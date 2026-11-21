@@ -1,4 +1,4 @@
-"""Storage for Murder at NOVA (SQLite).
+"""Storage for NOVA MYSTERY (SQLite).
 
 One row per room holds the whole game as JSON text. Heartbeats ("I am still
 here") live in their own table so that they never touch the game itself.

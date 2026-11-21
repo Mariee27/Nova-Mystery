@@ -1,4 +1,4 @@
-# Interface contract – Murder at NOVA
+# Interface contract – NOVA MYSTERY
 
 This file fixes the function signatures and data shapes. Tests are written against it.
 Rules live in `logic.py`, storage in `db.py`, case building in `generator.py`, texts in `content.py`.

@@ -1,5 +1,5 @@
 [project]
-name = "murder-at-nova"
+name = "nova-mystery"
 version = "1.0.0"
 description = "A five-minute multiplayer murder mystery (Introduction to Programming, Nova SBE)"
 requires-python = ">=3.11"

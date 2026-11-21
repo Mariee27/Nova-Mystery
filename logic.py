@@ -1,4 +1,4 @@
-"""Rules of Murder at NOVA.
+"""Rules of NOVA MYSTERY.
 
 Everything in this file is a pure function: it gets a game (a plain dict),
 returns a NEW game, and never changes the one it was given. If an action is
