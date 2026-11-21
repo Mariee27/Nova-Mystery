@@ -11,6 +11,7 @@ import copy
 import secrets
 import unicodedata
 
+import balance
 import content
 import generator
 import minigames
@@ -237,7 +238,12 @@ def start(game, token, online, now, seed=None, fixed_case=False):
     game["players"] = copy.deepcopy(present)  # players who are offline in the lobby are dropped
     story, note = _story_for_start(game, fixed_case)
     try:
-        game["case"] = generator.build_valid_case(_player_ids(game), seed, story)
+        if story is content.DEFAULT_STORY:
+            # Case #001 is handcrafted and is built exactly as it always was.
+            game["case"] = generator.build_valid_case(_player_ids(game), seed, story)
+        else:
+            # An AI story: tuned to medium difficulty, checked, and with its solution written down.
+            game["case"] = balance.build_balanced_case(_player_ids(game), seed, story)
     except Rejected:
         if story is content.DEFAULT_STORY:
             raise
@@ -528,7 +534,7 @@ def _compute_result(game):
         ending = "wrong" if accused is not None else "escaped"
     exposed = {e.get("implicates") for e in game["log"] if e.get("clue_kind") == "suspicious"}
     secrets_kept = [pid for pid in _player_ids(game) if pid != murderer and pid not in exposed]
-    return {
+    result = {
         "winner": winner,
         "ending": ending,
         "murderer": murderer,
@@ -542,6 +548,12 @@ def _compute_result(game):
         "scene_votes": dict(game.get("scene_votes", {})),  # str(voter pid) -> location
         "secrets_kept": secrets_kept,
     }
+    if "solution" in game["case"]:
+        # AI cases only: why the red herrings pointed where they did, and what cleared them.
+        result["red_herrings"] = [
+            {key: h[key] for key in ("points_at", "explained_by", "cleared_by")}
+            for h in game["case"]["solution"]["red_herrings"]]
+    return result
 
 
 # ---------------------------------------------------------------- demo suspects (bots)

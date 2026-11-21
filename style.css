@@ -512,6 +512,13 @@ a.act:hover, a.act:focus { border-color: var(--act-text); transform: translateY(
 .wd.off { background: #4B5563; }
 
 /* ---------- the campus plan: NOVA SBE floor 0 from above, beach to the right (ui.campus_map) ---------- */
+/* AI cases: the red herrings, explained on the result screen. */
+.rhs { display: grid; gap: .5rem; margin-bottom: 1rem; }
+.rh { border: 1px solid var(--line); border-left: 3px solid #64748b; border-radius: 4px; padding: .55rem .75rem;
+  background: rgba(17,24,39,.6); }
+.rh-who { font-family: var(--serif); font-weight: 800; color: var(--ivory); }
+.rh-why { font-size: .9rem; color: #C9CFDA; margin-top: .15rem; }
+.rh-clear { font: .72rem var(--mono); letter-spacing: .06em; color: var(--muted); margin-top: .25rem; }
 .plan2 { position: relative; width: 100%; aspect-ratio: 1.25 / 1; margin: .4rem 0 .3rem; overflow: hidden;
   background-color: #0F1420; border: 1px solid var(--line); border-radius: 8px;
   background-image: linear-gradient(rgba(42,50,70,.22) 1px, transparent 1px),

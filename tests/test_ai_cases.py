@@ -437,6 +437,11 @@ class SequenceClient(FakeClient):
         self.answer = self.answers.pop(0)
         return super().create(**kwargs)
 
+    @property
+    def author_calls(self):
+        """The requests to the author (the test reading is a separate conversation)."""
+        return [c for c in self.calls if c["messages"][0]["content"] == ai.SYSTEM_PROMPT]
+
 
 def five_suspects():
     answer = copy.deepcopy(FAKE_ANSWER)
@@ -448,8 +453,8 @@ def test_a_story_with_a_slip_gets_one_repair_round():
     client = SequenceClient([five_suspects(), json.dumps(FAKE_ANSWER)])
     story = ai.write_story("fake-key", client=client)
     assert logic.validate_story(story) == []
-    assert len(client.calls) == 2
-    repair = client.calls[1]["messages"][-1]["content"]
+    assert len(client.author_calls) == 2
+    repair = client.author_calls[1]["messages"][-1]["content"]
     assert "exactly 6 roles" in repair            # the model is told what to fix
 
 
@@ -469,7 +474,7 @@ def test_unreadable_twice_raises_ai_error():
 def test_a_good_first_answer_needs_only_one_request():
     client = SequenceClient([json.dumps(FAKE_ANSWER)])
     ai.write_story("fake-key", client=client)
-    assert len(client.calls) == 1
+    assert len(client.author_calls) == 1
 
 
 def test_busy_models_have_fallbacks_and_thinking_is_switched_off():

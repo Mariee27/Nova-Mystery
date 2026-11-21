@@ -696,6 +696,14 @@ def alibi_table(result, characters, name_of):
             f'{"".join(rows)}</table>')
 
 
+def red_herrings(items):
+    """AI cases: who looked guilty but was not, why, and what cleared them."""
+    rows = [f'<div class="rh"><div class="rh-who">{h(item["points_at"])}</div>'
+            f'<div class="rh-why">Why they looked guilty: {h(item["explained_by"])}</div>'
+            f'<div class="rh-clear">{h(item["cleared_by"])}</div></div>' for item in items]
+    return f'<div class="rhs">{"".join(rows)}</div>'
+
+
 def ballot_award(accused, place, murderer, scene, is_killer, caught):
     """A small title for each ballot, just for fun. caught: did most ballots name the killer?"""
     if is_killer:
