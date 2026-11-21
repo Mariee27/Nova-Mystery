@@ -376,13 +376,13 @@ def test_board_intro_never_names_the_real_crime_scene():
     assert content.FOUND_PLACE.replace("'", "&#x27;") in html
 
 
-def test_board_intro_shows_every_player_one_by_one_with_role_and_dossier():
+def test_board_intro_cards_show_every_player_with_role_and_dossier():
     players = [{"pid": 1, "name": EVIL, "role": "The IT Technician"},
                {"pid": 2, "name": "Ana", "role": "The Security Guard"}]
     html = ui.case_intro(ui._story(None), suspects=2, scene=True, players=players)
-    assert 'class="lineup"' in html and html.count('class="mug"') == 2
+    assert 'class="lineup"' in html and html.count('class="lu"') == 2
     assert "<script>" not in html and "&lt;script&gt;" in html
-    assert "Suspect 2 of 2" in html and "The Security Guard" in html
+    assert "#2" in html and "The Security Guard" in html
     assert "Runs the campus servers" in html            # the public dossier line of the IT Technician
     assert ui.lineup([]) == ""                          # no players known: no empty lineup
 
@@ -391,8 +391,9 @@ def test_board_intro_is_over_before_the_reveal_phase_ends():
     """At the next phase the board redraws: the intro must be finished by then, even with 6 players."""
     players = [{"pid": i, "name": f"P{i}", "role": ""} for i in range(1, 7)]
     html = ui.lineup(players)
-    outs = [float(x) for x in re.findall(r"--out:([0-9.]+)s", html)]
-    assert len(outs) == 6 and max(outs) <= ui.SUSPECTS_UNTIL
+    landed = [float(x) for x in re.findall(r"--in:([0-9.]+)s", html)]
+    assert len(landed) == 6 and landed == sorted(landed)       # one after another
+    assert max(landed) <= ui.SUSPECTS_LAST_IN < ui.SUSPECTS_UNTIL   # time to read them all
     assert ui.SUSPECTS_UNTIL < ui.BOARD_INTRO_END < logic.DURATIONS["REVEAL"]
     assert "introOut .8s ease 28s" in ui.page_style()   # style.css uses the same end time
 

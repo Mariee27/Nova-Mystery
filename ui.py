@@ -100,8 +100,10 @@ def crime_scene(story):
 
 # The board intro must be over before the reveal phase ends (logic.DURATIONS["REVEAL"] = 30 s):
 # at the next phase the board redraws and the intro would be cut off.
-SUSPECTS_FROM = 10.8      # seconds: the first suspect appears after the crime scene
-SUSPECTS_UNTIL = 27.6     # the last suspect leaves; every suspect gets an equal share in between
+SUSPECTS_FROM = 10.8      # seconds: the first suspect card flies in after the crime scene
+SUSPECTS_LAST_IN = 21.0   # the last card has landed by then; all stay up to be read
+SUSPECTS_STEP = 3.0       # at most this many seconds between two cards (few players)
+SUSPECTS_UNTIL = 27.6     # the lineup fades out
 BOARD_INTRO_END = 28.0    # the whole intro fades out (style.css: .intro.long)
 
 # A head-and-shoulders silhouette for the mugshot (no image file needed).
@@ -110,24 +112,22 @@ SILHOUETTE = ('<svg class="sil" viewBox="0 0 100 110" aria-hidden="true">'
 
 
 def lineup(players, story=None):
-    """The players one by one, like mugshots: silhouette, name, role and the public dossier line.
-    Only public facts (roles are public once the game runs); who did it stays secret."""
+    """The players as mugshot cards that fly in one after another and stay, so the room can read
+    them all: silhouette, name, role and the public dossier line. Only public facts (roles are
+    public once the game runs); who did it stays secret."""
     if not players:
         return ""
     dossiers = _story(story).get("dossiers", {})
-    per = (SUSPECTS_UNTIL - SUSPECTS_FROM) / len(players)
-    mugs = []
+    step = min(SUSPECTS_STEP, (SUSPECTS_LAST_IN - SUSPECTS_FROM) / max(len(players) - 1, 1))
+    cards = []
     for i, player in enumerate(players):
         role = player.get("role") or ""
-        start = SUSPECTS_FROM + i * per
-        timing = f"--in:{start:.2f}s;--out:{start + per - 0.35:.2f}s"
-        mugs.append(
-            f'<div class="mug" style="{timing}">'
-            f'<div class="photo">{SILHOUETTE}<span class="q">?</span></div>'
-            f'<div class="info"><div class="pk">Suspect {i + 1} of {len(players)}</div>'
+        cards.append(
+            f'<div class="lu" style="--in:{SUSPECTS_FROM + i * step:.2f}s">'
+            f'<div class="photo">{SILHOUETTE}<span class="q">?</span><span class="no">#{i + 1}</span></div>'
             f'<div class="n">{h(player["name"])}</div><div class="r">{h(role)}</div>'
-            f'<div class="bio">{h(dossiers.get(role, ""))}</div></div></div>')
-    return f'<div class="lineup">{"".join(mugs)}</div>'
+            f'<div class="bio">{h(dossiers.get(role, ""))}</div></div>')
+    return f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{"".join(cards)}</div></div>'
 
 
 def _intro(lines, css, start, step, final, red=3, middle=""):

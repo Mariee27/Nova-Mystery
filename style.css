@@ -567,26 +567,29 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
   animation: lineIn .5s ease 6s both; }
 .intro .scene .twist { font-family: var(--serif); font-style: italic; color: var(--ivory); font-size: clamp(1.1rem, 2.6vw, 1.7rem);
   margin-top: 1.2rem; animation: lineIn .6s ease 7.2s both; }
-/* one mugshot at a time: --in and --out come from ui.lineup */
-.intro .mug { position: absolute; display: flex; gap: clamp(1.5rem, 4vw, 3.5rem); align-items: center; text-align: left;
-  max-width: 62rem; padding: 0 1.5rem; opacity: 0;
-  animation: mugIn .45s cubic-bezier(.3,1.3,.5,1) var(--in) forwards, mugOut .3s ease var(--out) forwards; }
+/* the lineup: cards fly in one after another (--in comes from ui.lineup) and stay */
+.intro .lineup { opacity: 0; animation: sceneIn .4s ease 10.5s forwards, sceneOut .4s ease 27.6s forwards; }
+.intro .lineup .lk { font: 700 1.1rem var(--mono); letter-spacing: .4em; text-transform: uppercase; color: var(--blood); margin-bottom: 1.4rem; }
+.intro .lu-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.1rem; max-width: 84rem; padding: 0 1rem; }
+.intro .lu { width: clamp(9rem, 12.5vw, 12.5rem); padding: .7rem .7rem 1rem; background: var(--paper); color: var(--ink);
+  text-align: center; box-shadow: 0 14px 30px rgba(0,0,0,.6); opacity: 0;
+  animation: luIn .7s cubic-bezier(.25,1.35,.5,1) var(--in) forwards; }
+.intro .lu:nth-child(odd) { --tilt: -2deg; }
+.intro .lu:nth-child(even) { --tilt: 2deg; }
+.intro .photo { position: relative; width: 100%; aspect-ratio: 3 / 4; overflow: hidden; background-color: #1b2233;
+  background-image: repeating-linear-gradient(0deg, transparent 0 14px, rgba(245,241,232,.22) 14px 16px); }  /* height chart */
 .intro .photo::after { content: ""; position: absolute; inset: 0; background: #fff; opacity: 0;
-  animation: flash .5s ease-out calc(var(--in) + .1s); }    /* camera flash on the photo */
-.intro .photo { position: relative; flex: none; width: clamp(9rem, 20vw, 15rem); aspect-ratio: 3 / 4; overflow: hidden;
-  border: 3px solid var(--paper); background-color: #1b2233;   /* height chart behind the suspect */
-  background-image: repeating-linear-gradient(0deg, transparent 0 18px, rgba(245,241,232,.22) 18px 20px); }
-.intro .sil { position: absolute; bottom: 0; left: 8%; width: 84%; fill: #05070c; filter: drop-shadow(0 0 6px rgba(212,168,83,.5)); }
-.intro .photo .q { position: absolute; left: 0; right: 0; top: 40%; text-align: center; font: 800 clamp(2rem, 5vw, 3.4rem) var(--serif);
+  animation: flash .5s ease-out calc(var(--in) + .35s); }    /* camera flash when the card lands */
+.intro .sil { position: absolute; bottom: 0; left: 8%; width: 84%; fill: #05070c; filter: drop-shadow(0 0 5px rgba(212,168,83,.5)); }
+.intro .photo .q { position: absolute; left: 0; right: 0; top: 40%; text-align: center; font: 800 clamp(1.6rem, 3vw, 2.6rem) var(--serif);
   color: var(--blood); }
-.intro .mug .pk { font: 700 .9rem var(--mono); letter-spacing: .35em; text-transform: uppercase; color: var(--blood); }
-.intro .mug .n { font-family: var(--serif); font-weight: 800; font-size: clamp(2.2rem, 6vw, 4.2rem); color: var(--ivory); line-height: 1.05; margin: .3rem 0; }
-.intro .mug .r { font: 700 clamp(.85rem, 1.8vw, 1.15rem) var(--mono); letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
-.intro .mug .bio { font-family: var(--serif); font-style: italic; color: #D9D3C4; font-size: clamp(1.05rem, 2.2vw, 1.5rem);
-  line-height: 1.45; margin-top: 1rem; max-width: 34rem; }
-@media (max-width: 640px) { .intro .mug { flex-direction: column; text-align: center; } }
-@keyframes mugIn { from { opacity: 0; transform: translateX(60px); } to { opacity: 1; transform: none; } }
-@keyframes mugOut { to { opacity: 0; transform: translateX(-60px); } }
+.intro .photo .no { position: absolute; top: .4rem; left: .5rem; font: 700 .8rem var(--mono); color: var(--paper); letter-spacing: .1em; }
+.intro .lu .n { font-family: var(--serif); font-weight: 800; font-size: clamp(1.1rem, 1.8vw, 1.5rem); margin-top: .55rem; line-height: 1.1; }
+.intro .lu .r { font: 700 .66rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--act); margin-top: .25rem; }
+.intro .lu .bio { font-family: var(--serif); font-style: italic; font-size: clamp(.78rem, 1.05vw, .92rem); line-height: 1.35;
+  margin-top: .45rem; color: #3B342B; }
+@keyframes luIn { 0% { opacity: 0; transform: translateY(120px) rotate(12deg) scale(.7); }
+  100% { opacity: 1; transform: rotate(var(--tilt)); } }
 @keyframes flash { 0% { opacity: .85; } 100% { opacity: 0; } }
 @keyframes sceneIn { from { opacity: 0; transform: scale(1.08); } to { opacity: 1; transform: none; } }
 @keyframes sceneOut { to { opacity: 0; filter: blur(8px); } }
