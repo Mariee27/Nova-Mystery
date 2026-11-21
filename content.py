@@ -96,7 +96,7 @@ PLACES = {
     "Library": {"letter": "H", "icon": "📚", "x": 55.5, "y": 20.5},
     "Horizon Hall": {"letter": "G", "icon": "🖥️", "x": 70.5, "y": 16},
     "Auditorium": {"letter": "F", "icon": "🎭", "x": 84.5, "y": 35},
-    "Main Deck": {"letter": "I", "icon": "🌉", "x": 40, "y": 36.5, "open_air": True},
+    "Main Deck": {"letter": "I", "icon": "🌉", "x": 40, "y": 36.5},   # the indoor hall of the Gallery
     "Hovione Atrium": {"letter": "A", "icon": "🏛️", "x": 20, "y": 38.5},
     "Santander Hall": {"letter": "D", "icon": "🧪", "x": 60, "y": 55},
     "Beach": {"letter": "≈", "icon": "🌊", "x": 88, "y": 82, "open_air": True},

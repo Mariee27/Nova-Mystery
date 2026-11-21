@@ -16,8 +16,7 @@
 <g stroke="#3e2a1b" stroke-width="3"><path d="M10 40 v150 M26 44 v134 M290 40 v150 M274 44 v134"/></g>
 <!-- the screen -->
 <rect x="96" y="50" width="108" height="62" fill="url(#au-screen)" stroke="#0b0b0b" stroke-width="2"/>
-<text x="150" y="82" font-family="Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="#f3f0e6" text-anchor="middle" letter-spacing="1">NOVA</text>
-<text x="150" y="98" font-family="Helvetica, Arial, sans-serif" font-size="7" letter-spacing="2.2" fill="#a9c1e6" text-anchor="middle">SCHOOL OF BUSINESS &amp; ECONOMICS</text>
+<text x="150" y="86" font-family="Helvetica, Arial, sans-serif" font-size="16" font-weight="bold" fill="#f3f0e6" text-anchor="middle" letter-spacing="1">NOVA SBE</text>
 <polygon points="96,112 204,112 230,160 70,160" fill="#a9c1e6" opacity=".07"/>
 <!-- stage and lectern -->
 <polygon points="48,136 252,136 266,160 34,160" fill="#4a3220"/>

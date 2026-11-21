@@ -1,42 +1,84 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
-<!-- The Main Deck at night: the wooden boardwalk between the white teaching wings, lamps along
-     it, lawns on both sides, the sea at its end. -->
+<!-- The Main Deck at night: the long indoor hall of the Gallery building. Exposed white steel
+     trusses and silver ducts under the roof, the tall glass wall with its white steel lattice on
+     the right, the white mezzanine with the KPMG Gallery lettering and a glass railing at the back,
+     a hanging NOVA SBE banner, white tables with black chairs, blue booths, a polished concrete floor. -->
 <defs>
-  <linearGradient id="dk-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d1730"/><stop offset="1" stop-color="#3b4677"/></linearGradient>
-  <linearGradient id="dk-wood" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#8a5a34"/><stop offset="1" stop-color="#c08a55"/></linearGradient>
-  <linearGradient id="dk-wing-l" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#c4c9d1"/><stop offset="1" stop-color="#eceef1"/></linearGradient>
-  <linearGradient id="dk-wing-r" x1="1" y1="0" x2="0" y2="0"><stop offset="0" stop-color="#b3bac4"/><stop offset="1" stop-color="#e2e5e9"/></linearGradient>
+  <linearGradient id="md-ceil" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3a3f48"/><stop offset="1" stop-color="#5a606b"/></linearGradient>
+  <linearGradient id="md-glass" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#1c2b4a"/><stop offset="1" stop-color="#0f1a30"/></linearGradient>
+  <linearGradient id="md-floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9a9a96"/><stop offset="1" stop-color="#5f605e"/></linearGradient>
+  <linearGradient id="md-wall" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b9aea6"/><stop offset="1" stop-color="#d8cfc8"/></linearGradient>
+  <linearGradient id="md-shine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".35"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
 </defs>
-<rect width="300" height="300" fill="url(#dk-sky)"/>
-<g fill="#f6efd8"><circle cx="60" cy="24" r="1.2"/><circle cx="130" cy="14" r="1"/><circle cx="210" cy="30" r="1.3"/><circle cx="262" cy="16" r="1"/></g>
-<circle cx="150" cy="70" r="10" fill="#f4f1e4" opacity=".85"/>
-<rect x="100" y="104" width="100" height="14" fill="#25375f"/>
-<path d="M120 110 h60" stroke="#f4f1e4" stroke-width="1.2" opacity=".6"/>
-<!-- the two wings, stepping toward the viewer -->
-<polygon points="0,40 104,100 104,170 0,218" fill="url(#dk-wing-l)"/>
-<polygon points="300,40 196,100 196,170 300,218" fill="url(#dk-wing-r)"/>
-<g fill="#24304a"><polygon points="0,92 104,128 104,142 0,118"/><polygon points="300,92 196,128 196,142 300,118"/></g>
-<g fill="#ffcf7a">
-  <polygon points="8,98 30,105 30,114 8,108"/><polygon points="44,110 62,116 62,124 44,119" opacity=".7"/><polygon points="76,120 92,125 92,132 76,128"/>
-  <polygon points="292,98 270,105 270,114 292,108" opacity=".8"/><polygon points="256,110 238,116 238,124 256,119"/><polygon points="224,120 208,125 208,132 224,128" opacity=".6"/>
+<!-- ceiling with the roof structure, vanishing toward the far end (around x 120, y 120) -->
+<rect width="300" height="300" fill="#2a2e36"/>
+<polygon points="0,0 300,0 300,40 160,112 104,118 0,70" fill="url(#md-ceil)"/>
+<g stroke="#e9ecef" stroke-width="3" fill="none">
+  <path d="M0 26 L300 6 M0 52 L250 28 M30 78 L200 62"/>
+  <path d="M20 24 L60 52 L100 20 L140 46 L180 16 L220 40 L260 10" stroke-width="2"/>
+  <path d="M60 52 L70 76 M140 46 L140 68 M220 40 L205 62" stroke-width="2"/>
 </g>
-<g stroke="#8e98a8" stroke-width="1.4"><path d="M0 60 L104 108 M300 60 L196 108"/></g>
-<!-- lawns -->
-<polygon points="0,218 104,170 120,170 0,262" fill="#2f4a2e"/><polygon points="300,218 196,170 180,170 300,262" fill="#2a4229"/>
-<!-- the deck -->
-<polygon points="120,170 180,170 300,300 0,300" fill="url(#dk-wood)"/>
-<g stroke="#6e4426" stroke-width="1.2"><path d="M128 178 H172 M118 188 H182 M104 202 H196 M86 220 H214 M62 244 H238 M30 276 H270"/></g>
-<g stroke="#e6e1d6" stroke-width="2"><path d="M120 170 L0 300 M180 170 L300 300"/></g>
-<g stroke="#e6e1d6" stroke-width="1.4"><path d="M120 162 L0 280 M180 162 L300 280"/><path d="M108 174 v-12 M84 200 v-14 M52 234 v-18 M192 174 v-12 M216 200 v-14 M248 234 v-18"/></g>
-<!-- lamps -->
-<g fill="#1a1f2a"><rect x="98" y="150" width="2" height="30"/><rect x="200" y="150" width="2" height="30"/><rect x="62" y="166" width="3" height="54"/><rect x="235" y="166" width="3" height="54"/></g>
-<g fill="#ffe2a0"><circle cx="99" cy="149" r="3"/><circle cx="201" cy="149" r="3"/><circle cx="63.5" cy="164" r="4.5"/><circle cx="236.5" cy="164" r="4.5"/></g>
-<g fill="#ffe2a0" opacity=".2"><circle cx="63.5" cy="164" r="14"/><circle cx="236.5" cy="164" r="14"/></g>
-<ellipse cx="150" cy="250" rx="70" ry="22" fill="#ffd98f" opacity=".12"/>
-<!-- a bench and a figure -->
-<g fill="#3a2614"><rect x="196" y="236" width="40" height="5"/><rect x="198" y="241" width="3" height="10"/><rect x="231" y="241" width="3" height="10"/></g>
-<g fill="#141820"><circle cx="150" cy="186" r="3.6"/><path d="M146 206 q0 -16 4 -16 q4 0 4 16 z"/></g>
-<rect x="104" y="248" width="92" height="16" rx="2" fill="#1a2a44" opacity=".9"/>
-<text x="150" y="259.5" font-family="Helvetica, Arial, sans-serif" font-size="8.5" font-weight="bold" letter-spacing="2.2" fill="#f2d79a" text-anchor="middle">MAIN DECK</text>
+<g stroke="#c9ced6" stroke-width="7" stroke-linecap="round" opacity=".9"><path d="M0 40 L210 18"/><path d="M10 64 L180 46" stroke-width="5"/></g>
+<g stroke="#8e96a3" stroke-width="1" opacity=".8"><path d="M0 37 L210 15 M10 62 L180 44"/></g>
+<!-- the glass wall on the right with its white steel lattice -->
+<polygon points="196,20 300,0 300,300 196,214" fill="url(#md-glass)"/>
+<g stroke="#eef1f4" stroke-width="2.4" fill="none">
+  <path d="M196 20 L196 214 M232 13 L232 241 M266 7 L266 266 M300 0 L300 300"/>
+  <path d="M196 70 L300 58 M196 125 L300 122 M196 175 L300 186 M196 214 L300 250"/>
+  <path d="M196 20 L232 70 L266 7 M232 70 L300 58 M196 125 L232 70 L266 122 L300 58 M196 125 L232 182 L266 122 L300 186 M232 182 L266 266"/>
+</g>
+<g fill="#ffd98f" opacity=".5"><circle cx="214" cy="100" r="1.5"/><circle cx="250" cy="140" r="1.6"/><circle cx="284" cy="92" r="1.4"/></g>
+<path d="M240 30 L290 150" stroke="#ffffff" stroke-width="5" opacity=".08"/>
+<!-- the left wall and the far end -->
+<polygon points="0,70 104,118 104,196 0,232" fill="url(#md-wall)"/>
+<g fill="#8b7f78"><polygon points="0,104 52,122 52,140 0,124"/><polygon points="62,126 96,138 96,152 62,142"/></g>
+<rect x="104" y="112" width="92" height="84" fill="#cfd3d8"/>
+<!-- the white mezzanine with the lettering and its glass railing -->
+<polygon points="70,112 196,104 196,146 70,150" fill="#f4f5f6"/>
+<rect x="70" y="100" width="126" height="10" fill="#bfe0f0" opacity=".45"/>
+<path d="M70 100 L196 92" stroke="#9aa6b4" stroke-width="2"/>
+<text x="150" y="132" font-family="Helvetica, Arial, sans-serif" font-size="9" font-weight="bold" fill="#8a8f98" text-anchor="middle">KPMG</text>
+<text x="150" y="141" font-family="Helvetica, Arial, sans-serif" font-size="8" fill="#8a8f98" text-anchor="middle">Gallery</text>
+<g fill="#2b3346"><circle cx="164" cy="88" r="3"/><path d="M161 100 q0 -9 3 -9 q3 0 3 9 z"/><circle cx="182" cy="86" r="2.6"/><path d="M179.5 97 q0 -8 2.5 -8 q2.5 0 2.5 8 z"/></g>
+<polygon points="70,150 196,146 196,200 70,204" fill="#e6e8eb"/>
+<g fill="#ffe6b0" opacity=".85"><rect x="84" y="160" width="20" height="30"/><rect x="118" y="158" width="22" height="32"/></g>
+<!-- the hanging banner -->
+<line x1="88" y1="40" x2="88" y2="58" stroke="#aab2bd" stroke-width="1"/><line x1="112" y1="38" x2="112" y2="56" stroke="#aab2bd" stroke-width="1"/>
+<rect x="84" y="56" width="32" height="50" fill="#d6ecf4"/>
+<rect x="84" y="56" width="32" height="7" fill="#2f6fb8"/>
+<text x="100" y="80" font-family="Helvetica, Arial, sans-serif" font-size="8" font-weight="bold" fill="#1d2b49" text-anchor="middle">NOVA</text>
+<text x="100" y="90" font-family="Helvetica, Arial, sans-serif" font-size="8" font-weight="bold" fill="#1d2b49" text-anchor="middle">SBE</text>
+<!-- the polished floor with reflections -->
+<polygon points="0,232 70,204 196,200 300,250 300,300 0,300" fill="url(#md-floor)"/>
+<g fill="url(#md-shine)" opacity=".7"><rect x="84" y="204" width="20" height="40"/><rect x="118" y="202" width="22" height="46"/></g>
+<g fill="#4a6fae" opacity=".35"><ellipse cx="160" cy="268" rx="4" ry="2"/><ellipse cx="60" cy="280" rx="3" ry="1.6"/></g>
+<!-- rows of white tables with black chairs, smaller toward the back -->
+<g fill="#f4f4f2">
+  <rect x="88" y="206" width="70" height="3"/><rect x="66" y="216" width="92" height="4"/>
+  <rect x="34" y="232" width="122" height="5"/><rect x="4" y="256" width="130" height="7"/>
+</g>
+<g stroke="#f4f4f2" stroke-width="1.4"><path d="M92 209 v5 M154 209 v5 M70 220 v7 M152 220 v7 M40 237 v10 M150 237 v10 M10 263 v16 M128 263 v16"/></g>
+<g fill="#16181d">
+  <rect x="96" y="211" width="4" height="6"/><rect x="110" y="211" width="4" height="6"/><rect x="124" y="211" width="4" height="6"/><rect x="138" y="211" width="4" height="6"/>
+  <rect x="74" y="222" width="6" height="8"/><rect x="94" y="222" width="6" height="8"/><rect x="114" y="222" width="6" height="8"/><rect x="134" y="222" width="6" height="8"/>
+  <rect x="44" y="239" width="8" height="11"/><rect x="72" y="239" width="8" height="11"/><rect x="100" y="239" width="8" height="11"/><rect x="128" y="239" width="8" height="11"/>
+  <rect x="18" y="265" width="11" height="16"/><rect x="52" y="265" width="11" height="16"/><rect x="86" y="265" width="11" height="16"/>
+</g>
+<!-- people at the tables -->
+<g fill="#2b3346"><circle cx="117" cy="208" r="3"/><path d="M113 218 q0 -8 4 -8 q4 0 4 8 z"/><circle cx="57" cy="226" r="4"/><path d="M52 240 q0 -11 5 -11 q5 0 5 11 z"/></g>
+<!-- the blue booths on the right -->
+<g>
+  <polygon points="208,214 256,226 256,262 208,248" fill="#2f63c4"/><polygon points="208,214 214,210 262,222 256,226" fill="#4a7fe0"/>
+  <polygon points="262,230 300,240 300,284 262,272" fill="#2a58b0"/><polygon points="262,230 268,226 300,234 300,240" fill="#4a7fe0"/>
+  <rect x="220" y="236" width="24" height="3" fill="#f4f4f2"/>
+</g>
+<g fill="#2b3346"><circle cx="232" cy="226" r="3.4"/><path d="M228 238 q0 -9 4 -9 q4 0 4 9 z"/></g>
+<!-- a big plant on the left -->
+<g><rect x="16" y="200" width="12" height="16" fill="#3a3f48"/>
+  <g fill="#2f5d34"><ellipse cx="22" cy="190" rx="12" ry="9"/><ellipse cx="15" cy="176" rx="9" ry="8"/><ellipse cx="28" cy="170" rx="8" ry="10"/><ellipse cx="20" cy="156" rx="7" ry="9"/></g>
+  <g fill="#41784a"><ellipse cx="26" cy="182" rx="6" ry="5"/><ellipse cx="14" cy="164" rx="5" ry="5"/></g></g>
+<!-- the name plate -->
+<rect x="104" y="252" width="92" height="16" rx="2" fill="#1a2a44" opacity=".92"/>
+<text x="150" y="263.5" font-family="Helvetica, Arial, sans-serif" font-size="8.5" font-weight="bold" letter-spacing="2.2" fill="#f2d79a" text-anchor="middle">MAIN DECK</text>
 <rect width="300" height="300" fill="none" stroke="#0d1a2e" stroke-width="6"/>
 </svg>

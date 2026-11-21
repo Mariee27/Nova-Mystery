@@ -43,7 +43,7 @@ observer's own place) or the witness account, and one more card: an observation,
 account. The innocents spend the evening in pairs (three together if needed) who see each other around
 23:30; one or two of them are alone. So at the start the murderer is never the only one without an alibi:
 a lone innocent looks just as suspicious until the keycard log of their place (a night camera on the
-Beach or the Main Deck) is found and clears them. The murderer's claimed place has a log too – it shows
+Beach) is found and clears them. The murderer's claimed place has a log too – it shows
 they never came.
 
 | Phase | Time | What happens |
@@ -155,7 +155,9 @@ the case's own words (see *Mini-games that fit the case* below).
   whatever a game shows.
 - **The pictures are drawn from those words** (`exhibits.py`, SVG, every word escaped): the jigsaw is the
   night camera's still of the place, the campus illustration of the place (`assets/minigames/puzzles/`:
-  Hovione Atrium, Library, Main Deck, Auditorium, otherwise the campus by the sea) with REC, camera number,
+  Hovione Atrium, Library, the Main Deck hall with the KPMG Gallery, Grand Auditorium; for the Beach,
+  Santander Hall and Horizon Hall the middle of a campus print: the beach and the fort, a staircase, the
+  building corner with its sun fins) with REC, camera number,
   place, time and the case's caption; the scratch card is a handwritten note, a receipt or printout, a phone
   screen with messages, or a photo print of the campus (`assets/minigames/scratchcards/`) with a caption.
 - Every puzzle is built from the case seed and the story, so it works for case #001 and AI-written cases, and

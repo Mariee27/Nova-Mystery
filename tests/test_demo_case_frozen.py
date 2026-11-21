@@ -4,7 +4,8 @@ places or solution. These fingerprints guard it.
 They were set once more on purpose when the clue cards were repaired (the cards gave the
 culprit away by their kind, and some sightings were physically impossible). Story, roles,
 culprit, crime scene and false alibi stayed exactly the same; only the cards and the place
-clues changed. The story text changed in two words: the campus is in Carcavelos, not Lisbon. AI cases additionally get difficulty balancing (balance.py); case #001 never does.
+clues changed. The story text changed in two words: the campus is in Carcavelos, not Lisbon. The Main Deck became an indoor hall (keycard log instead of night camera): only the wording of
+those clues changed, in the cases marked by the changed fingerprints. AI cases additionally get difficulty balancing (balance.py); case #001 never does.
 The words of the mini-games (story["minigames"]) are not part of the story fingerprint: they
 decide nothing about the case and are checked in tests/test_case_minigames.py.
 """
@@ -23,11 +24,11 @@ FINGERPRINTS = {
     "story001-4-7": "705795f9638bb913",
     "story001-4-12345": "74971e2cfad399c0",
     "demo-5": "5c96cfdaacc07f3a",
-    "story001-5-1": "7b7c7712562d9d83",
+    "story001-5-1": "74d65229d6b54113",
     "story001-5-7": "bc081b9465c18175",
     "story001-5-12345": "bba6e10794f49d0a",
-    "demo-6": "7b7514cff1592f55",
-    "story001-6-1": "ac2875708971b025",
+    "demo-6": "354dafb879c8d3a6",
+    "story001-6-1": "5f1e2283beca2529",
     "story001-6-7": "2022961f623c8c70",
     "story001-6-12345": "9310613691b05d93",
 }

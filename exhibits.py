@@ -4,7 +4,7 @@ Pure functions: text in, SVG text out. Every word is escaped, so a text written 
 can never become markup. Nothing here knows the solution of a case.
 
 - camera_still: the jigsaw picture. The campus illustration of the place (assets/minigames/
-  puzzles) with the overlay of a security camera: REC, camera number, place, time, caption.
+  puzzles, or the middle of a print from scratchcards) with the overlay of a security camera: REC, camera number, place, time, caption.
 - document: the picture under the scratch-off coating. A handwritten note, a printout, a
   phone screen or a photo print of the campus with a caption on it.
 """
@@ -16,10 +16,12 @@ import re
 
 ASSETS = pathlib.Path(__file__).resolve().parent / "assets" / "minigames"
 
-# Which campus illustration shows which place (the others show the campus by the sea).
+# Which campus illustration the night camera of each place shows: a jigsaw picture
+# (puzzles/, 300 × 300), or the middle of a photo print (scratchcards/, 400 × 500).
 STILL_PICTURE = {"Hovione Atrium": "atrium", "Library": "library", "Main Deck": "deck",
                  "Auditorium": "auditorium"}
-STILL_DEFAULT = "campus"
+STILL_FROM_PRINT = {"Beach": "beach", "Santander Hall": "stairs", "Horizon Hall": "facade"}
+STILL_DEFAULT = "facade"
 PHOTO_PICTURE = {"Hovione Atrium": "skylight", "Library": "library-night", "Main Deck": "facade",
                  "Beach": "beach"}
 PHOTO_DEFAULT = "stairs"
@@ -52,12 +54,21 @@ def _inner(svg):
 # ---------------------------------------------------------------- the jigsaw
 
 def still_picture(location):
-    return STILL_PICTURE.get(location, STILL_DEFAULT)
+    return STILL_PICTURE.get(location) or STILL_FROM_PRINT.get(location, STILL_DEFAULT)
+
+
+def _still_base(location):
+    name = still_picture(location)
+    if name in STILL_PICTURE.values():
+        return _asset(f"puzzles/{name}.svg")
+    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">'
+            '<svg width="300" height="300" viewBox="0 50 400 400" preserveAspectRatio="xMidYMid slice">'
+            + _inner(_asset(f"scratchcards/{name}.svg")) + '</svg></svg>')
 
 
 def camera_still(location, camera, clock, caption):
     """A security-camera still of the place, 300 × 300."""
-    base = _asset(f"puzzles/{still_picture(location)}.svg")
+    base = _still_base(location)
     overlay = (
         '<defs><pattern id="cm-scan" width="4" height="4" patternUnits="userSpaceOnUse">'
         '<rect width="4" height="1" fill="#000" opacity=".18"/></pattern></defs>'

@@ -76,12 +76,16 @@ STILL_HINTS = {
                "The window and the name plate sit in the centre; the stone floor and the people are at the bottom."],
     "library": ["The camera bar runs along the top; the library's name is on the white façade below it, left.",
                 "The lit glass entrance is in the middle of the bottom half; the time is in the bottom-right corner."],
-    "campus": ["The camera bar runs along the top; the sea and the sun sit above the long white building.",
-               "The school's name runs across the middle; the lawns, paths and the time are at the bottom."],
-    "deck": ["The camera bar runs along the top; the moon is at the top centre, the white wings left and right.",
-             "The wooden deck widens toward the bottom, where its name plate and the time are."],
-    "auditorium": ["The camera bar runs along the top; the screen with the NOVA name is at the top centre.",
+    "auditorium": ["The camera bar runs along the top; the screen with NOVA SBE is at the top centre.",
                    "The stage is in the middle; the red rows of seats and the time fill the bottom."],
+    "deck": ["The camera bar and the white steel roof beams are at the top; the glass wall with its lattice is on the right.",
+             "The white gallery with KPMG Gallery is in the centre; tables, chairs and the blue booths fill the bottom."],
+    "beach": ["The camera bar runs along the top; the sunset sky and the sun are in the top half, the fort on the right.",
+              "The sea and the sand cross the middle; the terrace railing is at the bottom."],
+    "stairs": ["The camera bar runs along the top; the tall window is top right, the gallery with a figure top left.",
+               "The white stairs climb from the bottom right; the FLOOR 1 sign is on the left wall."],
+    "facade": ["The camera bar runs along the top; the white sun fins stand on the left, the sky is top right.",
+               "The nova lettering runs up the white corner in the middle; the sun and the sea are bottom right."],
 }
 
 
