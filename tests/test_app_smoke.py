@@ -434,6 +434,8 @@ def test_only_the_board_plays_the_crime_scene_moment_at_the_start(game_db):
         phone.run(press=["Join"], **{"Your name": name})
         phones.append(phone)
     phones[0].run(press=["Start game"], **{"Use the fixed demo case": True})
-    assert 'class="scene"' in board_tab.run()                  # REVEAL: the board shows who was found where
+    intro = board_tab.run()                                    # REVEAL: the board shows who died where ...
+    assert 'class="scene"' in intro
+    assert 'class="lineup"' in intro and all(name in intro for name in ["Ana", "Ben", "Caro", "Dev"])
     assert 'class="scene"' not in board_tab.run()              # only once per session
     assert 'class="scene"' not in phones[1].run()              # phones keep the short intro

@@ -546,16 +546,17 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .iv-a { font-family: var(--serif); font-size: 1.15rem; color: var(--paper); }
 .iv-w { font-family: var(--serif); font-style: italic; color: var(--muted); }
 
-/* ---------- board intro: crime-scene moment (lines 0–4.6 s, scene 5–9.4 s, title 9.9 s, out 12.6 s) ---------- */
-.intro.long { animation: introOut 1s ease 12.6s forwards; }
-.intro.long .final { animation: titleIn 1.8s ease 9.9s forwards; }
-.intro.long .glitch { animation: glitch .25s steps(2) 4.4s 2, glitch .25s steps(2) 9.3s 2; }
-.intro .scene { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center; opacity: 0; animation: sceneIn .6s ease 5s forwards, sceneOut .5s ease 9.4s forwards; }
-.intro .scene::before { content: ""; position: absolute; inset: 0; opacity: 0;   /* police lights, red and blue */
+/* ---------- board intro: crime scene (5–8.4 s), the suspects (8.8–12.6 s), title 13.2 s, out 15.8 s ---------- */
+.intro.long { animation: introOut 1s ease 15.8s forwards; }
+.intro.long .final { animation: titleIn 1.8s ease 13.2s forwards; }
+.intro.long .glitch { animation: glitch .25s steps(2) 4.4s 2, glitch .25s steps(2) 12.5s 2; }
+.intro .scene, .intro .lineup { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; opacity: 0; }
+.intro .scene { animation: sceneIn .6s ease 5s forwards, sceneOut .4s ease 8.4s forwards; }
+.intro .scene::before { content: ""; position: absolute; inset: 0; opacity: 0;   /* police lights */
   background: radial-gradient(circle at 15% 50%, rgba(185,28,28,.55), transparent 45%),
               radial-gradient(circle at 85% 50%, rgba(37,99,235,.55), transparent 45%);
-  animation: siren .8s steps(1) 5s 5; }
+  animation: siren .8s steps(1) 5s 4; }
 .intro .tape { position: absolute; top: 18%; left: -10%; right: -10%; padding: .45rem 0; background: #F2C230; color: #111;
   font: 700 clamp(.7rem, 1.6vw, 1rem) var(--mono); letter-spacing: .25em; white-space: nowrap; overflow: hidden;
   transform: rotate(-4deg); box-shadow: 0 6px 20px rgba(0,0,0,.6); animation: tapeIn .5s ease-out 5.1s both; }
@@ -563,9 +564,21 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .intro .scene .sk { font: 700 1.15rem var(--mono); letter-spacing: .4em; text-transform: uppercase; color: var(--blood); }
 .intro .scene .victim { font-family: var(--serif); font-weight: 800; font-size: clamp(2rem, 6vw, 4.2rem); color: var(--ivory); margin: .3rem 0; }
 .intro .scene .where { font: clamp(1rem, 2.4vw, 1.5rem) var(--mono); color: var(--gold); letter-spacing: .08em;
-  animation: lineIn .5s ease 6.2s both; }
+  animation: lineIn .5s ease 5.8s both; }
 .intro .scene .twist { font-family: var(--serif); font-style: italic; color: var(--ivory); font-size: clamp(1.1rem, 2.6vw, 1.7rem);
-  margin-top: 1.2rem; animation: lineIn .6s ease 7.3s both; }
+  margin-top: 1.2rem; animation: lineIn .6s ease 6.6s both; }
+/* the lineup: height lines behind the suspects, like a police photo wall */
+.intro .lineup { animation: sceneIn .5s ease 8.8s forwards, sceneOut .4s ease 12.6s forwards;
+  background: repeating-linear-gradient(0deg, transparent 0 46px, rgba(245,241,232,.08) 46px 48px); }
+.intro .lineup .lk { font: 700 1.15rem var(--mono); letter-spacing: .4em; text-transform: uppercase; color: var(--blood); margin-bottom: 1.4rem; }
+.intro .lu-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.2rem; max-width: 70rem; padding: 0 1rem; }
+.intro .lu { width: 12rem; padding: 1.3rem .7rem; border: 1px solid rgba(245,241,232,.25); background: rgba(20,26,40,.85);
+  opacity: 0; animation: luIn .45s cubic-bezier(.3,1.4,.5,1) calc(9.2s + var(--i) * .3s) both; }
+.intro .lu .face { width: 4.2rem; height: 4.2rem; margin: 0 auto .6rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--paper); color: var(--ink); font: 700 1.7rem var(--serif); }
+.intro .lu .n { font-family: var(--serif); font-weight: 800; font-size: 1.45rem; color: var(--ivory); }
+.intro .lu .r { font: .78rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); margin-top: .3rem; }
+@keyframes luIn { from { opacity: 0; transform: translateY(30px) scale(.9); } to { opacity: 1; transform: none; } }
 @keyframes sceneIn { from { opacity: 0; transform: scale(1.08); } to { opacity: 1; transform: none; } }
 @keyframes sceneOut { to { opacity: 0; filter: blur(8px); } }
 @keyframes siren {   /* red left + blue right, then swapped: like a police light bar */

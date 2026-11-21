@@ -116,7 +116,8 @@ def play_case_intro(code, public, scene=False):
     key = f"case_intro_{code}"
     if public["phase"] == "REVEAL" and not st.session_state.get(key):
         st.session_state[key] = True
-        show(ui.case_intro(public["story"], suspects=len(public["players"]), scene=scene))
+        players = public["players"] if scene else None      # the board introduces the suspects
+        show(ui.case_intro(public["story"], suspects=len(public["players"]), scene=scene, players=players))
 
 
 def case_kicker(public):

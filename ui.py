@@ -61,12 +61,13 @@ NUMBER_WORDS = {4: "Four", 5: "Five", 6: "Six"}
 SUSPECT_RANGE = re.compile(r"4 to 6 suspects", re.IGNORECASE)
 
 
-def case_intro(story=None, suspects=None, scene=False):
+def case_intro(story=None, suspects=None, scene=False, players=None):
     """The shorter intro of one case (about 8 seconds), on the board and every phone at the start.
 
     suspects: how many play in this room. Then "4 to 6 suspects." becomes e.g. "Five suspects."
-    scene: the board adds a crime-scene moment (who was found where) before the title,
-    so everybody looks up at the projector together. About 13 seconds then.
+    scene: the board adds a crime-scene moment (who died, where the body was found) and a
+    lineup of the players with their roles before the title, so everybody looks up at the
+    projector together. About 16 seconds then.
     """
     story = _story(story)
     if suspects in NUMBER_WORDS:
@@ -79,7 +80,7 @@ def case_intro(story=None, suspects=None, scene=False):
              '<div class="tag">Your file is waiting.</div>')
     if scene:
         return _intro(story["intro_lines"], " case short long", 0.3, 0.65, final,
-                      middle=crime_scene(story))
+                      middle=crime_scene(story) + lineup(players or []))
     return _intro(story["intro_lines"], " case short", 0.3, 0.65, final)
 
 
@@ -93,6 +94,18 @@ def crime_scene(story):
             f'<div class="where">📍 {h(story["found_place"])}</div>'
             f'<div class="twist">But this is not where {h(story["victim_short"])} died.</div>'
             f'{tape.format(" b")}</div>')
+
+
+def lineup(players):
+    """The suspects of this room, one card each, like a police lineup. Name and role only:
+    roles are public once the game runs (public_view), who did it stays secret."""
+    if not players:
+        return ""
+    cards = "".join(
+        f'<div class="lu" style="--i:{i}"><div class="face">{initial(p["name"])}</div>'
+        f'<div class="n">{h(p["name"])}</div><div class="r">{h(p.get("role") or "")}</div></div>'
+        for i, p in enumerate(players))
+    return f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{cards}</div></div>'
 
 
 def _intro(lines, css, start, step, final, red=3, middle=""):

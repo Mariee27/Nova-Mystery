@@ -372,3 +372,13 @@ def test_board_intro_never_names_the_real_crime_scene():
     # Only where the body was FOUND (public); where the victim died is decided per game
     # and lives in game["case"], which the story never sees.
     assert content.FOUND_PLACE.replace("'", "&#x27;") in html
+
+
+def test_board_intro_lineup_shows_every_player_with_role_escaped():
+    players = [{"pid": 1, "name": EVIL, "role": "The IT Technician"},
+               {"pid": 2, "name": "Ana", "role": "The Security Guard"}]
+    html = ui.case_intro(ui._story(None), suspects=2, scene=True, players=players)
+    assert 'class="lineup"' in html and html.count('class="lu"') == 2
+    assert "<script>" not in html and "&lt;script&gt;" in html
+    assert "The Security Guard" in html and 'style="--i:1"' in html
+    assert ui.lineup([]) == ""                  # no players known: no empty lineup
