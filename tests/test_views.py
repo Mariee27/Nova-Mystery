@@ -11,7 +11,7 @@ from conftest import (
     online_all, own_clue_ids, pids_of, plant_spot, started_in, token_of, cast_votes,
 )
 
-PUBLIC_KEYS = {"code", "phase", "deadline", "players", "log", "searched",
+PUBLIC_KEYS = {"code", "phase", "deadline", "demo", "players", "log", "searched",
                "result", "abort_reason", "characters"}
 PUBLIC_PLAYER_KEYS = {"pid", "name", "role", "online", "is_host", "acted", "voted"}
 PRIVATE_KEYS = {"pid", "name", "is_host", "phase", "acted", "voted", "role", "intro",

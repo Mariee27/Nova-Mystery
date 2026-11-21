@@ -32,7 +32,7 @@ different every time.
 1. Someone opens the app on a laptop connected to a projector and clicks **Create room**. The board
    shows a 4-letter room code and a QR code.
 2. Every player scans the QR code (or enters the code) and picks a name. The first player is the host.
-3. The host picks the case (case #001 in rehearsal mode, case #001 with the roles shuffled, or a new
+3. The host picks the case (case #001 with a new culprit every game, or a new
    AI-written case) and starts the game. Each phone now shows a private file: a role, an alibi, a secret,
    and two private cards. One player is secretly the murderer: their file carries a big red MURDERER
    stamp (each phone is only seen by its owner).
@@ -94,7 +94,7 @@ Phases end early when everybody is done, and the host can skip ahead.
 
 - **Real-time multiplayer** for 4–6 players on their own phones, plus a public projector board.
 - **A new case every game.** The generator draws the murderer, the crime scene, roles, alibis and clues.
-  A demo switch gives a fixed case for rehearsing.
+  A demo ("Play a demo") always plays the same case with the same culprit, for rehearsing a presentation.
 - **A new story for every room, written by AI (optional).** While the players join, an AI model writes a new
   NOVA-campus story: victim, five locations, six suspects with motives, secrets and rumors, and the endings.
   The AI only writes words. Who did it, where, and which clue points to whom is still decided by the generator,

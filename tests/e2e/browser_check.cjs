@@ -27,9 +27,9 @@ const goStep = async (params) => {
 
 try {
   await page.goto(`${base}/?demo=1`); await settle(7000);
-  check((await text()).includes('Which case?'), 'the host chooses the case in the lobby');
+  check(!(await text()).includes('Which case?') && (await text()).includes('the same culprit every time'),
+        'a demo plays the fixed demo case without a choice');
   check(!(await text()).includes('Keep this page open'), 'the host is not told to wait for the host');
-  await page.getByText('Rehearsal mode: same case and culprit every time').click(); await settle();
   await click('Start game');
   await click('Open your file'); await settle(3000);
   const stamp = await page.locator('.dstamp').innerText();

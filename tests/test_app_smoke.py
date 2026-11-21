@@ -230,11 +230,11 @@ def test_full_game_through_the_screens(game_db):
         # only the host has a start button: pressing it elsewhere does nothing
         phones[1].run(press=["Start game"])
         assert phase() == "LOBBY"
-        host.run(press=["Start game"], **{"Which case?": "rehearsal"})
+        assert "Which case?" not in host.run()                # no AI key: case #001, nothing to choose
+        host.run(press=["Start game"])
         assert phase() == "REVEAL"
         game = db.load(conn, code)
         murderer_pid = game["case"]["murderer"]
-        assert game["case"]["seed"] == logic.DEMO_SEED
 
         for phone in phones:
             page = phone.run()
@@ -527,26 +527,53 @@ def test_interrogations_are_out_loud_and_an_old_question_link_goes_back_to_your_
     assert "Question each other face to face" in page and "Your answer" not in page
 
 
+def host_of_a_room():
+    """A room made on the board, and the phone of its first player (the host)."""
+    board = Browser()
+    board.run(press=["Create room"])
+    code = board.st.query_params["room"]
+    phone = Browser(room=code)
+    phone.run(press=["Join"], **{"Your name": "Host"})
+    return code, phone
+
+
 def test_the_ai_is_only_asked_when_the_host_picks_an_ai_case(game_db, monkeypatch):
     """Creating rooms and demos never uses the AI quota; picking "A new case written by the AI" does."""
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test-never-used")
     asked = []
     monkeypatch.setattr(ai, "write_story", lambda *args, **kwargs: asked.append(args) or {})
-    phone = Browser()
-    phone.run(press=["Play a demo"])
-    board = Browser()
-    board.run(press=["Create room"])
+    demo = Browser()
+    demo.run(press=["Play a demo"])
+    code, phone = host_of_a_room()
     conn = db.connect(game_db)
     try:
-        code = phone.st.query_params["room"]
         assert db.load(conn, code).get("ai_case") is None
-        assert db.load(conn, board.st.query_params["room"]).get("ai_case") is None
+        assert db.load(conn, demo.st.query_params["room"]).get("ai_case") is None
         page = phone.run()
         assert "A new case written by the AI" in page                    # offered, not started
         phone.run(**{"Which case?": "ai"})                               # picked: now it writes
         assert db.load(conn, code)["ai_case"]["status"] in ("writing", "failed", "ready")
     finally:
         conn.close()
+
+
+def test_a_demo_always_plays_the_same_case_and_offers_no_choice(game_db, monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test-never-used")
+    murderers = set()
+    conn = db.connect(game_db)
+    try:
+        for _ in range(3):
+            phone = Browser()
+            phone.run(press=["Play a demo"])
+            page = phone.run()
+            assert "Which case?" not in page and "the same culprit every time" in page
+            phone.run(press=["Start game"])
+            game = db.load(conn, phone.st.query_params["room"])
+            assert game["case"]["seed"] == logic.DEMO_SEED and game["story"]["source"] == "fixed"
+            murderers.add(game["case"]["murderer"])
+    finally:
+        conn.close()
+    assert len(murderers) == 1
 
 
 def test_when_the_ai_limit_is_reached_the_host_is_told_and_can_play_case_001(game_db, monkeypatch):
@@ -557,9 +584,9 @@ def test_when_the_ai_limit_is_reached_the_host_is_told_and_can_play_case_001(gam
     try:
         for i in range(db.MAX_AI_CASES_PER_HOUR):
             assert db.claim_ai_case(conn, time.time())
-        phone = Browser()
-        phone.run(press=["Play a demo"])
-        code = phone.st.query_params["room"]
+        code, phone = host_of_a_room()
+        for name in ("Ben", "Caro", "Dev"):
+            Browser(room=code).run(press=["Join"], **{"Your name": name})
         page = phone.run(**{"Which case?": "ai"})
         assert "No AI case (the AI limit for this hour is reached)." in page and asked == []
         phone.run(press=["Start game"], **{"Which case?": "ai"})        # waits: the AI case failed

@@ -364,7 +364,7 @@ def start_demo():
     try:
         with open_db() as conn:
             code = db.create_room(conn, now, minigames=True)
-            game = db.apply(conn, code, lambda g: logic.join(g, "Detective", token, now))
+            game = db.apply(conn, code, lambda g: logic.join(logic.as_demo(g), "Detective", token, now))
             db.heartbeat(conn, code, logic.private_view(game, token)["pid"], now)
             for _ in range(DEMO_BOTS):
                 db.apply(conn, code, lambda g: logic.add_bot(g, token, now))
@@ -578,15 +578,14 @@ def stamp_slams_now(code, me):
     return True
 
 
-REHEARSAL_LABEL = "Rehearsal mode: same case and culprit every time"
-CASE_CHOICES = {     # what the host can play; the AI is only asked when the host picks "ai"
-    "rehearsal": REHEARSAL_LABEL,
-    "shuffled": "Case #001 with the roles shuffled",
+CASE_CHOICES = {     # what the host of a room can play; the AI is only asked when the host picks "ai"
+    "shuffled": "Case #001 – a new culprit every game",
     "ai": "A new case written by the AI",
 }
-CASE_HELP = ("Rehearsal mode plays case #001 with the same roles and clues every time, so a presentation "
-             "can be rehearsed. With the roles shuffled, case #001 gets a new culprit. The AI writes a "
+CASE_HELP = ("Case #001 gets a new culprit, new roles and new clues every game. The AI writes a "
              "brand-new case for this room; that takes one to three minutes.")
+# A demo room ("Play a demo", ?demo=1) always plays case #001 the same way: same culprit, same
+# roles, same clues (logic.DEMO_SEED), so a presentation can be rehearsed. Its host gets no choice.
 
 
 def add_demo_suspect_button(code, token, full):
@@ -596,15 +595,18 @@ def add_demo_suspect_button(code, token, full):
         act(code, lambda g, on, now: logic.add_bot(g, token, now))
 
 
-def case_choice(code, me):
+def case_choice(code, me, demo):
     """The host picks the case. Returns (choice, waiting): waiting is True while an AI case
-    the host asked for is not ready yet (Start waits for it, or the host switches back)."""
+    the host asked for is not ready yet (Start waits for it, or the host switches back).
+    A demo room has no choice: it always plays the fixed demo case."""
+    if demo:
+        st.caption("Demo: case #001, the same culprit every time.")
+        return "demo", False
     has_ai = ai.settings(setting) is not None
-    choices = ["rehearsal", "shuffled"] + (["ai"] if has_ai else [])
-    choice = st.radio("Which case?", choices, index=1, format_func=CASE_CHOICES.get, help=CASE_HELP,
-                      key=f"case-{code}")
     if not has_ai:
-        st.caption("AI-written cases need an OpenRouter key (see the README).")
+        return "shuffled", False
+    choice = st.radio("Which case?", ["shuffled", "ai"], format_func=CASE_CHOICES.get, help=CASE_HELP,
+                      key=f"case-{code}")
     if choice != "ai":
         return choice, False
     status = me.get("ai_status")
@@ -635,7 +637,7 @@ def host_controls(code, token, public, me):
         url = base_url()
         if url:
             st.caption(f"Board for the projector: {url}/?room={code}&view=board")
-        choice, waiting = case_choice(code, me)
+        choice, waiting = case_choice(code, me, public.get("demo", False))
         players = public["players"]
         full = len(players) >= logic.MAX_PLAYERS
         missing = logic.MIN_PLAYERS - online
@@ -649,9 +651,9 @@ def host_controls(code, token, public, me):
                 st.warning(f"{online} online – at most {logic.MAX_PLAYERS} players can play. "
                            "Remove a player below.")
         if st.button("Start game", type="primary", disabled=not ready or waiting):
-            rehearsal = choice == "rehearsal"
-            seed = logic.DEMO_SEED if rehearsal else None
-            act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=rehearsal,
+            demo = choice == "demo"
+            seed = logic.DEMO_SEED if demo else None
+            act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=demo,
                                                      use_ai=choice == "ai"))
         # "Add demo suspect" is rendered exactly once per run: in plain sight while players
         # are missing, otherwise folded into the expander (and not at all once the room is full).
