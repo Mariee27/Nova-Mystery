@@ -211,3 +211,10 @@ def test_the_diary_shows_plain_24_hour_times():
     g = game_with(seed=4)
     s = next(s for s in minigames.specs(g) if s["kind"] == "order")
     assert sorted(i["when"] for i in s["items"]) == [e[0] for e in content.CASE_MINIGAMES["order"]["events"]]
+
+
+def test_every_place_has_its_own_camera_picture_and_hints():
+    for place in content.PLACES:
+        picture = exhibits.still_picture(place)
+        assert len(minigames.STILL_HINTS[picture]) == 2, place
+    assert len({exhibits.still_picture(p) for p in content.PLACES}) == len(content.PLACES)   # no two alike
