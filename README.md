@@ -38,16 +38,18 @@ different every time.
 | Phase | Time | What happens |
 |---|---|---|
 | Reveal | 30 s | Everybody reads their card. |
-| Investigation | 3 rounds, each up to 5 min | Each round every player has exactly **one** action: search a place on the **campus map**, interrogate someone in public, or share one of their clues. A round ends early when everybody has moved and every question of the round is answered. The murderer may additionally plant one fake clue. |
-| Discussion | 3 min | Players talk and answer open questions (lying is allowed). |
+| Investigation | 3 rounds, each up to 5 min | Each round every player has exactly **one** action in the app: search a place on the **campus map** or share one of their clues. Interrogations happen **out loud**: the players question each other face to face. A round ends early when everybody has moved or has nothing left to search or share. The murderer may additionally plant one fake clue. |
+| Discussion | 3 min | Players question each other in person and argue (lying is allowed). |
 | Vote | 1 min | Everybody votes for a suspect and the crime scene. |
 
-**The round, step by step.** The phone first shows "Your move." with three big action cards
-(a fourth, "Plant a false clue", only on the murderer's phone). Each card leads to its own screen with a
+**The round, step by step.** The phone first shows "Your move." with two big action cards
+(a third, "Plant a false clue", only on the murderer's phone). Each card leads to its own screen with a
 "Change action" link back: *Search a place* (tap a pin on the campus plan, read the paper card, press
-"Search <place>"), *Interrogate* (tap a player, optionally an exhibit to confront them with, write the
-question, "Ask in public") or *Share a clue* (tap one of your private clues, "Share with everyone").
+"Search <place>") or *Share a clue* (tap one of your private clues, "Share with everyone").
 Afterwards "Move made." shows your move with a LOGGED stamp and who is still choosing.
+There is no interrogation in the app: the players sit in one room and question, accuse and
+defend their alibis out loud. A player with nothing left to search or share is told so and is
+not waited for.
 
 **The campus map.** A simplified plan of NOVA SBE Carcavelos, floor 0, seen from above: buildings are
 rectangles, all positions are percent of the map (`content.BUILDINGS`, `content.PLACES`), so phone and
@@ -58,9 +60,9 @@ start – the crime scene and one other – and open in rounds 2 and 3. The boar
 was searched in, never who searched it, so the murderer's planted clue does not stand out.
 
 **The board during the rounds** shows room code, round and a big timer; the campus plan; the detectives
-(moved or still choosing, never which action); the evidence board (newest first) and the latest
-interrogation with its answer. It never shows private cards, private clues or the solution.
-Every rule (one move per round, locked or searched places, questions of at least 5 characters, only your
+(moved or still choosing, never which action) and the evidence board (newest first).
+It never shows private cards, private clues or the solution.
+Every rule (one move per round, locked or searched places, only your
 own clues, only players of your room) is checked on the server, with a test for the allowed and the
 refused case (`tests/test_rounds_and_map.py`).
 | Result | – | The murderer and all cards are revealed. Detectives win only if the murderer got strictly the most votes. |
@@ -197,13 +199,13 @@ together with a check of all dependencies for known vulnerabilities.
 
 | File | Tests | What it checks |
 |---|---|---|
-| `tests/test_rules.py` | 124 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, abort, planting rules, removing players. Rejected calls must leave the game unchanged. |
+| `tests/test_rules.py` | 108 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, abort, planting rules, removing players. Rejected calls must leave the game unchanged. |
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
-| `tests/test_views.py` | 19 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card. |
+| `tests/test_views.py` | 20 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card. |
 | `tests/test_db.py` | 13 | Storage: transactions, rollback on rejection, two players acting at the same moment, heartbeats, room codes, room limit. |
 | `tests/test_minigames.py` | 85 | The four puzzles: solvable from the story, the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
 | `tests/test_minigame_screen.py` | 7 | The puzzles on the phone: seal on the place card, wrong code unlocks nothing, hints one by one, reward until *Continue* (also after the round ends), progress survives reruns, "Too late." |
-| `tests/test_app_smoke.py` | 2 | Plays a whole game through every screen with a stand-in for Streamlit, including escaped user input and invalid room codes. |
+| `tests/test_app_smoke.py` | 14 | Plays a whole game through every screen with a stand-in for Streamlit, including escaped user input and invalid room codes. |
 
 The appearance in a real browser is checked by hand.
 
@@ -258,9 +260,9 @@ and advances the timers.
   who is guilty, and its text is checked (length, no giveaway words, no names inside clues) and shown as plain
   text like everything else.
 - **No personal data is stored:** no accounts, passwords or e-mail addresses. Only a chosen name per room. Rooms are deleted after 24 hours.
-- **Access control:** every action checks the player's token, the phase, and the role (host only, murderer only, target of the question only).
+- **Access control:** every action checks the player's token, the phase, and the role (host only, murderer only).
   Before the result, the board never contains the murderer, secrets or private clues.
-- **Input validation:** names are limited to 1–20 characters and must be unique, questions and answers to 1–140 characters,
+- **Input validation:** names are limited to 1–20 characters and must be unique,
   and control characters are removed. All user text is escaped before it is shown, so HTML and Markdown are shown as plain text.
   Room codes from the URL must be exactly 4 valid letters. SQL always uses placeholders.
 - **Abuse limits:** at most 6 players per room, the host can remove strangers from the lobby, and at most 200 new rooms can be created per hour.
@@ -306,7 +308,7 @@ minigames.py            evidence mini-games: puzzles, hints and the Python-side 
 minigame_ui.py          the mini-games on the phone (HTML fragments and one custom component)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (492 tests)
+tests/                  pytest suite (471 tests)
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip / Streamlit Cloud

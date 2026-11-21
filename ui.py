@@ -4,7 +4,7 @@ Every function here is pure: it gets plain data and returns an HTML string.
 No Streamlit, no database. app.py shows the strings with st.markdown(..., unsafe_allow_html=True).
 
 Safety rule: every piece of text that goes into the HTML passes through h() first,
-so names, questions and answers typed by players are always shown as plain text.
+so names and other text typed by players are always shown as plain text.
 The strings never contain blank lines, so Markdown never touches the HTML.
 
 Functions that show story texts take the public story of the game (logic.story_view).
@@ -94,7 +94,7 @@ def teaser():
         ("Players", "4 to 6, each on their own phone"),
         ("Board", "One shared screen – laptop or projector"),
         ("Your file", "Role, alibi, secret and two private clues"),
-        ("Your move", "One per round: search, interrogate or share"),
+        ("Your move", "One per round: search or share – questions out loud"),
         ("The goal", "Name the culprit – and where it happened"),
         ("Duration", f"{logic.ROUNDS} rounds, 15 to 30 minutes"),
     ]
@@ -475,27 +475,6 @@ def evidence_board(log, name_of, story=None):
     return f'<div class="lbl">Evidence board</div><div class="ebs">{"".join(cards)}</div>'
 
 
-def interrogation(log, name_of, role_of):
-    """The latest interrogation: who asks whom, with which evidence, the question and the answer."""
-    asked = next((e for e in reversed(log) if e["kind"] == "question"), None)
-    if asked is None:
-        return ""
-    by_id = {e["id"]: e for e in log}
-    reply = next((e for e in log if e["kind"] == "answer" and e.get("question_id") == asked["id"]), None)
-    who = f'{name_of(asked["by"])} ({role_of(asked["by"])}) asks {name_of(asked["target"])} ({role_of(asked["target"])})'
-    evidence = by_id.get(asked.get("evidence"))
-    confront = f", confronting them with Exhibit {evidence['id']}" if evidence else ""
-    if reply is not None:
-        answer = f'<div class="iv-a">“{h(reply["text"])}”</div>'
-    elif asked.get("answered"):
-        answer = f'<div class="iv-w">{h(name_of(asked["target"]))} gave no answer.</div>'
-    else:
-        answer = f'<div class="iv-w">{h(name_of(asked["target"]))} is typing an answer…</div>'
-    live = "Live" if reply is None and not asked.get("answered") else "Latest"
-    return (f'<div class="box iv"><div class="lbl red">Interrogation · {live}</div>'
-            f'<div class="iv-h">{h(who + confront)}:</div><div class="iv-q">“{h(asked["text"])}”</div>{answer}</div>')
-
-
 # ---------------------------------------------------------------- evidence feed
 
 RELIABILITY = {   # shown only after the case is closed (clue_kind is hidden before)
@@ -534,18 +513,6 @@ def log_entry(entry, name_of, entries_by_id, story=None):
         return (f'<div class="ev statement">{_stamp(entry)}'
                 f'<div class="h">Exhibit {entry["id"]} · Witness statement · {h(name_of(entry["by"]))}</div>'
                 f'<div class="b">{text}</div></div>')
-    if kind == "question":
-        confront = ""
-        evidence = entries_by_id.get(entry.get("evidence"))
-        if evidence is not None:
-            confront = (f'<div class="confront">Confronted with Exhibit {evidence["id"]}: '
-                        f'“{h(evidence["text"])}”</div>')
-        return (f'<div class="ev quest"><div class="h">Interrogation #{entry["id"]} · '
-                f'{h(name_of(entry["by"]))} → {h(name_of(entry["target"]))}</div>'
-                f'{confront}<div class="b">“{text}”</div></div>')
-    if kind == "answer":
-        return (f'<div class="ev reply"><div class="h">Statement of {h(name_of(entry["by"]))} '
-                f'· re #{entry["question_id"]}</div><div class="b">“{text}”</div></div>')
     return f'<div class="ev note">— {text}</div>'
 
 
@@ -574,17 +541,6 @@ def pinned_note(entry, name_of, newest=False, story=None):
         css = "typed"
         body = (f'<div class="cap">Exhibit {number} · Witness statement</div>'
                 f'<div class="b">{text}</div><div class="sig">– {h(name_of(entry["by"]))}</div>')
-    elif kind == "question":   # an interrogation: a handwritten note
-        css = "hand"
-        confront = ""
-        if entry.get("evidence") is not None:
-            confront = f'<div class="ref">re Exhibit {h(entry["evidence"])}</div>'
-        body = (f'<div class="cap">#{number} · {h(name_of(entry["by"]))} → {h(name_of(entry["target"]))}</div>'
-                f'{confront}<div class="b">“{text}”</div>')
-    elif kind == "answer":     # the answer: handwritten too, on white paper
-        css = "hand reply"
-        body = (f'<div class="cap">{h(name_of(entry["by"]))} answers #{h(entry["question_id"])}</div>'
-                f'<div class="b">“{text}”</div>')
     else:                      # a message from the game itself
         css = "slip"
         body = f'<div class="b">{text}</div>'
