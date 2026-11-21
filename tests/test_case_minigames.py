@@ -218,3 +218,20 @@ def test_every_place_has_its_own_camera_picture_and_hints():
         picture = exhibits.still_picture(place)
         assert len(minigames.STILL_HINTS[picture]) == 2, place
     assert len({exhibits.still_picture(p) for p in content.PLACES}) == len(content.PLACES)   # no two alike
+
+
+RUBBISH = [None, 1, "x", [], [1, "a", None, 2], [[1], [2]], [True, False, 0, 1], [0, 1, 2, 3, 4],
+           list(range(10_000)), {"a": 1}, 10 ** 100, -1, 3.5, "0123"]
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_rubbish_from_a_phone_never_crashes_the_check(seed):
+    g = game_with(seed=seed)
+    for s in minigames.specs(g):
+        for key in ("order", "code", "shift", "swaps", "cells"):
+            for value in RUBBISH:
+                proof = {key: value}
+                ok = minigames.verify(g, s["location"], proof)
+                # a huge wheel setting can still be right: the wheel goes round (setting % 26)
+                assert ok is False or (key == "shift" and isinstance(value, int))
+                assert isinstance(minigames.feedback(g, s["location"], proof), str)

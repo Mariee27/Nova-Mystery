@@ -11,6 +11,7 @@ Three kinds of screens, chosen by the link:
 """
 
 import io
+import logging
 import os
 import threading
 import time
@@ -60,16 +61,24 @@ def db_target():
     return setting("DATABASE_URL") or DB_PATH
 
 
+DB_DOWN = "The game cannot reach its database right now. Wait a moment, then reload the page."
+
+
 @contextmanager
 def open_db():
     """This thread's database connection (reused, see db.shared). After a database error the
-    connection is dropped, so the next call starts a fresh one."""
+    connection is dropped, so the next call starts a fresh one, and the player sees a short
+    message instead of the error: database errors name the server and the database user. The
+    details go to the server log only."""
     target = db_target()
     try:
         yield db.shared(target)
     except Exception as problem:
         if type(problem).__module__.split(".")[0] in ("sqlite3", "psycopg"):
             db.forget(target)
+            logging.getLogger("nova").exception("database error")
+            st.error(DB_DOWN)
+            st.stop()
         raise
 
 
