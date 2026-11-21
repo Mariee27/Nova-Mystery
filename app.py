@@ -273,12 +273,8 @@ def show_result(public):
         st.markdown("### Every alibi, checked")
         show(ui.alibi_table(result, characters, who))
     with right:
-        st.markdown("### Who the room accused")
-        labels = [(str(p["pid"]), p["name"]) for p in public["players"]]
-        show(ui.bars(result["tally"], labels, hit=str(result["murderer"])))
+        # The ballots above already show who accused whom and where, so no vote bars here.
         st.markdown("### Where it happened")
-        places = [(loc, loc) for loc in story["locations"]]
-        show(ui.bars(result.get("scene_tally", {}), places, hit=result["murder_location"]))
         show(ui.campus_map(public["searched"], scene=result["murder_location"], story=story,
                            view=public["map"]))
     st.markdown("### The evidence, re-examined")
