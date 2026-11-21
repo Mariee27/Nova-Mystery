@@ -79,9 +79,9 @@ pillow==13.0.0
     #   streamlit
 protobuf==7.36.2
     # via streamlit
-psycopg==3.2.9
+psycopg==3.3.9
     # via nova-mystery
-psycopg-binary==3.2.9 ; implementation_name != 'pypy'
+psycopg-binary==3.3.9 ; implementation_name != 'pypy'
     # via psycopg
 pyarrow==26.0.1
     # via streamlit
