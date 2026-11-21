@@ -382,3 +382,8 @@ def test_board_intro_lineup_shows_every_player_with_role_escaped():
     assert "<script>" not in html and "&lt;script&gt;" in html
     assert "The Security Guard" in html and 'style="--i:1"' in html
     assert ui.lineup([]) == ""                  # no players known: no empty lineup
+
+
+def test_board_intro_capitalises_a_lowercase_found_place_of_an_ai_case():
+    story = dict(ui._story(None), found_place="the locked rector's office")
+    assert "📍 The locked rector&#x27;s office" in ui.crime_scene(story)

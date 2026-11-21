@@ -88,10 +88,12 @@ def crime_scene(story):
     """The crime-scene moment of the board's intro: police tape, the victim and where the
     body was found. Only public story facts: the real crime scene stays secret."""
     tape = '<div class="tape{}">' + " · ".join(["CRIME SCENE – DO NOT CROSS"] * 4) + "</div>"
+    place = story["found_place"]
+    place = place[:1].upper() + place[1:]     # AI cases write it in lowercase ("the boathouse")
     return (f'<div class="scene">{tape.format("")}'
             '<div class="sk">Body found</div>'
             f'<div class="victim">{h(story["victim"])}</div>'
-            f'<div class="where">📍 {h(story["found_place"])}</div>'
+            f'<div class="where">📍 {h(place)}</div>'
             f'<div class="twist">But this is not where {h(story["victim_short"])} died.</div>'
             f'{tape.format(" b")}</div>')
 
