@@ -209,14 +209,7 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .ev.exhibit .b { font-family: var(--mono); font-size: .86rem; }
 .ev.statement { background: rgba(31,41,55,.8); border: 1px solid rgba(212,168,83,.3); }
 .ev.statement .h { color: var(--gold); }
-.ev.quest { background: rgba(17,24,39,.85); border: 1px solid rgba(156,163,175,.2); border-left: 3px solid #64748b; }
-.ev.quest .h { color: #cbd5e1; }
-.ev.quest .b { font-family: var(--serif); font-style: italic; font-size: 1.05rem; }
-.ev.reply { background: rgba(17,24,39,.6); border: 1px dashed rgba(156,163,175,.25); margin-left: 1.6rem; }
-.ev.reply .h { color: var(--muted); }
 .ev.note { background: transparent; border: none; color: var(--muted); font-family: var(--mono); font-size: .78rem; padding: .2rem 0; }
-.ev .confront { margin: .1rem 0 .5rem; padding: .45rem .6rem; border-left: 2px solid var(--blood); background: rgba(185,28,28,.08);
-  font-family: var(--mono); font-size: .76rem; color: #fecaca; }
 .ev .stamp { right: .8rem; top: .5rem; font-size: .62rem; padding: .15rem .45rem; border-width: 2px; mix-blend-mode: normal; }
 .st-grey { color: #6b7280; } .st-gold { color: #a16207; } .st-red { color: var(--blood); } .st-mute { color: #6b7280; opacity: .6; }
 
@@ -247,11 +240,6 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .pin.typed { background: repeating-linear-gradient(#f3ecdc 0 1.3rem, #d9cfb8 1.3rem calc(1.3rem + 1px)); }
 .pin.typed .b { font-family: var(--mono); font-size: .8rem; line-height: 1.3rem; }
 .pin.typed .sig { margin-top: .3rem; text-align: right; font-family: var(--mono); font-size: .72rem; color: #4b4b4b; }
-/* Interrogation and answer: handwritten notes. */
-.pin.hand { background: #fde68a; }
-.pin.hand .b { font-family: var(--hand); font-size: 1.35rem; line-height: 1.1; color: #1e3a8a; }
-.pin.hand .ref { font-family: var(--mono); font-size: .62rem; color: var(--blood); margin-bottom: .2rem; }
-.pin.hand.reply { background: #f8fafc; }
 .pin.slip { background: #e5e7eb; }
 .pin.slip .b { font-family: var(--mono); font-size: .72rem; color: #374151; }
 /* Only the newest note drops in. Older notes have no animation, so they stay still. */
@@ -338,7 +326,9 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .reveal.lost .w { color: #f87171; }
 .culprit { display: flex; gap: 1rem; align-items: center; justify-content: center; margin: 1rem auto; padding: 1rem 1.2rem; max-width: 560px;
   border: 1px solid var(--blood); background: rgba(185,28,28,.1); border-radius: 3px; animation: fadeUp .8s ease 1.6s both; }
-.culprit .face { width: 64px; height: 64px; font-size: 1.6rem; }
+.culprit .face { width: 64px; height: 64px; font-size: 1.6rem; box-shadow: 0 0 28px rgba(185,28,28,.45); }
+/* The circle is wrapped in a .suspect.guilty box for its colours: no square glow behind it. */
+.culprit .suspect { box-shadow: none; }
 .culprit .who { text-align: left; }
 .culprit .who .n { font-family: var(--serif); font-size: 1.5rem; font-weight: 700; }
 .culprit .who .r { font-family: var(--mono); font-size: .72rem; letter-spacing: .18em; color: #fca5a5; text-transform: uppercase; }
@@ -362,6 +352,47 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .alibis .bad { font-family: var(--mono); font-size: .7rem; color: #f87171; letter-spacing: .12em; }
 .alibis .sec { color: var(--muted); font-size: .8rem; }
 
+/* ---------- how everyone voted ---------- */
+/* Each ballot flips in after the one before it (--i comes from ui.vote_table). */
+.ballots { margin: .3rem 0 1.6rem; }
+/* Upright cards side by side: all ballots fit in one row on the board, two per row on a phone. */
+.ballot-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: .8rem; }
+.ballot-grid .ballot { margin: 0; flex-direction: column; flex-wrap: nowrap; align-items: center; text-align: center;
+  gap: .45rem; padding: .9rem .7rem .8rem; border-left-width: 1px; border-top: 4px solid #4b5563; }
+.ballot-grid .ballot.right { border-top-color: #22c55e; }
+.ballot-grid .ballot.killer { border-top-color: var(--blood); }
+.ballot-grid .ballot .tag { margin-left: 0; }
+.ballot-grid .ballot .arrow::after { content: " ↓"; }
+.ballot-grid .ballot .arrow + .who { font-size: 1.15rem; }     /* the accused stands out */
+.ballot-grid .ballot .where { flex-basis: auto; }
+.ballot-grid .ballot .award { margin-top: auto; width: 100%; }        /* titles line up at the bottom */
+@media (max-width: 640px) { .ballot-grid { grid-template-columns: repeat(2, 1fr); } }
+.ballots .sum { font-family: var(--mono); font-size: .68rem; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); margin-bottom: .5rem; }
+.ballot { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; margin: .45rem 0; padding: .6rem .75rem;
+  background: rgba(31,41,55,.75); border: 1px solid rgba(156,163,175,.18); border-left: 4px solid #4b5563; border-radius: 3px;
+  animation: ballotIn .5s cubic-bezier(.2,.8,.2,1) calc(var(--i) * .35s + .3s) both; }
+.ballot .who { display: inline-flex; align-items: center; gap: .4rem; font-weight: 600; }
+.ballot .face { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: inline-grid; place-items: center;
+  background: var(--gold); color: #1b1b1b; font-family: var(--serif); font-size: .85rem; }
+.ballot .arrow { font-family: var(--mono); font-size: .62rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); }
+.ballot .arrow::after { content: " →"; }
+.ballot .tag { margin-left: auto; font-family: var(--mono); font-size: .62rem; letter-spacing: .16em; text-transform: uppercase;
+  padding: .15rem .45rem; border: 1px solid currentColor; border-radius: 2px; color: #9ca3af; }
+.ballot .where { flex-basis: 100%; font-size: .8rem; color: #cbd5e1; }
+.ballot.right { border-left-color: #22c55e; background: rgba(22,101,52,.25); }
+.ballot.right .tag { color: #86efac; }
+.ballot.killer { border-left-color: var(--blood); background: rgba(127,29,29,.35); box-shadow: 0 0 24px rgba(185,28,28,.25); }
+.ballot.killer .tag { color: #fca5a5; }
+.ballot.killer > .who:first-child .face { background: var(--blood); color: var(--ivory); }
+.ballot.none { opacity: .6; }
+.ballot.killer { animation-delay: calc(var(--i) * .35s + 1.5s); }   /* a pause before the punchline */
+.ballot .award { flex-basis: 100%; margin-top: .2rem; padding-top: .45rem; border-top: 1px dashed rgba(245,241,232,.15);
+  font-family: var(--serif); font-style: italic; font-size: 1rem; color: var(--ivory); }
+@keyframes ballotIn {
+  from { opacity: 0; transform: translateX(-18px) rotate(-1.5deg) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
 .bars { margin: .3rem 0 1rem; }
 .bar { display: grid; grid-template-columns: minmax(110px, 30%) 1fr 2.2rem; gap: .6rem; align-items: center; margin: .35rem 0; font-size: .85rem; }
 .bar .track { height: 8px; background: rgba(156,163,175,.12); border-radius: 1px; overflow: hidden; }
@@ -383,7 +414,6 @@ hr { border-color: rgba(156,163,175,.15) !important; }
   .casefile { padding: 1.2rem 1rem; transform: none; }
   .casefile .stamp { position: static; display: inline-block; margin-bottom: .6rem; }
   .suspects { grid-template-columns: repeat(2, 1fr); }
-  .ev.reply { margin-left: .6rem; }
 }
 
 /* ---------- the intro of one case, when a game starts (about 8 s, fits into the 30 s reveal) ---------- */
@@ -468,6 +498,8 @@ a.act:hover, a.act:focus { border-color: var(--act-text); transform: translateY(
 .paper .pb { font: 1rem/1.5 var(--sans); color: var(--ink); }
 .paper .pq { font-family: var(--serif); font-weight: 700; font-size: 1.15rem; line-height: 1.35; margin-top: .35rem; }
 .paper .pe { margin-top: .6rem; }
+.clues { display: flex; flex-direction: column; gap: .8rem; margin: .7rem 0; }
+.clues .paper { margin: 0; }
 .paper.clue.sel { border-color: var(--act); box-shadow: 0 0 0 3px rgba(224,89,76,.35); }
 .paper.clue.used { opacity: .55; }
 .paper .logged { position: absolute; right: 1rem; top: .8rem; transform: rotate(-6deg); border: 2px solid var(--act);
@@ -481,18 +513,38 @@ a.act:hover, a.act:focus { border-color: var(--act-text); transform: translateY(
 .wd.done { background: #5DBB63; }
 .wd.off { background: #4B5563; }
 
-/* ---------- the campus plan: NOVA SBE floor 0 from above (ui.campus_map) ---------- */
-.plan2 { position: relative; width: 100%; aspect-ratio: 1.25 / 1; margin: .4rem 0 .6rem; overflow: hidden;
+/* ---------- the campus plan: NOVA SBE floor 0 from above, beach to the right (ui.campus_map) ---------- */
+/* AI cases: the red herrings, explained on the result screen. */
+.rhs { display: grid; gap: .5rem; margin-bottom: 1rem; }
+.rh { border: 1px solid var(--line); border-left: 3px solid #64748b; border-radius: 4px; padding: .55rem .75rem;
+  background: rgba(17,24,39,.6); }
+.rh-who { font-family: var(--serif); font-weight: 800; color: var(--ivory); }
+.rh-why { font-size: .9rem; color: #C9CFDA; margin-top: .15rem; }
+.rh-clear { font: .72rem var(--mono); letter-spacing: .06em; color: var(--muted); margin-top: .25rem; }
+.plan2 { position: relative; width: 100%; aspect-ratio: 1.25 / 1; margin: .4rem 0 .3rem; overflow: hidden;
   background-color: #0F1420; border: 1px solid var(--line); border-radius: 8px;
-  background-image: linear-gradient(rgba(42,50,70,.35) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(42,50,70,.35) 1px, transparent 1px);
+  background-image: linear-gradient(rgba(42,50,70,.22) 1px, transparent 1px),
+                    linear-gradient(90deg, rgba(42,50,70,.22) 1px, transparent 1px);
   background-size: 5% 4%; }
-.plan2 .beach { position: absolute; background: #12263A; border-left: 1px solid #1E3A55; border-bottom: 1px solid #1E3A55;
-  border-bottom-left-radius: 22% 30%; }
-.plan2 .bld { position: absolute; background: #1B2234; border: 1px solid #343E58; border-radius: 3px; }
-.plan2 .bld span { position: absolute; left: 4px; top: 2px; font: .6rem var(--mono); color: #7B8496; }
-.plan-foot { position: absolute; left: 2.5%; bottom: 2%; font: .6rem var(--mono); letter-spacing: .25em;
-  text-transform: uppercase; color: #6B7488; }
+/* The drawing: one SVG in percent units, stretched to the box. Lines keep their width. */
+.plan2 .ground { position: absolute; inset: 0; width: 100%; height: 100%; }
+.plan2 .ground * { vector-effect: non-scaling-stroke; }
+.plan2 .g-lawn { fill: #121B16; stroke: #1B2A21; stroke-width: 1; }
+.plan2 .g-open { fill: #141C17; }
+.plan2 .g-sand { fill: #3A3322; stroke: #4A4130; stroke-width: 1; }
+.plan2 .g-sea { fill: #12263A; }
+.plan2 .road { fill: none; stroke: #2B3346; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.plan2 .b-hall { fill: #1B2234; stroke: #3E4966; stroke-width: 1.2; stroke-linejoin: round; }
+.plan2 .b-spine { fill: #222B40; stroke: #59658A; stroke-width: 1.4; stroke-linejoin: round; }
+/* Road names and the north arrow. */
+.plan2 .rname { position: absolute; transform: translate(-50%, -50%) rotate(var(--rot, 0deg)); font: .66rem var(--mono);
+  letter-spacing: .2em; color: #4E586E; white-space: nowrap; pointer-events: none; }
+/* North arrow. The plan is drawn like the architects' rendering: the main building runs
+   NNW–SSE on the satellite view and lies left to right here, so north points left and a
+   little up (about 20 degrees above the left edge). */
+.plan2 .compass { position: absolute; left: 1.8%; top: 2.5%; display: flex; align-items: center; gap: .15rem;
+  font: 700 .72rem var(--mono); color: #9AA3B5; }
+.plan2 .compass .needle { display: inline-block; transform: rotate(-70deg); font-size: .9rem; }
 .pin2 { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center;
   z-index: 2; text-decoration: none !important; }
 .pin2 .pc { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%;
@@ -540,11 +592,6 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .eb-r { font: 700 .7rem var(--mono); color: var(--act); min-width: 1.6rem; padding-top: .2rem; }
 .eb-t { font-family: var(--serif); font-weight: 800; font-size: 1.05rem; }
 .eb-b { font: .9rem/1.4 var(--sans); }
-.iv { border-color: var(--act); }
-.iv-h { font-family: var(--sans); color: #B9BFCC; margin-top: .2rem; }
-.iv-q { font-family: var(--serif); font-weight: 800; font-size: 1.5rem; margin: .4rem 0; color: var(--ivory); }
-.iv-a { font-family: var(--serif); font-size: 1.15rem; color: var(--paper); }
-.iv-w { font-family: var(--serif); font-style: italic; color: var(--muted); }
 
 /* ---------- board intro: crime scene 5–10.4 s, suspects one by one 10.8–27.6 s (ui.py), out 28 s ---------- */
 .intro.long { animation: introOut .8s ease 28s forwards; }
@@ -594,3 +641,54 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
                                  radial-gradient(circle at 85% 50%, rgba(185,28,28,.55), transparent 45%); } }
 @keyframes tapeIn { from { transform: translateX(-110%) rotate(-4deg); } }
 @keyframes tapeInRight { from { transform: translateX(110%) rotate(3deg); } }
+
+/* ---------- evidence mini-games (minigame_ui.py) – phone first ---------- */
+.mg-seal { display: flex; gap: .55rem; align-items: center; margin: .2rem 0 .6rem; padding: .55rem .7rem; border-radius: 10px;
+  border: 1px dashed rgba(212,168,83,.55); background: rgba(212,168,83,.07); font-size: .9rem; color: var(--ivory); }
+.mg-seal-i { font-size: 1.3rem; }
+.mg-head { margin: .2rem 0 .7rem; }
+.mg-kick { font-family: var(--mono); font-size: .72rem; letter-spacing: .2em; text-transform: uppercase; color: var(--gold); }
+.mg-title { font-family: var(--serif); font-size: 1.65rem; line-height: 1.15; color: var(--ivory); margin: .15rem 0; }
+.mg-verb { font-size: .92rem; color: #D7D2C6; }
+.mg-progress { margin-top: .6rem; }
+.mg-progress-t { display: flex; justify-content: space-between; font-family: var(--mono); font-size: .72rem; letter-spacing: .14em;
+  text-transform: uppercase; color: var(--muted); }
+.mg-progress-t b { color: var(--ivory); }
+.mg-bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.08); overflow: hidden; margin-top: .25rem; }
+.mg-bar i { display: block; height: 100%; background: linear-gradient(90deg, #8a6d2f, var(--gold)); box-shadow: 0 0 10px rgba(212,168,83,.6); }
+.mg-hints { list-style: none; margin: .6rem 0; padding: 0; }
+.mg-hints li { margin: 0 0 .45rem; padding: .6rem .75rem; border-radius: 10px; border-left: 4px solid var(--gold);
+  background: rgba(212,168,83,.08); font-size: .95rem; line-height: 1.4; animation: fadeUp .35s ease both; }
+.mg-hints b { font-family: var(--mono); font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); margin-right: .35rem; }
+.mg-reward { position: relative; overflow: hidden; text-align: center; padding: 1.3rem 1rem 1rem; margin: .3rem 0 .8rem; border-radius: 16px;
+  border: 1px solid rgba(212,168,83,.6); background: radial-gradient(ellipse at 50% 0%, rgba(212,168,83,.22), transparent 60%), #10161F;
+  box-shadow: 0 0 0 1px rgba(212,168,83,.15), 0 20px 60px rgba(0,0,0,.5); }
+.mg-burst { position: absolute; inset: -40%; background: conic-gradient(from 0deg, transparent, rgba(212,168,83,.18), transparent 30%);
+  opacity: 0; pointer-events: none; }
+.mg-reward.celebrate .mg-burst { animation: mgBurst 1.6s ease-out both; }
+.mg-lock { position: relative; width: 46px; height: 46px; margin: 0 auto .4rem; }
+.mg-lock .bd { position: absolute; left: 6px; right: 6px; bottom: 0; height: 26px; border-radius: 6px; background: var(--gold);
+  box-shadow: 0 0 22px rgba(212,168,83,.7); }
+.mg-lock .sh { position: absolute; left: 13px; width: 20px; height: 26px; top: 0; border: 5px solid var(--gold); border-bottom: 0;
+  border-radius: 12px 12px 0 0; transform-origin: 85% 100%; transform: translateY(-6px) rotate(-28deg); }
+.mg-reward.celebrate .mg-lock .sh { animation: mgShackle .7s .2s cubic-bezier(.3,1.5,.5,1) both; }
+.mg-granted { font-family: var(--mono); font-size: 1.05rem; letter-spacing: .28em; text-transform: uppercase; color: #7DF9C9;
+  text-shadow: 0 0 14px rgba(125,249,201,.55); }
+.mg-new { font-family: var(--mono); font-size: .74rem; letter-spacing: .24em; text-transform: uppercase; color: var(--gold); margin-top: .25rem; }
+.mg-ev { font-family: var(--serif); font-size: 1.35rem; line-height: 1.2; color: var(--ivory); margin: .55rem 0 .15rem; }
+.mg-place { font-size: .8rem; color: var(--muted); }
+.mg-text { margin: .8rem 0 .2rem; padding: .8rem .9rem; text-align: left; border-radius: 6px; background: #F3EAD6; color: #1d1a16;
+  font-family: var(--hand); font-size: 1.45rem; line-height: 1.2; transform: rotate(-.6deg); box-shadow: 0 8px 22px rgba(0,0,0,.4); }
+.mg-reward.celebrate .mg-text, .mg-reward.celebrate .mg-ev { animation: fadeUp .6s .5s ease both; }
+.mg-inspect { display: flex; align-items: center; justify-content: center; min-height: 48px; margin-top: .8rem; border-radius: 12px;
+  border: 1px solid rgba(212,168,83,.55); color: var(--ivory) !important; text-decoration: none !important; font-family: var(--mono);
+  font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; }
+@keyframes mgBurst { 0% { opacity: 0; transform: rotate(0); } 30% { opacity: 1; } 100% { opacity: 0; transform: rotate(160deg); } }
+@keyframes mgShackle { from { transform: translateY(0) rotate(0); } to { transform: translateY(-6px) rotate(-28deg); } }
+@media (max-width: 640px) {
+  .stButton button, [data-testid="stFormSubmitButton"] button { min-height: 48px; }
+  .mg-title { font-size: 1.45rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mg-reward .mg-burst, .mg-reward .mg-lock .sh, .mg-reward .mg-text, .mg-reward .mg-ev, .mg-hints li { animation: none !important; }
+}

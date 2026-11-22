@@ -1,4 +1,4 @@
-"""Shared helpers for the Murder at NOVA test suite.
+"""Shared helpers for the NOVA MYSTERY test suite.
 
 All tests are written against docs/CONTRACT.md only.
 """
@@ -151,3 +151,11 @@ def assert_rejected_unchanged(fn, game):
         fn(game)
     after = json.dumps(game, sort_keys=True)
     assert after == before, "a rejected call mutated the game"
+
+
+@pytest.fixture(autouse=True)
+def puzzles_can_be_solved_at_once(monkeypatch):
+    """Tests submit a puzzle's answer right after opening it; the minimum solving time
+    (minigames.MIN_SECONDS) has its own test in test_minigame_screen.py."""
+    import minigames
+    monkeypatch.setattr(minigames, "MIN_SECONDS", {})

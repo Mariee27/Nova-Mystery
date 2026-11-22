@@ -7,8 +7,8 @@ import content
 import logic
 from conftest import (
     LOC, advance_to, assert_rejected_unchanged, cast_votes, character, host_token,
-    innocent_pids, innocent_token, last_log_id, make_lobby, make_started,
-    murderer_pid, murderer_token, online_all, own_clue_ids, pids_of, plant_spot,
+    innocent_pids, innocent_token, make_lobby, make_started,
+    murderer_pid, murderer_token, own_clue_ids, pids_of, plant_spot,
     started_in, token_of, open_places, locked_places, to_last_round)
 
 ON5 = {1, 2, 3, 4, 5}
@@ -66,6 +66,26 @@ def test_dw04_empty_or_whitespace_name_rejected(name):
     assert_rejected_unchanged(lambda x: logic.join(x, name, "ta", 0), logic.new_game("ABCD", 0))
 
 
+@pytest.mark.parametrize("name", ["Ana\u200b", "\u200b", "Ana\u202e", "A\u00adna", "\u2800", "Ana\u2800",
+                                  "\u3164", "Z\u0334\u0321\u031b\u034da", "\ufeffAna", "🙂"])
+def test_names_with_invisible_or_special_characters_are_refused(name):
+    """Such a name could pass for another player's, or be invisible on every screen."""
+    assert_rejected_unchanged(lambda g: logic.join(g, name, "tx", 0), make_lobby(1))
+
+
+@pytest.mark.parametrize("name", ["Аna", "ΑΝΑ", "Ána", "Ａｎａ", "ana ", "ANA", "Ana\u3000"])
+def test_a_name_that_only_looks_like_a_taken_one_is_refused(name):
+    g = logic.join(logic.new_game("ABCD", 0), "Ana", "t1", 0)
+    with pytest.raises(logic.Rejected, match="already taken"):
+        logic.join(g, name, "t2", 0)
+
+
+@pytest.mark.parametrize("name", ["Zoë", "Анна", "李雷", "María José", "O'Neil", "Ana🙂", "<b>x</b>"])
+def test_real_names_from_everywhere_are_accepted_as_typed(name):
+    g = logic.join(logic.new_game("ABCD", 0), "Ben", "t1", 0)
+    assert logic.join(g, name, "t2", 0)["players"][-1]["name"] == name
+
+
 def test_dw04_name_is_stripped_and_first_player_is_host():
     g = logic.join(logic.new_game("ABCD", 0), "  Bob  ", "ta", 0)
     assert g["players"][0]["name"] == "Bob"
@@ -97,18 +117,11 @@ def _inv():
     return started_in("INVESTIGATION")
 
 
-def _inv_question():
-    return logic.question(started_in("INVESTIGATION"), "t1", 2, "Where?", 5)
-
-
 UNKNOWN = "nope"
 UNKNOWN_TOKEN_CASES = {
     "start": (lambda: make_lobby(4), lambda g: logic.start(g, UNKNOWN, {1, 2, 3, 4}, 0, seed=1)),
     "end_phase": (lambda: make_started(5), lambda g: logic.end_phase(g, UNKNOWN, ON5, 1)),
     "search": (_inv, lambda g: logic.search(g, UNKNOWN, LOC[0], 5)),
-    "question": (_inv, lambda g: logic.question(g, UNKNOWN, 2, "Hi", 5)),
-    "answer": (_inv_question,
-               lambda g: logic.answer(g, UNKNOWN, last_log_id(g), "x", 6)),
     "share": (_inv, lambda g: logic.share(g, UNKNOWN, own_clue_ids(g, 1)[0], 5)),
     "plant": (_inv, lambda g: logic.plant(g, UNKNOWN, 2, LOC[0], 5)),
     "vote": (lambda: started_in("VOTE"), lambda g: logic.vote(g, UNKNOWN, 2, 5)),
@@ -179,7 +192,6 @@ def test_dw07_second_action_rejected():
     g = logic.search(_inv(), "t1", LOC[0], 5)
     assert g["acted"] == [1]
     assert_rejected_unchanged(lambda x: logic.search(x, "t1", LOC[1], 6), g)
-    assert_rejected_unchanged(lambda x: logic.question(x, "t1", 2, "Hi", 6), g)
     assert_rejected_unchanged(lambda x: logic.share(x, "t1", own_clue_ids(x, 1)[0], 6), g)
 
 
@@ -187,7 +199,6 @@ def test_dw07_second_action_rejected():
 def test_dw07_action_in_wrong_phase_rejected(phase):
     g = started_in(phase)
     assert_rejected_unchanged(lambda x: logic.search(x, "t1", LOC[0], 5), g)
-    assert_rejected_unchanged(lambda x: logic.question(x, "t1", 2, "Hi", 5), g)
     assert_rejected_unchanged(lambda x: logic.share(x, "t1", own_clue_ids(x, 1)[0], 5), g)
 
 
@@ -220,95 +231,18 @@ def test_dw07_search_appends_log_entry_and_marks_acted():
     assert entry["by"] == 3
 
 
-def test_dw07_question_and_share_use_up_the_action():
-    g = logic.question(_inv(), "t1", 2, "Where were you?", 5)
+def test_dw07_search_and_share_use_up_the_action():
+    g = logic.search(_inv(), "t1", LOC[0], 5)
     assert g["acted"] == [1]
     g = logic.share(g, "t2", own_clue_ids(g, 2)[0], 6)
     assert sorted(g["acted"]) == [1, 2]
     assert g["log"][-1]["kind"] == "share"
+    assert_rejected_unchanged(lambda x: logic.share(x, "t2", own_clue_ids(x, 2)[1], 7), g)
 
 
-# ================================================================ DW08
-def test_dw08_question_to_oneself_rejected():
-    assert_rejected_unchanged(lambda x: logic.question(x, "t1", 1, "Hi", 5), _inv())
-
-
-def test_dw08_question_to_unknown_target_rejected():
-    assert_rejected_unchanged(lambda x: logic.question(x, "t1", 99, "Hi", 5), _inv())
-
-
-@pytest.mark.parametrize("text", ["", "   ", "x" * 141])
-def test_dw08_question_text_length_out_of_range_rejected(text):
-    assert_rejected_unchanged(lambda x: logic.question(x, "t1", 2, text, 5), _inv())
-
-
-def test_dw08_question_text_140_chars_accepted():
-    g = logic.question(_inv(), "t1", 2, "x" * 140, 5)
-    q = g["log"][-1]
-    assert q["kind"] == "question" and q["target"] == 2 and q["by"] == 1
-    assert q["answered"] is False
-    assert len(q["text"]) == 140
-
-
-def test_dw08_second_answer_to_same_question_rejected():
-    g = _inv_question()
-    qid = last_log_id(g)
-    g = logic.answer(g, "t2", qid, "Library.", 6)
-    assert g["log"][-1]["kind"] == "answer"
-    assert_rejected_unchanged(lambda x: logic.answer(x, "t2", qid, "Again", 7), g)
-
-
-def test_dw08_answer_by_player_not_asked_rejected():
-    g = _inv_question()
-    qid = last_log_id(g)
-    assert_rejected_unchanged(lambda x: logic.answer(x, "t3", qid, "Not me", 6), g)
-    assert_rejected_unchanged(lambda x: logic.answer(x, "t1", qid, "Self", 6), g)
-
-
-@pytest.mark.parametrize("text", ["", "x" * 141])
-def test_dw08_answer_text_length_out_of_range_rejected(text):
-    g = _inv_question()
-    qid = last_log_id(g)
-    assert_rejected_unchanged(lambda x: logic.answer(x, "t2", qid, text, 6), g)
-
-
-def test_dw08_answer_unknown_question_id_rejected():
-    assert_rejected_unchanged(lambda x: logic.answer(x, "t2", 9999, "x", 6), _inv_question())
-
-
-def test_dw08_answer_does_not_use_up_action_and_allowed_in_discussion():
-    g = _inv_question()
-    qid = last_log_id(g)
-    g = logic.answer(g, "t2", qid, "Library.", 6)
-    assert 2 not in g["acted"]
-    g = logic.search(g, "t2", LOC[0], 7)
-    assert 2 in g["acted"]
-    g2 = advance_to(_inv_question(), "DISCUSSION")
-    g2 = logic.answer(g2, "t2", qid, "Late answer", 8)
-    assert g2["log"][-1]["kind"] == "answer"
-
-
-def _no_answer_entries(g):
-    return [e for e in g["log"] if e["kind"] == "system" and "no answer" in e["text"]]
-
-
-def test_dw08_unanswered_question_gets_no_answer_entry_when_discussion_ends():
-    g = _inv_question()
-    qid = last_log_id(g)
-    g = advance_to(g, "DISCUSSION")
-    assert _no_answer_entries(g) == []
-    g = logic.end_phase(g, "t1", ON5, 0)
-    assert g["phase"] == "VOTE"
-    assert len(_no_answer_entries(g)) == 1
-    q = [e for e in g["log"] if e["id"] == qid][0]
-    assert q["answered"] is True
-
-
-def test_dw08_answered_question_gets_no_no_answer_entry():
-    g = _inv_question()
-    g = logic.answer(g, "t2", last_log_id(g), "Library.", 6)
-    g = advance_to(g, "VOTE")
-    assert _no_answer_entries(g) == []
+def test_dw07_interrogations_are_not_an_action_in_the_app():
+    """The players question each other out loud. The rules have no question or answer."""
+    assert not hasattr(logic, "question") and not hasattr(logic, "answer")
 
 
 # ================================================================ DW09
@@ -444,8 +378,7 @@ def test_dw11_secrets_kept_lists_innocents_without_suspicious_entry():
 
 # ================================================================ DW12
 def _everybody_asks(g, pids, now):
-    """Every player in pids makes a move: shares a clue (a question would make the round
-    wait for its answer, see test_rounds_and_map.py)."""
+    """Every player in pids makes a move: shares a clue."""
     for pid in pids:
         clue = next(c["id"] for c in logic.private_view(g, token_of(g, pid))["clues"] if not c["shared"])
         g = logic.share(g, token_of(g, pid), clue, now)
@@ -496,12 +429,12 @@ def test_dw12_offline_player_who_has_not_voted_does_not_block_vote():
 
 
 # ================================================================ DW13
-def test_dw13_online_ids_21s_offline_20s_online():
-    presence = {1: 79, 2: 80, 3: 100, 4: 0}
+def test_dw13_online_ids_46s_offline_45s_online():
+    presence = {1: 54, 2: 55, 3: 100, 4: 0}
     assert logic.online_ids(presence, 100) == {2, 3}
-    assert logic.online_ids({1: 79}, 100) == set()
-    assert logic.online_ids({1: 80}, 100) == {1}
-    assert logic.OFFLINE_AFTER == 20
+    assert logic.online_ids({1: 54}, 100) == set()
+    assert logic.online_ids({1: 55}, 100) == {1}
+    assert logic.OFFLINE_AFTER == 45          # a glance at another app does not count as leaving
 
 
 # ================================================================ DW14
@@ -541,10 +474,38 @@ def test_dw14_new_host_can_end_phase_old_host_cannot():
 
 # ================================================================ DW15
 @pytest.mark.parametrize("phase", ["REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE"])
-def test_dw15_two_online_aborts_game(phase):
+def test_dw15_two_online_pauses_the_game_and_stops_the_clock(phase):
+    g = started_in(phase)
+    left = g["deadline"] - 1
+    g = logic.tick(g, {1, 2}, 1)
+    assert g["phase"] == phase and g["deadline"] is None and g["abort_reason"] is None
+    assert logic.public_view(g, {1, 2})["paused_since"] == 1
+    g = logic.tick(g, {1, 2}, 1 + logic.PAUSE_LIMIT - 1)        # still waiting, nothing moves on
+    assert g["phase"] == phase and g["deadline"] is None
+
+
+@pytest.mark.parametrize("phase", ["REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE"])
+def test_dw15_the_clock_runs_on_when_the_players_are_back(phase):
+    g = started_in(phase)
+    left = g["deadline"] - 1
+    g = logic.tick(g, {1, 2}, 1)
+    g = logic.tick(g, {1, 2, 3}, 100)                            # back after 99 seconds
+    assert g["phase"] == phase and "paused" not in g
+    assert g["deadline"] == pytest.approx(100 + left)            # the time left is the same as before
+    assert logic.public_view(g, {1, 2, 3})["paused_since"] is None
+
+
+@pytest.mark.parametrize("phase", ["REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE"])
+def test_dw15_the_game_ends_when_nobody_comes_back(phase):
     g = logic.tick(started_in(phase), {1, 2}, 1)
-    assert g["phase"] == "ABORTED"
-    assert g["abort_reason"]
+    g = logic.tick(g, {1, 2}, 1 + logic.PAUSE_LIMIT)
+    assert g["phase"] == "ABORTED" and g["abort_reason"]
+
+
+def test_dw15_the_host_can_still_end_a_paused_phase():
+    g = logic.tick(started_in("DISCUSSION"), {1, 2}, 1)
+    g = logic.end_phase(g, "t1", {1, 2}, 5)
+    assert g["phase"] == "VOTE" and "paused" not in g and g["deadline"] is not None
 
 
 @pytest.mark.parametrize("phase", ["REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE"])
@@ -569,11 +530,6 @@ def _inv_planted():
     return logic.plant(g, murderer_token(g), innocent_pids(g)[0], plant_spot(g), 5)
 
 
-def _answered():
-    g = _inv_question()
-    return logic.answer(g, "t2", last_log_id(g), "Library.", 6)
-
-
 REJECTED_CALLS = {
     "join_duplicate_name": (lambda: logic.join(logic.new_game("ABCD", 0), "Anna", "ta", 0),
                             lambda g: logic.join(g, "anna", "tb", 0)),
@@ -588,13 +544,9 @@ REJECTED_CALLS = {
     "search_second_action": (_inv_searched, lambda g: logic.search(g, "t1", LOC[1], 6)),
     "search_wrong_phase": (lambda: started_in("DISCUSSION"), lambda g: logic.search(g, "t1", LOC[0], 6)),
     "search_already_searched": (_inv_searched, lambda g: logic.search(g, "t2", g["searched"][0], 6)),
-    "question_too_short": (_inv, lambda g: logic.question(g, "t1", 2, "Why?", 5)),
     "search_locked_place": (_inv, lambda g: logic.search(g, "t1", locked_places(g)[0], 5)),
-    "question_to_self": (_inv, lambda g: logic.question(g, "t1", 1, "Hi", 5)),
-    "question_empty": (_inv, lambda g: logic.question(g, "t1", 2, "", 5)),
-    "question_141": (_inv, lambda g: logic.question(g, "t1", 2, "x" * 141, 5)),
-    "answer_twice": (_answered, lambda g: logic.answer(g, "t2", last_log_id(g) - 1, "again", 7)),
-    "answer_not_asked": (_inv_question, lambda g: logic.answer(g, "t3", last_log_id(g), "x", 6)),
+    "share_someone_elses_clue": (_inv, lambda g: logic.share(g, "t1", own_clue_ids(g, 2)[0], 5)),
+    "share_second_action": (_inv_searched, lambda g: logic.share(g, "t1", own_clue_ids(g, 1)[0], 6)),
     "plant_by_innocent": (_inv, lambda g: logic.plant(g, innocent_token(g, 0), innocent_pids(g)[1], LOC[0], 5)),
     "plant_twice": (_inv_planted, lambda g: logic.plant(g, murderer_token(g), innocent_pids(g)[1], LOC[1], 6)),
     "plant_self": (_inv, lambda g: logic.plant(g, murderer_token(g), murderer_pid(g), LOC[0], 5)),

@@ -1,4 +1,4 @@
-"""Rules of Murder at NOVA.
+"""Rules of NOVA MYSTERY.
 
 Everything in this file is a pure function: it gets a game (a plain dict),
 returns a NEW game, and never changes the one it was given. If an action is
@@ -9,28 +9,31 @@ No Streamlit and no database code belongs in here.
 
 import copy
 import secrets
+import unicodedata
 
+import balance
 import content
 import generator
+import minigames
 
 PHASES = ["LOBBY", "REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE", "RESULT", "ABORTED"]
 DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
 # The investigation has ROUNDS rounds. Each round lasts at most DURATIONS["INVESTIGATION"]
-# seconds and ends early when every online player has made their one move and every
-# question asked in this round has been answered.
+# seconds and ends early when every online player has made their one move or has no move
+# left (nothing to search, nothing to share). Interrogations happen out loud, not in the app.
 ROUNDS = 3
 LOCKED_PLACES = 2      # places that are locked at the start (the crime scene is always one)
-MIN_QUESTION = 5       # a question needs at least this many characters
 NEXT_PHASE = {
     "REVEAL": "INVESTIGATION",
     "INVESTIGATION": "DISCUSSION",
     "DISCUSSION": "VOTE",
     "VOTE": "RESULT",
 }
-OFFLINE_AFTER = 20
+OFFLINE_AFTER = 45     # seconds without a sign from a phone: then the player counts as offline
 MIN_PLAYERS = 4
 MAX_PLAYERS = 6
 MIN_ONLINE = 3
+PAUSE_LIMIT = 180      # seconds a game waits, paused, for players to come back before it ends
 MAX_TEXT = 140
 MAX_NAME = 20
 MAX_CLUE_TEXT = 200
@@ -40,6 +43,12 @@ DEMO_SEED = 2026
 # Keys that would give the solution away. They are removed from the public log
 # until the game is over.
 HIDDEN_LOG_KEYS = ("implicates", "clue_kind", "planted")
+
+
+def max_minutes():
+    """The longest a game can take once it has started: the card, every round, discussion, vote."""
+    seconds = sum(DURATIONS.values()) + DURATIONS["INVESTIGATION"] * (ROUNDS - 1)
+    return -(-seconds // 60)
 
 
 class Rejected(Exception):
@@ -105,7 +114,8 @@ def _require_phase(game, *phases):
 
 # ---------------------------------------------------------------- lobby
 
-def new_game(code, now):
+def new_game(code, now, minigames=False):
+    """minigames=True seals every place's clue behind a puzzle (see minigames.py)."""
     return {
         "code": code,
         "phase": "LOBBY",
@@ -124,15 +134,78 @@ def new_game(code, now):
         "scene_votes": {},   # str(pid of voter) -> location where they think Vale died
         "result": None,
         "abort_reason": None,
+        "minigames": bool(minigames),
     }
+
+
+def as_demo(game):
+    """A demo room ("Play a demo"): it always plays case #001 the same way (see app.case_choice)."""
+    game = copy.deepcopy(game)
+    game["demo"] = True
+    return game
+
+
+# Names are what players recognise each other by, so a name must look like itself and like
+# nobody else's: no invisible characters, no text-direction tricks, no look-alike letters.
+BLANK_LETTERS = {"\u115f", "\u1160", "\u3164", "\uffa0", "\u2800"}   # fillers and the braille blank
+INVISIBLE_CATEGORIES = {"Cf", "Cs", "Co", "Cn", "Zl", "Zp"}    # format (zero-width, direction
+                                                                 # marks), private use, unassigned
+MAX_MARKS = 2                       # combining accents on one letter ("Zalgo" text has dozens)
+# Cyrillic and Greek letters that look exactly like Latin ones, for name_key. Capitals are
+# mapped before the name is lower-cased (a Greek capital N is lower-case v-shaped).
+CAPITAL_LOOK_ALIKES = str.maketrans({
+    "А": "A", "В": "B", "Е": "E", "Ё": "E", "К": "K", "М": "M", "Н": "H", "О": "O", "Р": "P", "С": "C",
+    "Т": "T", "У": "Y", "Х": "X", "І": "I", "Ї": "I", "Ј": "J", "Ѕ": "S", "Ԛ": "Q", "Ԝ": "W",
+    "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K", "Μ": "M", "Ν": "N", "Ο": "O",
+    "Ρ": "P", "Τ": "T", "Υ": "Y", "Χ": "X",
+})
+LOOK_ALIKES = str.maketrans({
+    "а": "a", "в": "b", "е": "e", "ё": "e", "к": "k", "м": "m", "н": "h", "о": "o", "р": "p", "с": "c",
+    "т": "t", "у": "y", "х": "x", "і": "i", "ї": "i", "ј": "j", "ѕ": "s", "ԁ": "d", "ԛ": "q", "ԝ": "w",
+    "ɡ": "g", "ɑ": "a", "ı": "i", "ℓ": "l",
+    "α": "a", "β": "b", "ε": "e", "η": "n", "ι": "i", "κ": "k", "μ": "u", "ν": "v", "ο": "o", "ρ": "p",
+    "τ": "t", "υ": "u", "χ": "x", "ω": "w",
+})
+
+
+def clean_name(name):
+    """A player's name: normalised, single spaces, 1..MAX_NAME visible characters."""
+    if not isinstance(name, str):
+        raise Rejected("Text is missing.")
+    name = unicodedata.normalize("NFKC", name)
+    # Old-style control characters: tabs and line breaks become spaces, the rest is dropped.
+    name = "".join(" " if ch in "\t\n\r\v\f" else ch for ch in name
+                   if unicodedata.category(ch) != "Cc" or ch in "\t\n\r\v\f")
+    if any(unicodedata.category(ch) in INVISIBLE_CATEGORIES or ch in BLANK_LETTERS for ch in name):
+        raise Rejected("Names cannot contain invisible or special characters.")
+    name = " ".join(name.split())            # every kind of space becomes one plain space
+    marks = 0
+    for ch in name:
+        marks = marks + 1 if unicodedata.category(ch).startswith("M") else 0
+        if marks > MAX_MARKS:
+            raise Rejected("Names cannot contain invisible or special characters.")
+    if not any(unicodedata.category(ch)[0] in "LN" for ch in name):
+        raise Rejected("A name needs at least one letter or digit.")
+    if len(name) > MAX_NAME:
+        raise Rejected(f"Text must have at most {MAX_NAME} characters.")
+    return name
+
+
+def name_key(name):
+    """Two names with the same key look alike on a screen: same letters regardless of case,
+    accents, width, and Cyrillic or Greek look-alike letters."""
+    name = unicodedata.normalize("NFKC", name).translate(CAPITAL_LOOK_ALIKES)
+    folded = unicodedata.normalize("NFKD", name.casefold())
+    letters = "".join(ch for ch in folded if not unicodedata.category(ch).startswith("M"))
+    return " ".join(letters.translate(LOOK_ALIKES).split())
 
 
 def join(game, name, token, now):
     _require_phase(game, "LOBBY")
-    name = clean_text(name, MAX_NAME)
+    name = clean_name(name)
     if len(game["players"]) >= MAX_PLAYERS:
         raise Rejected(f"The room is full ({MAX_PLAYERS} players).")
-    if any(p["name"].casefold() == name.casefold() for p in game["players"]):
+    if any(name_key(p["name"]) == name_key(name) for p in game["players"]):
         raise Rejected("This name is already taken in this room.")
     if not token or any(p["token"] == token for p in game["players"]):
         raise Rejected("Invalid token.")
@@ -160,11 +233,12 @@ def kick(game, token, target_pid, now):
     return game
 
 
-def start(game, token, online, now, seed=None, fixed_case=False):
+def start(game, token, online, now, seed=None, fixed_case=False, use_ai=True):
     """Start the game. The story is the AI-written one if it is ready, otherwise case #001.
 
-    fixed_case=True always plays case #001 (the demo switch). If an AI case was
-    expected but cannot be used, the host gets a short note (see host_note).
+    fixed_case=True always plays case #001 with its fixed seed (rehearsal mode).
+    use_ai=False plays case #001 even if an AI case is ready (the host chose it). If an AI
+    case was expected but cannot be used, the host gets a short note (see host_note).
     """
     _require_phase(game, "LOBBY")
     player = _player_by_token(game, token)
@@ -177,9 +251,14 @@ def start(game, token, online, now, seed=None, fixed_case=False):
         seed = secrets.randbits(32)
     game = copy.deepcopy(game)
     game["players"] = copy.deepcopy(present)  # players who are offline in the lobby are dropped
-    story, note = _story_for_start(game, fixed_case)
+    story, note = _story_for_start(game, fixed_case or not use_ai)
     try:
-        game["case"] = generator.build_valid_case(_player_ids(game), seed, story)
+        if story is content.DEFAULT_STORY:
+            # Case #001 is handcrafted and is built exactly as it always was.
+            game["case"] = generator.build_valid_case(_player_ids(game), seed, story)
+        else:
+            # An AI story: tuned to medium difficulty, checked, and with its solution written down.
+            game["case"] = balance.build_balanced_case(_player_ids(game), seed, story)
     except Rejected:
         if story is content.DEFAULT_STORY:
             raise
@@ -210,14 +289,6 @@ def _story_for_start(game, fixed_case):
 
 def _enter_phase(game, phase, now):
     """Change the phase of an already copied game."""
-    if phase == "VOTE":  # we are leaving DISCUSSION: close open questions
-        for entry in list(game["log"]):
-            if entry["kind"] == "question" and not entry["answered"]:
-                entry["answered"] = True
-                asked = _name(game, entry["target"])
-                _add_log(game, "system", None,
-                         f"{asked} gave no answer to question #{entry['id']}.",
-                         question_id=entry["id"])
     game["phase"] = phase
     game["phase_started"] = now
     game["deadline"] = now + DURATIONS[phase] if phase in DURATIONS else None
@@ -231,6 +302,7 @@ def _enter_phase(game, phase, now):
 def _advance(game, now):
     """End the current step of an already copied game: the next investigation round,
     or after the last round (and in every other phase) the next phase."""
+    game.pop("paused", None)        # a new step starts with a running clock (tick pauses again if needed)
     if game["phase"] == "INVESTIGATION" and game.get("round", 1) < ROUNDS:
         game["round"] = game.get("round", 1) + 1
         game["acted"] = []                  # everybody gets a new move
@@ -259,10 +331,14 @@ def locked_until(game, location):
     return opens
 
 
-def unanswered_this_round(game, online):
-    """Questions of the current round that an online player has not answered yet."""
-    return [e for e in game["log"] if e["kind"] == "question" and not e["answered"]
-            and e.get("round") == game.get("round") and e["target"] in online]
+def has_move(game, pid):
+    """Whether the player could still make a move this round: an open place nobody has
+    searched yet, or one of their own clues that is not public yet."""
+    if any(locked_until(game, loc) is None and loc not in game["searched"]
+           for loc in story_of(game)["locations"]):
+        return True
+    public = {e.get("clue_id") for e in game["log"]}
+    return any(c["id"] not in public for c in _character(game, pid)["clues"])
 
 
 def _name(game, pid):
@@ -287,6 +363,11 @@ def tick(game, online, now):
 
     Order: host handover, abort, timer, early end. At most one phase change per call.
     """
+    ai = game.get("ai_case")
+    if (game["phase"] == "LOBBY" and ai and ai["status"] == "writing"
+            and now - ai.get("since", now) > AI_WRITING_TIMEOUT):
+        # The writing thread is gone (a server restart) or the AI hangs: stop waiting.
+        return ai_case_failed(game, "the AI took too long", now)
     if game["phase"] in ("RESULT", "ABORTED"):
         return game
     pids = _player_ids(game)
@@ -301,20 +382,37 @@ def tick(game, online, now):
         new["host"] = online_humans[0]
 
     if game["phase"] in NEXT_PHASE:
-        # 2. Abort when fewer than 3 players are left online.
+        # 2. Fewer than 3 players online: the game pauses (the clock stops) and waits for them.
+        # Phones drop out when a screen locks or a tab is in the background; they come back.
+        # Only after PAUSE_LIMIT seconds without enough players does the game end.
+        paused = game.get("paused")
         if len(online_players) < MIN_ONLINE:
+            if paused is None:
+                new = new or copy.deepcopy(game)
+                new["paused"] = {"since": now, "left": max(0.0, (game["deadline"] or now) - now)}
+                new["deadline"] = None
+                return new
+            if now - paused["since"] >= PAUSE_LIMIT:
+                new = new or copy.deepcopy(game)
+                new.pop("paused", None)
+                new["phase"] = "ABORTED"
+                new["phase_started"] = now
+                new["deadline"] = None
+                new["abort_reason"] = (
+                    f"Fewer than {MIN_ONLINE} players were online for {PAUSE_LIMIT // 60} minutes. "
+                    "Please create a new room."
+                )
+                return new
+            return new or game                  # still waiting: no timer, no early end
+        if paused is not None:                  # enough players again: the clock runs on
             new = new or copy.deepcopy(game)
-            new["phase"] = "ABORTED"
-            new["phase_started"] = now
-            new["deadline"] = None
-            new["abort_reason"] = (
-                f"Fewer than {MIN_ONLINE} players are online. Please create a new room."
-            )
+            new["deadline"] = now + paused["left"]
+            new.pop("paused")
             return new
         # 3. Timer, 4. early end.
-        everyone_acted = all(pid in game["acted"] for pid in online_players)
-        if game["phase"] == "INVESTIGATION" and unanswered_this_round(game, online):
-            everyone_acted = False      # the round waits for the answers (not longer than the timer)
+        # A player with nothing left to search or share is not waited for.
+        everyone_acted = game["phase"] == "INVESTIGATION" and all(
+            pid in game["acted"] or not has_move(game, pid) for pid in online_players)
         everyone_voted = all(str(pid) in game["votes"] for pid in online_players)
         if (
             now >= game["deadline"]
@@ -329,7 +427,7 @@ def tick(game, online, now):
 # ---------------------------------------------------------------- actions
 
 def _begin_action(game, token):
-    """Checks shared by search, question and share. Returns the acting player."""
+    """Checks shared by search and share. Returns the acting player."""
     _require_phase(game, "INVESTIGATION")
     player = _player_by_token(game, token)
     if player["pid"] in game["acted"]:
@@ -337,11 +435,13 @@ def _begin_action(game, token):
     return player
 
 
-def search(game, token, location, now):
+def search(game, token, location, now, proof=None):
     """Search a place and find its one clue.
 
     Not allowed: outside the investigation, a second move in the same round, an unknown
     place, a place that is still locked, or a place that has already been searched.
+    In a room with mini-games, a human player must also send a `proof` that solves the
+    place's puzzle (checked by minigames.verify); demo bots search without one.
     """
     player = _begin_action(game, token)
     if location not in story_of(game)["locations"]:
@@ -351,6 +451,8 @@ def search(game, token, location, now):
         raise Rejected(f"This place is locked. It opens in round {opens}.")
     if location in game["searched"]:
         raise Rejected("This place has already been searched. Pick another one.")
+    if minigames.enabled(game) and not player.get("bot") and not minigames.verify(game, location, proof):
+        raise Rejected("The evidence is still sealed. Solve the puzzle first.")
     clue = next(c for c in game["case"]["location_clues"] if c["location"] == location)
     game = copy.deepcopy(game)
     game["searched"].append(location)
@@ -361,48 +463,7 @@ def search(game, token, location, now):
     return game
 
 
-EVIDENCE_KINDS = ("search", "share")   # log entries a player may confront someone with
-
-
-def question(game, token, target_pid, text, now, evidence_id=None):
-    """Interrogate another player in public. Optionally confront them with a piece of
-    evidence that is already public (the log id of a search result or a shared clue)."""
-    player = _begin_action(game, token)
-    if target_pid == player["pid"]:
-        raise Rejected("You cannot question yourself.")
-    if target_pid not in _player_ids(game):
-        raise Rejected("Unknown player.")
-    if not isinstance(text, str) or len(text.strip()) < MIN_QUESTION:
-        raise Rejected(f"Write a question first (at least {MIN_QUESTION} characters).")
-    text = clean_text(text, MAX_TEXT)
-    if len(text) < MIN_QUESTION:
-        raise Rejected(f"Write a question first (at least {MIN_QUESTION} characters).")
-    if evidence_id is not None and not any(
-            e["id"] == evidence_id and e["kind"] in EVIDENCE_KINDS for e in game["log"]):
-        raise Rejected("You can only confront someone with evidence that is already public.")
-    game = copy.deepcopy(game)
-    game["acted"].append(player["pid"])
-    extra = {} if evidence_id is None else {"evidence": evidence_id}
-    _add_log(game, "question", player["pid"], text, target=target_pid, answered=False, **extra)
-    return game
-
-
-def answer(game, token, question_id, text, now):
-    _require_phase(game, "INVESTIGATION", "DISCUSSION")
-    player = _player_by_token(game, token)
-    asked = next((e for e in game["log"]
-                  if e["kind"] == "question" and e["id"] == question_id), None)
-    if asked is None:
-        raise Rejected("Unknown question.")
-    if asked["target"] != player["pid"]:
-        raise Rejected("This question was not asked to you.")
-    if asked["answered"]:
-        raise Rejected("This question has already been answered.")
-    text = clean_text(text, MAX_TEXT)
-    game = copy.deepcopy(game)
-    next(e for e in game["log"] if e["id"] == question_id)["answered"] = True
-    _add_log(game, "answer", player["pid"], text, question_id=question_id)
-    return game
+EVIDENCE_KINDS = ("search", "share")   # log entries that are public evidence
 
 
 def share(game, token, clue_id, now):
@@ -416,6 +477,25 @@ def share(game, token, clue_id, now):
     game["acted"].append(player["pid"])
     _add_log(game, "share", player["pid"], clue["text"], clue_id=clue_id,
              implicates=clue["implicates"], clue_kind=clue["kind"], planted=False)
+    return game
+
+
+MAX_WRONG_TRIES = 6   # wrong puzzle answers per player, place and round: no guessing all 10 000 codes
+
+
+def wrong_tries(game, pid, location):
+    """How often this player gave a wrong answer to this place's puzzle in this round."""
+    return game.get("wrong_tries", {}).get(f"{pid}|{location}|{game.get('round')}", 0)
+
+
+def note_wrong_try(game, token, location, now):
+    """Count one wrong puzzle answer. Kept in the game, so a new browser tab does not reset it."""
+    _require_phase(game, "INVESTIGATION")
+    player = _player_by_token(game, token)
+    game = copy.deepcopy(game)
+    tries = game.setdefault("wrong_tries", {})
+    key = f"{player['pid']}|{location}|{game.get('round')}"
+    tries[key] = tries.get(key, 0) + 1
     return game
 
 
@@ -511,15 +591,26 @@ def _compute_result(game):
         ending = "wrong" if accused is not None else "escaped"
     exposed = {e.get("implicates") for e in game["log"] if e.get("clue_kind") == "suspicious"}
     secrets_kept = [pid for pid in _player_ids(game) if pid != murderer and pid not in exposed]
-    return {
+    result = {
         "winner": winner,
         "ending": ending,
         "murderer": murderer,
         "murder_location": game["case"]["murder_location"],
         "tally": tally,
         "scene_tally": scene_tally,
+        # Every single ballot, so the room can see afterwards who voted for whom.
+        # The result only becomes public in RESULT (see public_view), so the ballots
+        # stay secret while people are still voting.
+        "votes": dict(game["votes"]),                     # str(voter pid) -> accused pid
+        "scene_votes": dict(game.get("scene_votes", {})),  # str(voter pid) -> location
         "secrets_kept": secrets_kept,
     }
+    if "solution" in game["case"]:
+        # AI cases only: why the red herrings pointed where they did, and what cleared them.
+        result["red_herrings"] = [
+            {key: h[key] for key in ("points_at", "explained_by", "cleared_by")}
+            for h in game["case"]["solution"]["red_herrings"]]
+    return result
 
 
 # ---------------------------------------------------------------- demo suspects (bots)
@@ -548,9 +639,9 @@ def add_bot(game, token, now):
     player = _player_by_token(game, token)
     if player["pid"] != game["host"]:
         raise Rejected("Only the host can add demo suspects.")
-    taken = {p["name"].casefold() for p in game["players"]}
+    taken = {name_key(p["name"]) for p in game["players"]}
     name = next((f"{first} (demo)" for first in content.DEMO_NAMES
-                 if f"{first} (demo)".casefold() not in taken), None)
+                 if name_key(f"{first} (demo)") not in taken), None)
     if name is None or len(game["players"]) >= MAX_PLAYERS:
         raise Rejected(f"The room is full ({MAX_PLAYERS} players).")
     game = join(game, name, new_token(), now)
@@ -594,6 +685,11 @@ def _bot_scene(game, pid):
 
 def _bot_investigate(game, bot, index, now):
     pid = bot["pid"]
+    # With mini-games a human needs 30 to 90 seconds to open a place. Demo bots wait until
+    # every human has made their move, so they never snatch a place from someone solving it.
+    if minigames.enabled(game) and any(not p.get("bot") and p["pid"] not in game["acted"]
+                                       for p in game["players"]):
+        return game
     places = [loc for loc in story_of(game)["locations"] if locked_until(game, loc) is None]
     free = [loc for loc in places if loc not in game["searched"]]
     if pid == game["case"]["murderer"]:
@@ -612,24 +708,23 @@ def _bot_investigate(game, bot, index, now):
     clue = next((c for c in _character(game, pid)["clues"] if c["id"] not in public), None)
     if clue is not None:
         return share(game, bot["token"], clue["id"], now)
-    # Nothing left to search or share: ask someone, so the round can still end early.
-    others = [p for p in _player_ids(game) if p != pid]
-    return question(game, bot["token"], others[index % len(others)], "Where were you at 23:30?", now)
+    # Nothing it would rather do: a guilty bot searches its own place after all, so the round
+    # can still end early. Places it leaves to a waiting human stay theirs.
+    rest = [loc for loc in places if loc not in game["searched"]]
+    if rest and not humans_waiting:
+        return search(game, bot["token"], rest[index % len(rest)], now)
+    return game       # nothing left at all: the round does not wait for it (has_move)
 
 
 def bot_moves(game, now):
     """Let every bot make the moves that are due. Returns the same game if nothing happens."""
     bots = [p for p in game["players"] if p.get("bot")]
-    if not bots or game["phase"] not in ("INVESTIGATION", "DISCUSSION", "VOTE"):
+    if not bots or game["phase"] not in ("INVESTIGATION", "VOTE"):
         return game
     elapsed = now - game["phase_started"]
     for index, bot in enumerate(bots):
         pid = bot["pid"]
         due = elapsed >= BOT_FIRST_MOVE + BOT_STEP * index
-        if game["phase"] in ("INVESTIGATION", "DISCUSSION"):
-            for asked in [e for e in game["log"] if e["kind"] == "question"
-                          and e["target"] == pid and not e["answered"]]:
-                game = answer(game, bot["token"], asked["id"], _character(game, pid)["alibi"], now)
         if game["phase"] == "INVESTIGATION" and due and pid not in game["acted"]:
             game = _bot_investigate(game, bot, index, now)
         if game["phase"] == "VOTE" and due and str(pid) not in game["votes"]:
@@ -670,6 +765,9 @@ def public_view(game, online):
         "code": game["code"],
         "phase": game["phase"],
         "deadline": game["deadline"],
+        "demo": bool(game.get("demo")),
+        # While too few players are online: when the pause began (the game ends PAUSE_LIMIT later).
+        "paused_since": (game.get("paused") or {}).get("since"),
         "players": [
             {
                 "pid": p["pid"],
@@ -711,8 +809,8 @@ def private_view(game, token):
         "clues": [],
         "can_plant": False,
         "plant_locations": [],
-        "open_questions": [],
         "last_move": None,
+        "puzzles": {},
     }
     if game["case"] is None:
         return view
@@ -733,12 +831,10 @@ def private_view(game, token):
         ],
         "can_plant": can_plant,
         "plant_locations": plant_locations(game) if can_plant else [],
-        "open_questions": [
-            {"id": e["id"], "by": e["by"], "text": e["text"]}
-            for e in game["log"]
-            if e["kind"] == "question" and e["target"] == pid and not e["answered"]
-        ],
         "last_move": last_move(game, pid),
+        # The sealed exhibits of this case (mini-games). Never contains an answer.
+        "puzzles": ({p["location"]: p for p in minigames.specs(game)}
+                    if game["phase"] == "INVESTIGATION" else {}),
     })
     return view
 
@@ -749,7 +845,7 @@ def last_move(game, pid):
     if game["phase"] != "INVESTIGATION":
         return None
     for entry in reversed(game["log"]):
-        if (entry["by"] == pid and entry["kind"] in ("search", "question", "share")
+        if (entry["by"] == pid and entry["kind"] in ("search", "share")
                 and entry.get("round") == game.get("round")):
             return {key: entry[key] for key in ("id", "kind", "text", "location", "target", "evidence")
                     if key in entry}
@@ -964,10 +1060,10 @@ def ai_case_ready(game, story, now):
         story = copy.deepcopy(story)
         story["source"] = "ai"
         story["case_number"] = game["code"]
-        # Every player count must give a fair, solvable case with this story.
+        # Every player count must give a fair, balanced case with this story.
         for count in range(MIN_PLAYERS, MAX_PLAYERS + 1):
             try:
-                generator.build_valid_case(list(range(1, count + 1)), count, story)
+                balance.build_balanced_case(list(range(1, count + 1)), count, story)
             except Rejected as problem:
                 problems.append(str(problem))
                 break
@@ -978,6 +1074,17 @@ def ai_case_ready(game, story, now):
     else:
         game["ai_case"] = {"status": "ready", "story": story}
     return game
+
+
+AI_WRITING_TIMEOUT = 6 * 60   # seconds; then the lobby stops waiting (e.g. the server restarted)
+
+
+def ai_status(game, token):
+    """"writing", "ready", "failed" or None (never asked), for the host only; None for others."""
+    player = next((p for p in game["players"] if token and p["token"] == token), None)
+    if player is None or player["pid"] != game["host"] or game.get("ai_case") is None:
+        return None
+    return game["ai_case"]["status"]
 
 
 def ai_case_failed(game, reason, now):

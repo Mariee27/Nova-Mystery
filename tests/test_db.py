@@ -1,20 +1,32 @@
 """Storage (Done-when 16 (db part), 19, 21)."""
 import json
+import os
 import threading
 
 import pytest
 
 import db
 import logic
-from conftest import LOC, locked_places, open_places  # noqa: F401
+from conftest import locked_places, open_places  # noqa: F401
 
 ALPHABET = set("ABCDEFGHJKLMNPQRSTUVWXYZ")
 ON5 = {1, 2, 3, 4, 5}
 
 
-@pytest.fixture
-def path(tmp_path):
-    return str(tmp_path / "game.sqlite")
+# Every storage test runs on a SQLite file, and on PostgreSQL too when a test database is
+# given (NOVA_TEST_POSTGRES=postgresql://..., as in CI). The tables are emptied before each test.
+POSTGRES = os.environ.get("NOVA_TEST_POSTGRES")
+
+
+@pytest.fixture(params=["sqlite"] + (["postgres"] if POSTGRES else []))
+def path(request, tmp_path):
+    if request.param == "sqlite":
+        return str(tmp_path / "game.sqlite")
+    c = db.connect(POSTGRES)
+    for table in ("rooms", "presence", "ai_requests"):
+        c.execute(f"DELETE FROM {table}")
+    c.close()
+    return POSTGRES
 
 
 @pytest.fixture
@@ -218,3 +230,63 @@ def test_create_room_refuses_when_too_many_new_rooms(conn):
     with pytest.raises(logic.Rejected):
         db.create_room(conn, 100)
     db.create_room(conn, db.MAX_NEW_ROOMS_PER_HOUR + 60 * 60)  # an hour later it works again
+
+
+def test_a_flood_of_rooms_frees_abandoned_lobbies_instead_of_locking_everyone_out(conn):
+    """When the room limit is reached, lobbies nobody was active in for 5 minutes are freed;
+    rooms in use (a recent heartbeat, or a game that has started) are never touched."""
+    in_use = db.create_room(conn, 0)
+    join_players(conn, in_use, 1)
+    started, _ = room_in_investigation(conn)
+    for i in range(db.MAX_NEW_ROOMS_PER_HOUR - 2):
+        db.create_room(conn, i / 10)                       # a flood within half a minute
+    later = db.IDLE_ROOM_SECONDS + 60
+    db.heartbeat(conn, in_use, 1, later - 30)             # somebody is still in this lobby
+    code = db.create_room(conn, later)                     # works: abandoned lobbies were freed
+    assert db.load(conn, code) is not None
+    assert db.load(conn, in_use) is not None and db.load(conn, started) is not None
+    assert conn.execute("SELECT COUNT(*) FROM rooms").fetchone()[0] == 3
+
+
+def test_rooms_are_still_refused_while_every_recent_room_is_in_use(conn):
+    for i in range(db.MAX_NEW_ROOMS_PER_HOUR):
+        code = db.create_room(conn, i)
+        db.heartbeat(conn, code, 1, db.IDLE_ROOM_SECONDS + 300)
+    with pytest.raises(logic.Rejected):
+        db.create_room(conn, db.IDLE_ROOM_SECONDS + 310)
+
+
+def test_the_ai_is_asked_at_most_so_often_per_hour(conn):
+    assert all(db.claim_ai_case(conn, i) for i in range(db.MAX_AI_CASES_PER_HOUR))
+    assert not db.claim_ai_case(conn, 100)
+    assert not db.claim_ai_case(conn, 100)                 # a refusal is not counted either
+    assert db.claim_ai_case(conn, 60 * 60 + 1)             # an hour after the first one
+
+
+def test_the_ai_is_asked_at_most_so_often_per_day(conn):
+    hour = 60 * 60
+    granted = sum(db.claim_ai_case(conn, h * hour) for h in range(20) for _ in range(2))
+    assert granted == db.MAX_AI_CASES_PER_DAY                # 2 an hour would be allowed, the day is full
+    assert db.claim_ai_case(conn, 25 * hour)                 # a day after the first ones
+
+
+def test_one_read_per_room_and_second_serves_every_screen_and_a_write_is_seen_at_once(conn):
+    code = db.create_room(conn, 0)
+    first, _ = db.snapshot(conn, code, 1000.0, key="t")
+    conn.execute("UPDATE rooms SET state = ? WHERE code = ?", (json.dumps(dict(first, phase="X")), code))
+    assert db.snapshot(conn, code, 1000.5, key="t")[0]["phase"] == "LOBBY"     # cached for a second
+    assert db.snapshot(conn, code, 1001.1, key="t")[0]["phase"] == "X"         # then read again
+    db.apply(conn, code, lambda g: dict(g, phase="LOBBY"))                     # a write through apply ...
+    assert db.snapshot(conn, code, 1001.2, key="t")[0]["phase"] == "LOBBY"     # ... is seen at once
+
+
+def test_each_thread_reuses_its_own_connection(path):
+    mine = db.shared(path)
+    assert db.shared(path) is mine
+    other = []
+    thread = threading.Thread(target=lambda: other.append(db.shared(path)))
+    thread.start()
+    thread.join()
+    assert other[0] is not mine
+    db.forget(path)
+    assert db.shared(path) is not mine

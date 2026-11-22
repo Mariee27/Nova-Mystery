@@ -4,13 +4,14 @@ Every function here is pure: it gets plain data and returns an HTML string.
 No Streamlit, no database. app.py shows the strings with st.markdown(..., unsafe_allow_html=True).
 
 Safety rule: every piece of text that goes into the HTML passes through h() first,
-so names, questions and answers typed by players are always shown as plain text.
+so names and other text typed by players are always shown as plain text.
 The strings never contain blank lines, so Markdown never touches the HTML.
 
 Functions that show story texts take the public story of the game (logic.story_view).
 Without one they show case #001.
 """
 
+import functools
 import html
 import pathlib
 import re
@@ -26,12 +27,27 @@ def h(text):
     return html.escape(str(text), quote=True).replace("$", "&#36;")
 
 
+@functools.lru_cache(maxsize=1)
 def page_style():
-    return "<style>" + STYLE_FILE.read_text(encoding="utf-8") + "</style>"
+    """The stylesheet, read once per server process and without comments and extra spaces
+    (it is sent with every full redraw of a page)."""
+    css = re.sub(r"/\*.*?\*/", "", STYLE_FILE.read_text(encoding="utf-8"), flags=re.S)
+    css = re.sub(r"\s+", " ", css)
+    css = re.sub(r"\s*([{};,>])\s*", r"\1", css)
+    return "<style>" + css.strip() + "</style>"
 
 
 def _story(story):
     return story if story is not None else logic.public_story(content.DEFAULT_STORY)
+
+
+def md(text):
+    """Text for a widget label. Streamlit reads labels as Markdown (links, even images that load
+    from another site), so every Markdown character is escaped and the text stays plain."""
+    return "".join("\\" + ch if ch in MARKDOWN_CHARS else ch for ch in str(text))
+
+
+MARKDOWN_CHARS = set("\\`*_{}[]()<>#+-.!|~$:")
 
 
 def initial(name):
@@ -142,9 +158,9 @@ def teaser():
         ("Players", "4 to 6, each on their own phone"),
         ("Board", "One shared screen – laptop or projector"),
         ("Your file", "Role, alibi, secret and two private clues"),
-        ("Your move", "One per round: search, interrogate or share"),
+        ("Your move", "One per round: search or share – questions out loud"),
         ("The goal", "Name the culprit – and where it happened"),
-        ("Duration", "5 rounds, 15 to 30 minutes"),
+        ("Duration", f"{logic.ROUNDS} rounds, up to {logic.max_minutes()} minutes"),
     ]
     brief = ("One of you is the murderer, and only that player knows. Everybody may lie. "
              "Collect evidence, compare alibis, and accuse together before the clock runs out.")
@@ -163,25 +179,6 @@ def _file(stamp, number, name, rows, brief):
     return (f'<div class="casefile fade-up"><div class="stamp">{h(stamp)}</div>'
             f'<div class="no">{h(number)}</div><div class="name">{h(name)}</div>'
             f'<table>{table}</table><div class="brief">{h(brief)}</div></div>')
-
-
-def case_file(story=None):
-    story = _story(story)
-    rows = [
-        ("Case", f"#{story['case_number']}"),
-        ("Location", "NOVA University, Lisbon"),
-        ("Victim", story["victim"]),
-        ("Found", f"{content.FOUND_TIME}, {story['found_place']}"),
-        ("Initial classification", "Suspicious death"),
-        ("Suspects", "4 to 6"),
-    ]
-    if story["source"] == "ai":
-        rows.append(("Written by", "AI, new for this room"))
-    table = "".join(f"<tr><td>{h(k)}</td><td>{h(v)}</td></tr>" for k, v in rows)
-    return ('<div class="casefile fade-up"><div class="stamp">Active investigation</div>'
-            f'<div class="no">CASE FILE #{h(story["case_number"])}</div>'
-            f'<div class="name">{h(story["case_title"])}</div>'
-            f'<table>{table}</table><div class="brief">{h(story["briefing"])}</div></div>')
 
 
 # ---------------------------------------------------------------- phase and timer
@@ -265,9 +262,11 @@ def suspect_list(players, phase, me_pid=None):
 
 # ---------------------------------------------------------------- the campus plan
 #
-# NOVA SBE, floor 0, seen from above: buildings are rectangles, every value is percent of
-# the map (content.BUILDINGS, content.PLACES), so phone and board draw the same plan.
-# The pins are HTML on top of it, so on the phone they can be links.
+# NOVA SBE, floor 0, seen from above (north to the upper left, the beach to the bottom right). The ground, the roads and the building
+# outlines are one SVG whose units are percent of the map (content.BUILDINGS, GROUNDS,
+# ROADS); it is stretched to the map's 1.25 : 1 box. The building letters and the pins are
+# HTML on top of it at the same percent positions, so text never stretches and, on the
+# phone, the pins can be links.
 
 STATE_LABELS = {"open": "Not searched yet", "done": "Searched", "locked": "Locked"}
 ICONS = {
@@ -295,13 +294,24 @@ def _spot(name, index):
     return place["x"], place["y"], place["letter"]
 
 
+def _points(points):
+    return " ".join(f"{x},{y}" for x, y in points)
+
+
 def _plan_ground():
-    left, top, width, height = content.BEACH
-    parts = [f'<div class="beach" style="left:{left}%;top:{top}%;width:{width}%;height:{height}%"></div>']
-    for label, (left, top, width, height) in content.BUILDINGS.items():
-        parts.append(f'<div class="bld" style="left:{left}%;top:{top}%;width:{width}%;height:{height}%">'
-                     f'<span>{h(label)}</span></div>')
-    return "".join(parts)
+    """The drawing under the pins: ground, roads, building outlines and road names.
+    No letters on the buildings: without a legend they would mean nothing to the players;
+    the places of a case carry their name on their pin."""
+    shapes = [f'<polygon class="g-{css}" points="{_points(points)}"/>' for css, points in content.GROUNDS]
+    shapes += [f'<polyline class="road" points="{_points(points)}"/>' for _, points, _ in content.ROADS]
+    shapes += [f'<polygon class="b-{"spine" if label == "I" else "hall"}" points="{_points(item["shape"])}">'
+               f'<title>{h(label)} · {h(item["name"])}</title></polygon>'
+               for label, item in content.BUILDINGS.items()]
+    svg = ('<svg class="ground" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">'
+           f'{"".join(shapes)}</svg>')
+    roads = [f'<span class="rname" style="left:{points[1][0]}%;top:{points[1][1]}%;--rot:{angle}deg">'
+             f'{h(name)}</span>' for name, points, angle in content.ROADS if name]
+    return svg + "".join(roads)
 
 
 def campus_map(searched, scene=None, story=None, view=None, links=None, active=True,
@@ -349,7 +359,8 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
             pins.append(f'<div class="{css}" style="{style}" aria-label="{h(label)}">{inner}</div>')
     css = "plan2" + ("" if active else " off") + (" board" if board else "")
     return (f'<div class="{css}" role="group" aria-label="Campus map">{_plan_ground()}{"".join(pins)}'
-            f'<div class="plan-foot">NOVA SBE Carcavelos · Floor 0</div></div>')
+            f'<div class="compass" aria-label="North"><span class="needle">↑</span>N</div>'
+            f'</div>')
 
 
 def place_card(name, item=None, entries=(), story=None):
@@ -438,7 +449,9 @@ def clue_cards(items):
             out.append(f'<a class="{css}" href="{h(href)}" target="_self">{inner}</a>')
         else:
             out.append(f'<div class="{css}">{inner}</div>')
-    return "".join(out)
+    # The wrapping <div> matters: st.markdown would otherwise put the bare <a> cards into a <p>,
+    # and the browser splits an <a> holding <div>s there into several empty or half cards.
+    return f'<div class="clues">{"".join(out)}</div>'
 
 
 def move_made(kicker, title, text):
@@ -470,15 +483,18 @@ def waiting_list(players, me_pid):
 # ---------------------------------------------------------------- the board during the rounds
 
 def board_head(code, round_no, rounds, left):
-    """Room code, 'Round X of 3' and the big timer (the logo stands above it, ui.brand)."""
+    """Room code, 'Round X of 3' and the big timer (the logo stands above it, ui.brand).
+    left None: the game is paused, the clock shows a pause sign instead of 0:00."""
+    paused = left is None
     left = max(0, int(left or 0))
-    low = " low" if left <= 10 else ""
+    low = " low" if left <= 10 and not paused else ""
     rnd = (f'<div class="hbox"><div class="hk">Investigation</div><div class="hv">Round {h(round_no)} of {h(rounds)}</div></div>'
            if round_no else "")
     return (f'<div class="bhead"><div class="bh-boxes">'
             f'<div class="hbox"><div class="hk">Room</div><div class="hv">{h(code)}</div></div>{rnd}'
-            f'<div class="hbox clock{low}" role="timer" aria-label="{left} seconds left">'
-            f'{left // 60}:{left % 60:02d}</div></div></div>')
+            + ('<div class="hbox clock" role="timer" aria-label="paused">⏸</div></div></div>' if paused else
+               f'<div class="hbox clock{low}" role="timer" aria-label="{left} seconds left">'
+               f'{left // 60}:{left % 60:02d}</div></div></div>'))
 
 
 def detectives(players):
@@ -521,27 +537,6 @@ def evidence_board(log, name_of, story=None):
     return f'<div class="lbl">Evidence board</div><div class="ebs">{"".join(cards)}</div>'
 
 
-def interrogation(log, name_of, role_of):
-    """The latest interrogation: who asks whom, with which evidence, the question and the answer."""
-    asked = next((e for e in reversed(log) if e["kind"] == "question"), None)
-    if asked is None:
-        return ""
-    by_id = {e["id"]: e for e in log}
-    reply = next((e for e in log if e["kind"] == "answer" and e.get("question_id") == asked["id"]), None)
-    who = f'{name_of(asked["by"])} ({role_of(asked["by"])}) asks {name_of(asked["target"])} ({role_of(asked["target"])})'
-    evidence = by_id.get(asked.get("evidence"))
-    confront = f", confronting them with Exhibit {evidence['id']}" if evidence else ""
-    if reply is not None:
-        answer = f'<div class="iv-a">“{h(reply["text"])}”</div>'
-    elif asked.get("answered"):
-        answer = f'<div class="iv-w">{h(name_of(asked["target"]))} gave no answer.</div>'
-    else:
-        answer = f'<div class="iv-w">{h(name_of(asked["target"]))} is typing an answer…</div>'
-    live = "Live" if reply is None and not asked.get("answered") else "Latest"
-    return (f'<div class="box iv"><div class="lbl red">Interrogation · {live}</div>'
-            f'<div class="iv-h">{h(who + confront)}:</div><div class="iv-q">“{h(asked["text"])}”</div>{answer}</div>')
-
-
 # ---------------------------------------------------------------- evidence feed
 
 RELIABILITY = {   # shown only after the case is closed (clue_kind is hidden before)
@@ -564,7 +559,7 @@ def _stamp(entry):
     return ""
 
 
-def log_entry(entry, name_of, entries_by_id, story=None):
+def log_entry(entry, name_of, story=None):
     """One entry of the public log as a card. name_of(pid) -> display name."""
     kind = entry["kind"]
     text = h(entry["text"])
@@ -580,18 +575,6 @@ def log_entry(entry, name_of, entries_by_id, story=None):
         return (f'<div class="ev statement">{_stamp(entry)}'
                 f'<div class="h">Exhibit {entry["id"]} · Witness statement · {h(name_of(entry["by"]))}</div>'
                 f'<div class="b">{text}</div></div>')
-    if kind == "question":
-        confront = ""
-        evidence = entries_by_id.get(entry.get("evidence"))
-        if evidence is not None:
-            confront = (f'<div class="confront">Confronted with Exhibit {evidence["id"]}: '
-                        f'“{h(evidence["text"])}”</div>')
-        return (f'<div class="ev quest"><div class="h">Interrogation #{entry["id"]} · '
-                f'{h(name_of(entry["by"]))} → {h(name_of(entry["target"]))}</div>'
-                f'{confront}<div class="b">“{text}”</div></div>')
-    if kind == "answer":
-        return (f'<div class="ev reply"><div class="h">Statement of {h(name_of(entry["by"]))} '
-                f'· re #{entry["question_id"]}</div><div class="b">“{text}”</div></div>')
     return f'<div class="ev note">— {text}</div>'
 
 
@@ -620,17 +603,6 @@ def pinned_note(entry, name_of, newest=False, story=None):
         css = "typed"
         body = (f'<div class="cap">Exhibit {number} · Witness statement</div>'
                 f'<div class="b">{text}</div><div class="sig">– {h(name_of(entry["by"]))}</div>')
-    elif kind == "question":   # an interrogation: a handwritten note
-        css = "hand"
-        confront = ""
-        if entry.get("evidence") is not None:
-            confront = f'<div class="ref">re Exhibit {h(entry["evidence"])}</div>'
-        body = (f'<div class="cap">#{number} · {h(name_of(entry["by"]))} → {h(name_of(entry["target"]))}</div>'
-                f'{confront}<div class="b">“{text}”</div>')
-    elif kind == "answer":     # the answer: handwritten too, on white paper
-        css = "hand reply"
-        body = (f'<div class="cap">{h(name_of(entry["by"]))} answers #{h(entry["question_id"])}</div>'
-                f'<div class="b">“{text}”</div>')
     else:                      # a message from the game itself
         css = "slip"
         body = f'<div class="b">{text}</div>'
@@ -761,14 +733,72 @@ def alibi_table(result, characters, name_of):
             f'{"".join(rows)}</table>')
 
 
-def bars(counts, labels, hit=None):
-    """Vote bars. counts: key -> votes; labels: list of (key, label) in display order."""
-    most = max(counts.values(), default=0) or 1
-    rows = []
-    for key, label in labels:
-        count = counts.get(key, 0)
-        css = "bar hit" if key == hit else "bar"
-        rows.append(f'<div class="{css}"><div>{h(label)}</div><div class="track">'
-                    f'<div class="fill" style="width:{count / most * 100:.0f}%"></div></div>'
-                    f'<div class="c">{count}</div></div>')
-    return f'<div class="bars">{"".join(rows)}</div>'
+def red_herrings(items):
+    """AI cases: who looked guilty but was not, why, and what cleared them."""
+    rows = [f'<div class="rh"><div class="rh-who">{h(item["points_at"])}</div>'
+            f'<div class="rh-why">Why they looked guilty: {h(item["explained_by"])}</div>'
+            f'<div class="rh-clear">{h(item["cleared_by"])}</div></div>' for item in items]
+    return f'<div class="rhs">{"".join(rows)}</div>'
+
+
+def ballot_award(accused, place, murderer, scene, is_killer, caught):
+    """A small title for each ballot, just for fun. caught: did most ballots name the killer?"""
+    if is_killer:
+        return "🚨 Caught" if caught else "🎭 Master liar"
+    if accused is None:
+        return "🙈 Too scared to vote"
+    if accused != murderer:
+        return "🤡 Fooled"
+    if place == scene:
+        return "🕵️ Sharpest detective"
+    return "🔎 Good instinct"
+
+
+def ballot_order(player, votes, murderer):
+    """Suspense: wrong and missing ballots first, then the right ones, the killer's ballot last."""
+    if player["pid"] == murderer:
+        return 2
+    return 1 if votes.get(str(player["pid"])) == murderer else 0
+
+
+def vote_table(result, players, name_of):
+    """After the game: every ballot as a card that flips in, one after another.
+    Green = pointed at the real culprit, red = the culprit's own ballot, grey = wrong.
+    --i is the card's number; the CSS uses it to delay each card a little more
+    (and the killer's ballot, which comes last, a little longer)."""
+    murderer = result["murderer"]
+    scene = result["murder_location"]
+    votes = result.get("votes", {})
+    scene_votes = result.get("scene_votes", {})
+    right = sum(1 for accused in votes.values() if accused == murderer)
+    caught = right * 2 > len(votes)          # more than half of the ballots named the killer
+    ordered = sorted(players, key=lambda p: ballot_order(p, votes, murderer))   # sorted() keeps ties in order
+    cards = []
+    for i, p in enumerate(ordered):
+        voter = str(p["pid"])
+        accused = votes.get(voter)
+        place = scene_votes.get(voter)
+        killer = p["pid"] == murderer
+        if accused is None:
+            css, tag, target = "ballot none", "Did not vote", '<span class="who">—</span>'
+        else:
+            css = "ballot right" if accused == murderer else "ballot"
+            tag = "✓ Right" if accused == murderer else "✗ Wrong"
+            target = (f'<span class="who"><span class="face">{initial(name_of(accused))}</span>'
+                      f'{h(name_of(accused))}</span>')
+        if killer:
+            css += " killer"
+            tag = "The killer's ballot"
+        where = ""
+        if place is not None:
+            mark = " ✓" if place == scene else " ✗"
+            icon = content.LOCATION_ICONS.get(place, "")
+            where = f'<div class="where">{icon} {h(place)}{mark}</div>'
+        award = ballot_award(accused, place, murderer, scene, killer, caught)
+        cards.append(f'<div class="{css}" style="--i:{i}">'
+                     f'<span class="who"><span class="face">{initial(name_of(p["pid"]))}</span>'
+                     f'{h(name_of(p["pid"]))}</span><span class="arrow">accuses</span>{target}'
+                     f'<span class="tag">{h(tag)}</span>{where}<div class="award">{h(award)}</div></div>')
+    summary = f'{right} of {len(votes)} ballots named the killer'
+    return (f'<div class="ballots"><div class="sum">{h(summary)}</div>'
+            f'<div class="ballot-grid">{"".join(cards)}</div></div>')

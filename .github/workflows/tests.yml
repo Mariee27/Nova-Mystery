@@ -11,6 +11,19 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      # The storage tests run on SQLite and on PostgreSQL (see tests/test_db.py).
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nova
+          POSTGRES_PASSWORD: nova
+          POSTGRES_DB: nova
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U nova" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      NOVA_TEST_POSTGRES: postgresql://nova:nova@localhost:5432/nova
     steps:
       - uses: actions/checkout@v4
 
@@ -26,3 +39,35 @@ jobs:
 
       - name: Check dependencies for known vulnerabilities
         run: uvx pip-audit==2.9.0 -r requirements.txt --no-deps --disable-pip
+
+  browser:
+    # A demo game in a real browser: layout, taps and errors the pytest stand-in cannot see.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install the app and Playwright
+        run: |
+          uv sync --locked
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+
+      - name: Start the app
+        run: |
+          uv run streamlit run app.py --server.headless true --server.port 8501 > streamlit.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:8501/_stcore/health && break; sleep 1; done
+
+      - name: Play a demo game in the browser
+        run: node tests/e2e/browser_check.cjs http://localhost:8501
+
+      - name: Show the app's log
+        if: failure()
+        run: cat streamlit.log

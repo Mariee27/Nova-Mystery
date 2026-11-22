@@ -11,6 +11,7 @@ Three kinds of screens, chosen by the link:
 """
 
 import io
+import logging
 import os
 import threading
 import time
@@ -23,6 +24,8 @@ import ai
 import content
 import db
 import logic
+import minigame_ui
+import minigames
 import ui
 
 DB_PATH = os.environ.get("MURDER_DB", "data/murder.db")
@@ -41,8 +44,9 @@ PHASE_TITLES = {
 PHASE_SUBTITLES = {
     "LOBBY": "Scan the code or enter the room code on your phone. 4 to 6 suspects.",
     "REVEAL": "Every phone now holds a private file. One of you is lying about everything.",
-    "INVESTIGATION": "One move per round: search a place on the map, interrogate a suspect, or share what you know.",
-    "DISCUSSION": "Answer the open questions. Compare the alibis. Everybody may lie.",
+    "INVESTIGATION": "One move per round: search a place on the map or share what you know. "
+                     "Question each other out loud.",
+    "DISCUSSION": "Question each other face to face. Compare the alibis. Everybody may lie.",
     "VOTE": "Name the suspect – and the place where {victim} really died.",
     "RESULT": "",
     "ABORTED": "",
@@ -51,26 +55,45 @@ PHASE_SUBTITLES = {
 
 # ---------------------------------------------------------------- plumbing
 
+def db_target():
+    """Where the rooms live: DATABASE_URL (a postgresql:// address, so rooms survive a restart
+    of the app) if it is set, otherwise the SQLite file MURDER_DB."""
+    return setting("DATABASE_URL") or DB_PATH
+
+
+DB_DOWN = "The game cannot reach its database right now. Wait a moment, then reload the page."
+
+
 @contextmanager
 def open_db():
-    conn = db.connect(DB_PATH)
+    """This thread's database connection (reused, see db.shared). After a database error the
+    connection is dropped, so the next call starts a fresh one, and the player sees a short
+    message instead of the error: database errors name the server and the database user. The
+    details go to the server log only."""
+    target = db_target()
     try:
-        yield conn
-    finally:
-        conn.close()
+        yield db.shared(target)
+    except Exception as problem:
+        if type(problem).__module__.split(".")[0] in ("sqlite3", "psycopg"):
+            db.forget(target)
+            logging.getLogger("nova").exception("database error")
+            st.error(DB_DOWN)
+            st.stop()
+        raise
 
 
 def sync(code, token=None):
     """Heartbeat, timers, and the current views. Returns (public, private) or (None, None)."""
     now = time.time()
     with open_db() as conn:
-        game = db.load(conn, code)
+        game, seen = db.snapshot(conn, code, now, key=db_target())
         if game is None:
             return None, None
         me = logic.private_view(game, token)
         if me is not None:
             db.heartbeat(conn, code, me["pid"], now)
-        online = logic.with_bots(game, logic.online_ids(db.presence(conn, code), now))
+            seen = {**seen, me["pid"]: now}
+        online = logic.with_bots(game, logic.online_ids(seen, now))
 
         def step(g):   # timers first, then whatever the demo suspects have to do
             return logic.bot_moves(logic.tick(g, online, now), now)
@@ -89,11 +112,18 @@ def views(game, online, token=None):
     me = logic.private_view(game, token)
     if me is not None:
         me["host_note"] = logic.host_note(game, token)
+        me["ai_status"] = logic.ai_status(game, token)
     return public, me
 
 
 def act(code, action):
     """Run one action. action(game, online, now) -> game. Rejections are shown to the player."""
+    attempt(code, action)
+    st.rerun()
+
+
+def attempt(code, action):
+    """Like act, without the rerun. True if the action was saved."""
     now = time.time()
     try:
         with open_db() as conn:
@@ -102,7 +132,8 @@ def act(code, action):
                 g, logic.with_bots(g, logic.online_ids(presence, now)), now))
     except logic.Rejected as problem:
         st.session_state["flash"] = str(problem)
-    st.rerun()
+        return False
+    return True
 
 
 def show(html):
@@ -142,15 +173,6 @@ def seconds_left(public):
 def name_of(public, pid):
     for player in public["players"]:
         if player["pid"] == pid:
-            return player["name"]
-    return "Someone"
-
-
-def player_label(public, pid):
-    for player in public["players"]:
-        if player["pid"] == pid:
-            if player["role"]:
-                return f"{player['name']} – {player['role']}"
             return player["name"]
     return "Someone"
 
@@ -198,6 +220,9 @@ def begin_ai_case(code):
         if settings is None:
             db.apply(conn, code, lambda g: logic.ai_case_failed(g, "no AI key is set up", now))
             return
+        if not db.claim_ai_case(conn, now):     # protects the AI quota from a flood of rooms
+            db.apply(conn, code, lambda g: logic.ai_case_failed(g, "the AI limit for this hour is reached", now))
+            return
         db.apply(conn, code, lambda g: logic.ai_case_writing(g, now))
     threading.Thread(target=write_ai_case, args=(code, settings), daemon=True).start()
 
@@ -238,6 +263,52 @@ def show_phase(public, big_timer=False):
     else:
         show(banner)
         show(ui.timer(left, logic.DURATIONS[phase]))
+    pause_notice(public)
+
+
+def pause_notice(public):
+    """While too few players are online the game is paused: say so, and how long it waits."""
+    since = public.get("paused_since")
+    if since is None:
+        return
+    online = sum(1 for p in public["players"] if p["online"])
+    wait = max(0, int(logic.PAUSE_LIMIT - (time.time() - since)))
+    st.warning(f"⏸ Paused – only {online} of {len(public['players'])} players are online, the game needs "
+               f"{logic.MIN_ONLINE}. Whoever dropped out: open your game tab again. The clock stands still; "
+               f"the game ends in {wait // 60}:{wait % 60:02d} if not enough players come back.")
+
+
+STAY_ONLINE = ("Keep this tab open and your screen on during the game. If you drop out, open this "
+               "same tab or link again: your seat waits for you.")
+
+
+def keep_screen_on():
+    """Asks the phone to keep its screen on while the game page is open (Screen Wake Lock:
+    Chrome, Android, Safari from iOS 16.4; elsewhere nothing happens). A phone whose screen
+    goes dark stops sending signs of life and soon counts as offline."""
+    v2 = getattr(getattr(st, "components", None), "v2", None)
+    if v2 is None:
+        return
+    key = (id(v2), "nova_wake")
+    if key not in minigame_ui.RENDERERS:
+        minigame_ui.RENDERERS[key] = v2.component("nova_wake", js=WAKE_JS)
+    minigame_ui.RENDERERS[key](key="nova-wake", data={"on": True})
+
+
+WAKE_JS = r"""
+export default function () {
+  const w = window;
+  if (w.__novaWake || !('wakeLock' in navigator)) return;   // once per page, where supported
+  w.__novaWake = true;
+  const grab = async () => {
+    if (document.visibilityState !== 'visible' || (w.__novaLock && !w.__novaLock.released)) return;
+    try { w.__novaLock = await navigator.wakeLock.request('screen'); } catch (e) { /* not allowed now */ }
+  };
+  document.addEventListener('visibilitychange', grab);       // the lock ends when the tab is hidden
+  document.addEventListener('pointerdown', grab, { passive: true });   // some browsers want a tap first
+  grab();
+}
+"""
 
 
 def show_rules(expanded=False):
@@ -253,10 +324,9 @@ def show_log(public):
     if not public["log"]:
         st.caption("Nothing has been found yet.")
         return
-    by_id = {entry["id"]: entry for entry in public["log"]}
     # Oldest first: a new entry is added at the bottom and only that card animates in.
     for entry in public["log"]:
-        show(ui.log_entry(entry, lambda pid: name_of(public, pid), by_id, story=public["story"]))
+        show(ui.log_entry(entry, lambda pid: name_of(public, pid), story=public["story"]))
 
 
 def show_result(public):
@@ -265,19 +335,21 @@ def show_result(public):
     who = lambda pid: name_of(public, pid)   # noqa: E731
     story = public["story"]
     show(ui.reveal(result, characters, who, story=story))
+    # The ballots come right after the culprit, over the full width: the moment everybody reacts to.
+    st.markdown("### How everyone voted")
+    show(ui.vote_table(result, public["players"], who))
     left, right = st.columns([3, 2])
     with left:
         st.markdown("### Reconstruction of the night")
         show(ui.reconstruction(result, characters, who, story=story))
         st.markdown("### Every alibi, checked")
         show(ui.alibi_table(result, characters, who))
+        if result.get("red_herrings"):
+            st.markdown("### The false trails")
+            show(ui.red_herrings(result["red_herrings"]))
     with right:
-        st.markdown("### Who the room accused")
-        labels = [(str(p["pid"]), p["name"]) for p in public["players"]]
-        show(ui.bars(result["tally"], labels, hit=str(result["murderer"])))
+        # The ballots above already show who accused whom and where, so no vote bars here.
         st.markdown("### Where it happened")
-        places = [(loc, loc) for loc in story["locations"]]
-        show(ui.bars(result.get("scene_tally", {}), places, hit=result["murder_location"]))
         show(ui.campus_map(public["searched"], scene=result["murder_location"], story=story,
                            view=public["map"]))
     st.markdown("### The evidence, re-examined")
@@ -311,11 +383,10 @@ def home_screen():
         if st.button("Create room", type="primary", use_container_width=True):
             try:
                 with open_db() as conn:
-                    code = db.create_room(conn, time.time())
+                    code = db.create_room(conn, time.time(), minigames=True)
             except logic.Rejected as problem:
                 st.error(str(problem))
                 return
-            begin_ai_case(code)
             st.query_params["room"] = code
             st.query_params["view"] = "board"
             st.rerun()
@@ -340,15 +411,14 @@ def start_demo():
     now = time.time()
     try:
         with open_db() as conn:
-            code = db.create_room(conn, now)
-            game = db.apply(conn, code, lambda g: logic.join(g, "Detective", token, now))
+            code = db.create_room(conn, now, minigames=True)
+            game = db.apply(conn, code, lambda g: logic.join(logic.as_demo(g), "Detective", token, now))
             db.heartbeat(conn, code, logic.private_view(game, token)["pid"], now)
             for _ in range(DEMO_BOTS):
                 db.apply(conn, code, lambda g: logic.add_bot(g, token, now))
     except logic.Rejected as problem:
         st.error(str(problem))
         return
-    begin_ai_case(code)
     st.query_params["room"] = code
     st.query_params["t"] = token
     st.rerun()
@@ -374,6 +444,7 @@ def join_screen(code):
     with st.form("join"):
         name = st.text_input("Your name", max_chars=logic.MAX_NAME)
         submitted = st.form_submit_button("Join", type="primary")
+    st.caption(STAY_ONLINE)
     show_rules()
     if submitted:
         token = logic.new_token()
@@ -454,9 +525,10 @@ def board_live(code):
 
 def board_round(code, public):
     """The board during the rounds: header with room, round and timer; the campus plan on
-    the left; on the right who has moved, the evidence board and the interrogation."""
+    the left; on the right who has moved and the evidence board."""
     story = public["story"]
     show(ui.board_head(code, public["map"]["round"], public["map"]["rounds"], seconds_left(public)))
+    pause_notice(public)
     st.markdown(f'<div class="kicker">{ui.h(case_kicker(public))}</div>', unsafe_allow_html=True)
     left, right = st.columns([3, 2])
     with left:
@@ -464,9 +536,6 @@ def board_round(code, public):
     with right:
         show(ui.detectives(public["players"]))
         show(ui.evidence_board(public["log"], lambda pid: name_of(public, pid), story=story))
-        show(ui.interrogation(public["log"], lambda pid: name_of(public, pid),
-                              lambda pid: next((p.get("role") or "" for p in public["players"]
-                                                if p["pid"] == pid), "")))
 
 
 def board_screen(code):
@@ -474,22 +543,25 @@ def board_screen(code):
     public, _ = sync(code)
     if public is not None:
         st.session_state["board_phase"] = public["phase"]
+    board_live(code)                             # first: always at the same place (see player_screen)
+    if public is not None:
         play_case_intro(code, public, scene=True)
-    board_live(code)
+        keep_screen_on()                         # the projector laptop must not go to sleep either
 
 
 # ---------------------------------------------------------------- player (phone)
 
 def signature(public, me):
     """Changes whenever the buttons on the phone have to change: also when new evidence
-    arrives, so that the search list and the 'confront with evidence' list stay current."""
+    arrives, so that the search list stays current."""
     evidence = sum(1 for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS)
-    # Who is in the room and online: the host's Start button depends on it.
-    players = tuple((p["pid"], p["online"]) for p in public["players"])
+    # Who is in the room, online, has moved or voted: the suspect list shows it (it is drawn
+    # with the page, so the page must be redrawn when it changes).
+    players = tuple((p["pid"], p["online"], p["acted"], p["voted"]) for p in public["players"])
     # The round and the state of every place: the map's markers depend on them.
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
-            tuple(q["id"] for q in me["open_questions"]), evidence, me["host_note"], players, places)
+            evidence, me["host_note"], me.get("ai_status"), players, places, public.get("paused_since"))
 
 
 @st.fragment(run_every=POLL_SECONDS)
@@ -502,30 +574,29 @@ def player_status(code, token):
         st.rerun()   # redraw the whole page so that the right buttons appear
 
 
-@st.fragment(run_every=POLL_SECONDS)
 def player_suspects(code, my_pid):
     """The suspects as a short list. The phone has no room for the board's big tiles."""
     with open_db() as conn:
-        game = db.load(conn, code)
-        online = logic.online_ids(db.presence(conn, code), time.time())
+        game, seen = db.snapshot(conn, code, time.time(), key=db_target())
+        online = logic.online_ids(seen, time.time())
     if game is not None:
         public = logic.public_view(game, logic.with_bots(game, online))
         st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
         show(ui.suspect_list(public["players"], public["phase"], my_pid))
 
 
-@st.fragment(run_every=POLL_SECONDS)
 def player_log(code):
     with open_db() as conn:
-        game = db.load(conn, code)
-        online = logic.online_ids(db.presence(conn, code), time.time())
+        game, seen = db.snapshot(conn, code, time.time(), key=db_target())
+        online = logic.online_ids(seen, time.time())
     if game is not None:
-        st.markdown('<div class="kicker">Evidence &amp; statements</div>', unsafe_allow_html=True)
+        st.markdown('<div class="kicker" id="evidence-log">Evidence &amp; statements</div>',
+                    unsafe_allow_html=True)
         show_log(views(game, online)[0])
 
 
 def show_card(me, expanded):
-    with st.expander(f"Your card: {me['role']}", expanded=expanded):
+    with st.expander(f"Your card: {ui.md(me['role'])}", expanded=expanded):
         show(ui.dossier(me))
 
 
@@ -558,6 +629,55 @@ def stamp_slams_now(code, me):
     return True
 
 
+CASE_CHOICES = {     # what the host of a room can play; the AI is only asked when the host picks "ai"
+    "shuffled": "Case #001 – a new culprit every game",
+    "ai": "A new case written by the AI",
+}
+CASE_HELP = ("Case #001 gets a new culprit, new roles and new clues every game. The AI writes a "
+             "brand-new case for this room; that takes one to three minutes.")
+# A demo room ("Play a demo", ?demo=1) always plays case #001 the same way: same culprit, same
+# roles, same clues (logic.DEMO_SEED), so a presentation can be rehearsed. Its host gets no choice.
+
+
+def add_demo_suspect_button(code, token, full):
+    if st.button("Add demo suspect", disabled=full,
+                 help="A computer player for presentations. It plays by the same rules "
+                      "and only knows its own card and the public evidence."):
+        act(code, lambda g, on, now: logic.add_bot(g, token, now))
+
+
+def case_choice(code, me, demo):
+    """The host picks the case. Returns (choice, waiting): waiting is True while an AI case
+    the host asked for is not ready yet (Start waits for it, or the host switches back).
+    A demo room has no choice: it always plays the fixed demo case."""
+    if demo:
+        st.caption("Demo: case #001, the same culprit every time.")
+        return "demo", False
+    has_ai = ai.settings(setting) is not None
+    if not has_ai:
+        return "shuffled", False
+    choice = st.radio("Which case?", ["shuffled", "ai"], format_func=CASE_CHOICES.get, help=CASE_HELP,
+                      key=f"case-{code}")
+    if choice != "ai":
+        return choice, False
+    status = me.get("ai_status")
+    if status is None:                                   # picked just now: start writing
+        begin_ai_case(code)
+        st.rerun()
+    if status == "writing":
+        st.info("The AI is writing your case … one to three minutes. You can switch to case #001 any time.")
+        return choice, True
+    if status == "failed":
+        if st.button("Try again", key="ai-again"):
+            begin_ai_case(code)
+            st.rerun()
+        return choice, True
+    if st.button("Write a different AI case", key="ai-other"):
+        begin_ai_case(code)
+        st.rerun()
+    return choice, False
+
+
 def host_controls(code, token, public, me):
     if not me["is_host"]:
         return
@@ -568,11 +688,12 @@ def host_controls(code, token, public, me):
         url = base_url()
         if url:
             st.caption(f"Board for the projector: {url}/?room={code}&view=board")
-        demo = st.checkbox("Use the fixed demo case",
-                           help="Presentation mode: always the same case, so a demo can be rehearsed.")
+        choice, waiting = case_choice(code, me, public.get("demo", False))
+        players = public["players"]
+        full = len(players) >= logic.MAX_PLAYERS
+        missing = logic.MIN_PLAYERS - online
         ready = logic.MIN_PLAYERS <= online <= logic.MAX_PLAYERS
         if not ready:
-            missing = logic.MIN_PLAYERS - online
             if missing > 0:
                 st.warning(f"{online} online – the game needs {logic.MIN_PLAYERS} to {logic.MAX_PLAYERS} "
                            f"players, so {missing} more. Let them join with the room code {code}, "
@@ -580,36 +701,30 @@ def host_controls(code, token, public, me):
             else:
                 st.warning(f"{online} online – at most {logic.MAX_PLAYERS} players can play. "
                            "Remove a player below.")
-        if st.button("Start game", type="primary", disabled=not ready):
+        if st.button("Start game", type="primary", disabled=not ready or waiting):
+            demo = choice == "demo"
             seed = logic.DEMO_SEED if demo else None
-            act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=demo))
-        full = len(public["players"]) >= logic.MAX_PLAYERS
-        if st.button("Add demo suspect", disabled=full,
-                     help="A computer player for presentations. It plays by the same rules "
-                          "and only knows its own card and the public evidence."):
-            act(code, lambda g, on, now: logic.add_bot(g, token, now))
-        others = [p["pid"] for p in public["players"] if p["pid"] != me["pid"]]
-        if others:
-            with st.expander("Remove a player"):
-                victim = st.selectbox("Player", others, key="kick_target",
-                                      format_func=lambda pid: name_of(public, pid))
-                if st.button("Remove from room"):
-                    act(code, lambda g, on, now: logic.kick(g, token, victim, now))
+            act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=demo,
+                                                     use_ai=choice == "ai"))
+        # "Add demo suspect" is rendered exactly once per run: in plain sight while players
+        # are missing, otherwise folded into the expander (and not at all once the room is full).
+        if missing > 0:
+            add_demo_suspect_button(code, token, full)
+        others = [p["pid"] for p in players if p["pid"] != me["pid"]]
+        can_add = missing <= 0 and not full
+        if can_add or others:
+            title = "Add or remove players" if can_add else "Remove a player"
+            with st.expander(f"{title} ({len(players)} of {logic.MAX_PLAYERS})"):
+                if can_add:
+                    add_demo_suspect_button(code, token, full)
+                if others:
+                    victim = st.selectbox("Player", others, key="kick_target",
+                                          format_func=lambda pid: name_of(public, pid))
+                    if st.button("Remove from room"):
+                        act(code, lambda g, on, now: logic.kick(g, token, victim, now))
     elif public["phase"] in logic.DURATIONS:
         if st.button("End phase (host)"):
             act(code, lambda g, on, now: logic.end_phase(g, token, on, now))
-
-
-def answer_forms(code, token, public, me):
-    by_id = {entry["id"]: entry for entry in public["log"]}
-    for asked in me["open_questions"]:
-        with st.form(f"answer_{asked['id']}", clear_on_submit=True):
-            entry = by_id.get(asked["id"], dict(asked, kind="question", target=me["pid"]))
-            show(ui.log_entry(entry, lambda pid: name_of(public, pid), by_id))
-            text = st.text_input("Your answer (you may lie)", max_chars=logic.MAX_TEXT)
-            if st.form_submit_button("Answer"):
-                question_id = asked["id"]
-                act(code, lambda g, on, now: logic.answer(g, token, question_id, text, now))
 
 
 # ---------------------------------------------------------------- the move, step by step
@@ -619,9 +734,9 @@ def answer_forms(code, token, public, me):
 # parameters into session_state["move"] and removes them from the address at once.
 # Every link carries the whole selection, so nothing gets lost on the reload.
 
-MOVE_STEPS = ("search", "question", "share", "plant")
-MOVE_KEYS = ("place", "ask", "ev", "clue", "blame")
-NUMBER_KEYS = ("ask", "ev", "blame")
+MOVE_STEPS = ("search", "share", "plant", "vote")
+MOVE_KEYS = ("place", "clue", "blame", "accuse")
+NUMBER_KEYS = ("blame", "accuse")
 
 
 def move_link(code, token, move):
@@ -655,25 +770,27 @@ def handle_move_links():
 
 
 def choose_action(code, token, public, me):
-    """'Your move.': three big cards (four for the murderer while planting is possible)."""
+    """'Your move.': two big cards (three for the murderer while planting is possible).
+    Interrogations are not a move in the app: the players question each other out loud."""
     open_places = sum(1 for p in public["map"]["places"] if p["state"] == "open")
-    others = sum(1 for p in public["players"] if p["pid"] != me["pid"])
     unshared = sum(1 for c in me["clues"] if not c["shared"])
     cards = [
         {"href": move_link(code, token, {"step": "search"}) if open_places else None, "icon": "search",
          "title": "Search a place", "text": "Look for evidence somewhere on campus.",
          "info": f"{open_places} place{'s' if open_places != 1 else ''} open" if open_places else "Nothing open"},
-        {"href": move_link(code, token, {"step": "question"}), "icon": "question",
-         "title": "Interrogate a player", "text": "Ask one suspect a question in public.",
-         "info": f"{others} suspects"},
         {"href": move_link(code, token, {"step": "share"}) if unshared else None, "icon": "share",
          "title": "Share a clue", "text": "Reveal one of your private clues to everyone.",
          "info": f"{unshared} private clue{'s' if unshared != 1 else ''}" if unshared else "All shared"},
     ]
-    show(ui.step_head("Your move.", "One action per round. Choose wisely."))
+    if open_places or unshared:
+        show(ui.step_head("Your move.", "One action per round. Choose wisely."))
+    else:
+        show(ui.step_head("Nothing left to search or share.",
+                          "The round goes on without you. Question the others out loud."))
     if me["can_plant"]:
         cards.append(plant_card(code, token))
     show(ui.action_cards(cards))
+    show('<div class="hint">Interrogations happen face to face: ask, accuse, defend your alibi.</div>')
 
 
 def plant_card(code, token):
@@ -692,34 +809,152 @@ def search_step(code, token, public, me, move):
                        links=links, selected=place))
     found = [e for e in public["log"] if e["kind"] == "search" and e.get("location") == place]
     show(ui.place_card(place, places.get(place), found, story=public["story"]))
+    sealed = me["puzzles"].get(place)
+    if sealed and places[place]["state"] == "open":
+        show(minigame_ui.sealed_line(sealed))
     if (place and places[place]["state"] == "open"
-            and st.button(f"Search {place}", type="primary", use_container_width=True)):
+            and st.button(f"Search {ui.md(place)}", type="primary", use_container_width=True)):
+        if sealed:      # the clue is sealed: open its mini-game first
+            st.session_state["move"] = dict(move, play=place)
+            st.rerun()
         act(code, lambda g, on, now: logic.search(g, token, place, now))
 
 
-def question_step(code, token, public, me, move):
-    show(ui.back_link(move_link(code, token, {})))
-    show(ui.step_head("Interrogate", "Question and answer appear on the board for everyone."))
-    others = [p for p in public["players"] if p["pid"] != me["pid"]]
-    ask = move.get("ask") if any(p["pid"] == move.get("ask") for p in others) else None
-    show(ui.label("Ask"))
-    show(ui.pick_rows([(move_link(code, token, dict(move, ask=p["pid"])), p["name"], p.get("role"),
-                        p["pid"] == ask) for p in others]))
-    exhibits = [e for e in reversed(public["log"]) if e["kind"] in logic.EVIDENCE_KINDS]
-    evidence = move.get("ev") if any(e["id"] == move.get("ev") for e in exhibits) else None
-    show(ui.label("Confront with evidence · optional"))
-    show(ui.chips([(move_link(code, token, dict(move, ev=None if e["id"] == evidence else e["id"])),
-                    f"#{e['id']} {e['text']}", e["id"] == evidence) for e in exhibits]))
-    show(ui.label("Your question"))
-    text = st.text_input("Your question", max_chars=logic.MAX_TEXT, placeholder="Where were you at 23:30?",
-                         label_visibility="collapsed", key="question_text")
-    if st.button("Ask in public", type="primary", use_container_width=True):
-        if ask is None:
-            st.error("Choose who you want to ask.")
-        elif len((text or "").strip()) < logic.MIN_QUESTION:
-            st.error(f"Write a question first (at least {logic.MIN_QUESTION} characters).")
+# ---------------------------------------------------------------- evidence mini-games
+
+def mg_renderer(name="nova_minigame"):
+    """The mini-game component (registered once per server process)."""
+    v2 = getattr(getattr(st, "components", None), "v2", None)
+    if v2 is None:
+        return None
+    cache = minigame_ui.RENDERERS
+    key = (id(v2), name)
+    if key not in cache:
+        if name == "nova_chime":
+            cache[key] = v2.component(name, js=minigame_ui.CHIME_JS)
         else:
-            act(code, lambda g, on, now: logic.question(g, token, ask, text, now, evidence_id=evidence))
+            cache[key] = v2.component(name, css=minigame_ui.COMPONENT_CSS, js=minigame_ui.COMPONENT_JS)
+    return cache[key]
+
+
+def _ignore():
+    pass
+
+
+def evidence_progress(public):
+    places = public["map"]["places"]
+    return sum(1 for p in places if p["state"] == "done"), len(places)
+
+
+def pending_reward(code, public):
+    """'ACCESS GRANTED' after a solved exhibit. Stays until Continue, also when the round or
+    the phase has moved on in the meantime. Returns True while it is shown."""
+    reward = st.session_state.get("reward")
+    if not reward or reward.get("code") != code:
+        return False
+    spec = reward["spec"]
+    entry = next((e for e in public["log"] if e["kind"] == "search" and e.get("location") == spec["location"]), None)
+    if entry is None:
+        st.session_state.pop("reward", None)
+        return False
+    done, total = evidence_progress(public)
+    show(minigame_ui.reward(spec, entry["text"], entry["id"], done, total, reward["celebrate"]))
+    if reward["celebrate"]:
+        reward["celebrate"] = False                   # the big moment plays once
+        chime = mg_renderer("nova_chime")
+        if chime is not None:
+            chime(key=f"chime-{code}-{entry['id']}", data={"id": f"{code}-{entry['id']}"})
+    if st.button("Continue ▸", key="reward-continue", type="primary", use_container_width=True):
+        st.session_state.pop("reward", None)
+        st.session_state["move"] = {}
+        st.rerun()
+    return True
+
+
+def puzzle_step(code, token, public, me, move):
+    """A sealed exhibit: solve the mini-game, and the search happens (logic checks the proof)."""
+    place = move["play"]
+    spec = me["puzzles"].get(place)
+    show(ui.back_link(move_link(code, token, {"step": "search", "place": place})))
+    state = next((p["state"] for p in public["map"]["places"] if p["name"] == place), None)
+    if spec is None or state != "open":
+        show(ui.step_head("Too late.", "Someone else searched this place first, or it is not open. "
+                                       "Pick another pin on the map."))
+        return
+    done, total = evidence_progress(public)
+    show(minigame_ui.puzzle_head(spec, done, total))
+    puzzle_panel(code, token, spec)
+
+
+@st.fragment
+def puzzle_panel(code, token, spec):
+    """The game itself. A fragment, so taps only redraw this part of the page."""
+    key = f"{code}:{spec['id']}"
+    state = st.session_state.setdefault("mg", {}).setdefault(
+        key, {"seq": 0, "note": "", "hints": 0, "attempts": 0, "swaps": [], "opened": time.time()})
+    renderer = mg_renderer()
+    if renderer is None:
+        st.warning("This puzzle cannot be shown here.")
+        return
+    data = {k: v for k, v in spec.items() if k != "hints"}
+    data["state"] = {"seq": state["seq"], "note": state["note"], "swaps": state["swaps"]}
+    result = renderer(key=f"mg-{key}", data=data, on_submit_change=_ignore, on_progress_change=_ignore)
+    progress = getattr(result, "progress", None)
+    if spec["kind"] == "puzzle" and isinstance(progress, list):
+        state["swaps"] = progress[:minigames.MAX_SWAPS]
+    proof = getattr(result, "submit", None)
+    if isinstance(proof, dict):
+        check_proof(code, token, spec, state, proof)
+    puzzle_hints(key, spec, state)
+
+
+def check_proof(code, token, spec, state, proof):
+    """Python decides, never the phone: a wrong answer only costs an attempt. Wrong answers
+    are limited per round (counted in the game), and an answer faster than a person could
+    solve the puzzle is ignored."""
+    with open_db() as conn:
+        game = db.load(conn, code)
+    if game is None:
+        st.rerun()
+    me = logic.private_view(game, token)
+    location = spec["location"]
+    if me is None:
+        st.rerun()
+    if logic.wrong_tries(game, me["pid"], location) >= logic.MAX_WRONG_TRIES:
+        state["seq"] += 1
+        state["note"] = "Too many wrong answers. The seal holds until the next round."
+        st.rerun(scope="fragment")
+    if time.time() - state.get("opened", 0) < minigames.MIN_SECONDS.get(spec["kind"], 0):
+        state["seq"] += 1
+        state["note"] = "Not so fast – take a proper look first."
+        st.rerun(scope="fragment")
+    if minigames.verify(game, location, proof):
+        if attempt(code, lambda g, on, now: logic.search(g, token, spec["location"], now, proof=proof)):
+            # Kept until the player taps Continue: the round may end the very same second.
+            st.session_state["reward"] = {"code": code, "spec": spec, "celebrate": True}
+            st.session_state.get("mg", {}).pop(f"{code}:{spec['id']}", None)
+        st.rerun()
+    attempt(code, lambda g, on, now: logic.note_wrong_try(g, token, location, now))
+    state["attempts"] += 1
+    state["seq"] += 1
+    state["note"] = minigames.feedback(game, location, proof)
+    st.rerun(scope="fragment")
+
+
+def puzzle_hints(key, spec, state):
+    texts = list(spec["hints"][:state["hints"]])
+    if spec["kind"] == "puzzle" and len(texts) == 3:
+        move = minigames.first_misplaced(spec, state["swaps"])
+        texts[2] = (f"The piece now in slot {move[0]} belongs in slot {move[1]}." if move
+                    else "Every piece is in place.")
+    show(minigame_ui.hints(texts))
+    used = state["hints"]
+    if used < len(spec["hints"]):
+        if state["attempts"] >= 2 and used == 0:
+            st.caption("Stuck? A hint costs nothing but a little pride.")
+        if st.button(f"💡 Hint {used + 1} of {len(spec['hints'])}", key=f"hint-{key}", use_container_width=True):
+            state["hints"] = used + 1
+            st.rerun(scope="fragment")
 
 
 def share_step(code, token, public, me, move):
@@ -767,10 +1002,11 @@ def move_made(code, token, public, me):
     last = me["last_move"]
     if last is None:
         show(ui.move_made("Move logged", "", "The next round starts when everybody has moved."))
+    elif last["kind"] == "search" and me["puzzles"].get(last.get("location")):
+        done, total = evidence_progress(public)
+        show(minigame_ui.reward(me["puzzles"][last["location"]], last["text"], last["id"], done, total, False))
     elif last["kind"] == "search":
         show(ui.move_made(f"New evidence · {last.get('location', '')}", f"Exhibit {last['id']}", last["text"]))
-    elif last["kind"] == "question":
-        show(ui.move_made("Question sent", f"To {name_of(public, last['target'])}", f"“{last['text']}”"))
     else:
         show(ui.move_made("Clue shared", f"Exhibit {last['id']}", last["text"]))
     show(ui.waiting_list(public["players"], me["pid"]))
@@ -779,6 +1015,8 @@ def move_made(code, token, public, me):
 
 
 def investigation_actions(code, token, public, me):
+    if pending_reward(code, public):
+        return
     move = st.session_state.get("move") or {}
     if move and move.setdefault("round", public["map"]["round"]) != public["map"]["round"]:
         move = st.session_state["move"] = {}     # a new round starts with "Your move."
@@ -788,10 +1026,10 @@ def investigation_actions(code, token, public, me):
     elif me["acted"]:
         st.session_state["move"] = {}
         move_made(code, token, public, me)
+    elif step == "search" and move.get("play"):
+        puzzle_step(code, token, public, me, move)
     elif step == "search":
         search_step(code, token, public, me, move)
-    elif step == "question":
-        question_step(code, token, public, me, move)
     elif step == "share":
         share_step(code, token, public, me, move)
     else:
@@ -802,15 +1040,26 @@ def vote_form(code, token, public, me):
     if me["voted"]:
         st.success("Your accusation is filed. Wait for the others.")
         return
-    others = [p["pid"] for p in public["players"] if p["pid"] != me["pid"]]
-    suspect = st.selectbox("Who did it?", others,
-                           format_func=lambda pid: player_label(public, pid))
+    # Tap a suspect and, if you like, a place: the same cards and chips as during the rounds.
+    # Nothing is chosen in advance, so a quick tap on "Vote" never accuses anybody by accident.
+    move = st.session_state.get("move") or {}
+    if move.get("step") != "vote":
+        move = {"step": "vote"}
+    others = [p for p in public["players"] if p["pid"] != me["pid"]]
+    accused = move.get("accuse") if any(p["pid"] == move.get("accuse") for p in others) else None
     story = public["story"]
-    scene = st.selectbox(f"Where did {story['victim_short']} really die?", [None] + story["locations"],
-                         format_func=lambda loc: "Not sure" if loc is None else loc)
-    st.caption("Name the right suspect for a win – and the right place for the full truth.")
-    if st.button("Vote", type="primary"):
-        act(code, lambda g, on, now: logic.vote(g, token, suspect, now, scene=scene))
+    scene = move.get("place") if move.get("place") in story["locations"] else None
+    show(ui.step_head("Who did it?", "Name the right suspect for a win – and the right place for the full truth."))
+    show(ui.pick_rows([(move_link(code, token, dict(move, accuse=p["pid"])), p["name"], p.get("role"),
+                        p["pid"] == accused) for p in others]))
+    show(ui.label(f"Where did {story['victim_short']} really die? · optional"))
+    show(ui.chips([(move_link(code, token, dict(move, place=None if loc == scene else loc)), loc, loc == scene)
+                   for loc in story["locations"]]))
+    if st.button("Vote", type="primary", use_container_width=True):
+        if accused is None:
+            st.error("Choose who did it.")
+        else:
+            act(code, lambda g, on, now: logic.vote(g, token, accused, now, scene=scene))
 
 
 def player_screen(code, token):
@@ -829,11 +1078,17 @@ def player_screen(code, token):
         return
     st.session_state["signature"] = signature(public, me)
     phase = public["phase"]
-    play_case_intro(code, public)
 
+    # The one part of the page that refreshes itself (every POLL_SECONDS). It must sit at the
+    # same place in every redraw: Streamlit addresses a fragment's output by its position, and a
+    # refresh that arrives just as the page is redrawn with a different layout above it crashes
+    # the page in the browser ("Bad delta path index": a white page). So nothing that comes and
+    # goes is drawn above it, and the rest of the page is redrawn as a whole when it changes.
     st.markdown(f'<div class="kicker">Room {ui.h(code)} · you are {ui.h(me["name"])}</div>',
                 unsafe_allow_html=True)
     player_status(code, token)
+    play_case_intro(code, public)                # a fixed overlay: where it sits does not matter
+    keep_screen_on()                             # below the fragment, like everything that may vary
 
     flash = st.session_state.pop("flash", None)
     if flash:
@@ -843,7 +1098,9 @@ def player_screen(code, token):
     # Your card follows (folded away once you have read it), then the suspects, then the evidence.
     if phase == "LOBBY":
         host_controls(code, token, public, me)   # the host's "Start game" is the main thing here
-        st.info("Keep this page open. The host starts the game.")
+        if not me["is_host"]:
+            st.info("Keep this page open. The host starts the game.")
+        st.caption(STAY_ONLINE)
         show(ui.sealed_file())
         player_suspects(code, me["pid"])         # who has joined so far
         show_rules(expanded=True)
@@ -855,11 +1112,10 @@ def player_screen(code, token):
         sealed_card(code, me, public["story"])
         st.info("Read your file. The investigation starts in a moment.")
     elif phase == "INVESTIGATION":
-        answer_forms(code, token, public, me)    # the round waits for your answer
         investigation_actions(code, token, public, me)
         show_card(me, expanded=False)
     elif phase == "DISCUSSION":
-        answer_forms(code, token, public, me)
+        pending_reward(code, public)             # an exhibit solved in the very last second
         st.info("Talk to each other. Compare the alibis. Who is lying?")
         show_card(me, expanded=False)
     elif phase == "VOTE":

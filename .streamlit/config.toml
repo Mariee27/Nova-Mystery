@@ -11,3 +11,6 @@ gatherUsageStats = false
 [client]
 # "viewer" hides the Deploy button and the developer items in the menu.
 toolbarMode = "viewer"
+# Never show a player the technical details of an error (code, file paths, database server):
+# they would see only that something went wrong. The details stay in the server log.
+showErrorDetails = "none"
