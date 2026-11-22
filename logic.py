@@ -8,6 +8,7 @@ No Streamlit and no database code belongs in here.
 """
 
 import copy
+import random
 import secrets
 import unicodedata
 
@@ -628,7 +629,7 @@ def _compute_result(game):
 # who is grilled next and rate the answers. Flow:
 #   1. Every player picks a suspect (not themselves, not someone who already sat there).
 #   2. When everybody online has picked (or the host starts it), the suspect with the most
-#      picks sits in the hot seat for HOT_SEAT_SECONDS. Ties: the one who joined first.
+#      picks sits in the hot seat for HOT_SEAT_SECONDS. Ties: chance decides (hot_seat_tie).
 #   3. The others rate on their phone: "believe" or "lie". The board shows only the counts.
 #   4. When the time is up the counts go into the history and the next pick starts.
 
@@ -679,10 +680,22 @@ def _start_hot_seat(game, now):
     for target in hot["picks"].values():
         counts[target] = counts.get(target, 0) + 1
     most = max(counts.values())
-    hot["seat"] = min(pid for pid, n in counts.items() if n == most)   # tie: who joined first
+    hot["seat"] = hot_seat_tie(game, [pid for pid, n in counts.items() if n == most])
     hot["until"] = now + HOT_SEAT_SECONDS
     hot["picks"] = {}
     hot["ratings"] = {}
+
+
+def hot_seat_tie(game, tied):
+    """Chance decides between suspects with the same number of picks.
+    The dice are seeded with the room code and the number of earlier hot seats: different in
+    every room and every time, but the same game state always gives the same answer
+    (so a test can check it, and two screens never disagree)."""
+    tied = sorted(tied)
+    if len(tied) == 1:
+        return tied[0]
+    dice = random.Random(f"{game['code']}-{len(game['hot_seat']['history'])}")
+    return dice.choice(tied)
 
 
 def start_hot_seat(game, token, now):

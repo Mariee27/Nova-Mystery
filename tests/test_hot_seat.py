@@ -56,15 +56,30 @@ def test_the_seat_starts_when_everybody_online_has_picked():
     assert game["phase"] == "DISCUSSION"
 
 
-def test_most_picks_win_and_a_tie_goes_to_who_joined_first():
+def test_most_picks_win():
     game = discussion()
     for voter, target in [(1, 4), (2, 4), (3, 2), (4, 2), (5, 4)]:
         game = logic.pick_hot_seat(game, token_of(game, voter), target, 20)
     assert logic.tick(game, ONLINE, 21)["hot_seat"]["seat"] == 4
+
+
+def test_a_tie_is_decided_by_chance_but_the_same_game_always_gives_the_same_answer():
     game = discussion()
     for voter, target in [(1, 4), (2, 3), (3, 4), (4, 3)]:
         game = logic.pick_hot_seat(game, token_of(game, voter), target, 20)
-    assert logic.start_hot_seat(game, "t1", 21)["hot_seat"]["seat"] == 3   # 2 : 2, player 3 joined first
+    seat = logic.start_hot_seat(game, "t1", 21)["hot_seat"]["seat"]
+    assert seat in (3, 4)                                     # 2 : 2, one of the two
+    assert logic.start_hot_seat(game, "t1", 22)["hot_seat"]["seat"] == seat   # reproducible
+    # Over many rooms both tied suspects get the seat sometimes: it is not always the same one.
+    winners = set()
+    for code in ["ABCD", "BCDF", "CDFG", "DFGH", "FGHJ", "GHJK", "HJKL", "JKLM"]:
+        room = dict(game, code=code)
+        winners.add(logic.hot_seat_tie(room, [3, 4]))
+    assert winners == {3, 4}
+
+
+def test_no_tie_means_no_chance():
+    assert logic.hot_seat_tie(discussion(), [5]) == 5
 
 
 def test_only_the_host_can_start_early_and_only_with_a_pick():
