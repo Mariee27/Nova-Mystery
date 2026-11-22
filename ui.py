@@ -756,7 +756,7 @@ def vote_table(result, players, name_of):
             f'<div class="ballot-grid">{"".join(cards)}</div></div>')
 
 
-# ---------------------------------------------------------------- hot seat (discussion)
+# ---------------------------------------------------------------- hot seat (between rounds)
 
 def hot_verdict(believe, lie):
     """What the room thinks of the answers, from the counts only."""
@@ -776,38 +776,38 @@ def hot_meter(believe, lie):
             f'<div class="hs-no" style="width:{100 - green}%">👎 {lie}</div></div>')
 
 
-def hot_seat_board(hot, players, left):
-    """The board in the discussion: the suspect in the hot seat with a big clock and the live
-    meter, or (between two hot seats) how many picks everybody has. Counts only."""
+def _clock(left):
+    left = max(0, int(left or 0))
+    return f'<div class="hs-clock" role="timer">{left // 60}:{left % 60:02d}</div>'
+
+
+def hot_seat_board(hot, players, left, room=""):
+    """The board during the break between two rounds: first who may be picked and how many
+    have picked (not whom), then the suspect in the hot seat with the clock and the live meter."""
     if hot is None:
         return ""
     by_pid = {p["pid"]: p for p in players}
     history = "".join(
-        f'<div class="hs-past"><b>{h(by_pid[e["pid"]]["name"])}</b> · 👍 {e["believe"]} 👎 {e["lie"]}'
-        f' · <i>{h(hot_verdict(e["believe"], e["lie"]))}</i></div>'
+        f'<div class="hs-past">After round {h(e["after_round"])}: <b>{h(by_pid[e["pid"]]["name"])}</b>'
+        f' · 👍 {e["believe"]} 👎 {e["lie"]} · <i>{h(hot_verdict(e["believe"], e["lie"]))}</i></div>'
         for e in hot["history"] if e["pid"] in by_pid)
+    title = f'🔥 Hot seat · after round {h(hot["after_round"])}<span>Room {h(room)}</span>'
     if hot["seat"] is not None:
         who = by_pid.get(hot["seat"], {"name": "Someone", "role": ""})
-        left = max(0, int(left or 0))
-        return (f'<div class="hs live"><div class="hs-k">🔥 In the hot seat</div>'
+        return (f'<div class="hs live"><div class="hs-k">{title}</div>'
                 f'<div class="hs-main"><span class="face">{initial(who["name"])}</span>'
                 f'<div><div class="hs-name">{h(who["name"])}</div><div class="hs-role">{h(who.get("role") or "")}</div></div>'
-                f'<div class="hs-clock" role="timer">{left // 60}:{left % 60:02d}</div></div>'
+                f'{_clock(left)}</div>'
                 f'<div class="hs-hint">Ask out loud! Everybody else: believe or lie? Vote on your phone.</div>'
                 f'{hot_meter(hot["believe"], hot["lie"])}{history}</div>')
-    if not hot["candidates"]:
-        return f'<div class="hs"><div class="hs-k">🔥 Hot seat</div><div class="hs-hint">Everybody has been grilled.</div>{history}</div>'
-    most = max(hot["picks"].values(), default=0)
-    rows = []
-    for pid in hot["candidates"]:
-        if pid not in by_pid:
-            continue
-        n = hot["picks"].get(pid, 0)
-        lead = " lead" if n and n == most else ""
-        rows.append(f'<div class="hs-row{lead}"><span class="face">{initial(by_pid[pid]["name"])}</span>'
-                    f'<span class="hs-n">{h(by_pid[pid]["name"])}</span><span class="hs-c">{"🔥" * n}</span></div>')
-    return (f'<div class="hs choosing"><div class="hs-k">🔥 Who goes in the hot seat next?'
-            f'<span>{hot["picked"]} picked · on your phone</span></div>{"".join(rows)}{history}</div>')
+    names = "".join(
+        f'<div class="hs-row"><span class="face">{initial(by_pid[pid]["name"])}</span>'
+        f'<span class="hs-n">{h(by_pid[pid]["name"])}</span><span class="hs-r">{h(by_pid[pid].get("role") or "")}</span></div>'
+        for pid in hot["candidates"] if pid in by_pid)
+    return (f'<div class="hs choosing"><div class="hs-k">{title}</div>'
+            f'<div class="hs-main"><div><div class="hs-name">Who goes in the hot seat?</div>'
+            f'<div class="hs-role">Pick on your phone · {h(hot["picked"])} picked so far</div></div>{_clock(left)}</div>'
+            f'{names}{history}</div>')
 
 
 def hot_seat_you(alibi):

@@ -665,8 +665,8 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .hs-no { background: var(--act); color: #FEE2E2; }
 .hs-row { display: flex; align-items: center; gap: .7rem; padding: .35rem 0; font-family: var(--sans); }
 .hs-n { font-weight: 700; min-width: 8rem; }
-.hs-c { letter-spacing: .1em; }
-.hs-row.lead .hs-n { color: var(--act-text); }
+.hs-r { font: .75rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.hs.choosing .hs-name { font-size: clamp(1.6rem, 3.6vw, 2.4rem); }
 .hs-past { font-family: var(--sans); color: #B9BFCC; font-size: .9rem; margin-top: .5rem; padding-top: .4rem; border-top: 1px dashed var(--line); }
 .hs-you { border: 2px solid var(--act); background: rgba(179,50,42,.18); border-radius: 8px; padding: .9rem 1rem; margin: .4rem 0 1rem;
   font-family: var(--sans); color: var(--ivory); }

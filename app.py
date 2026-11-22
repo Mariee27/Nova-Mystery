@@ -509,9 +509,6 @@ def board_live(code):
             st.markdown("**How to play**")
             st.markdown(content.HOW_TO_PLAY)
         return
-    if phase == "DISCUSSION":
-        # The hot seat comes first: it is what the room talks about right now.
-        show(ui.hot_seat_board(public["hot_seat"], public["players"], hot_seat_left(public)))
     st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
     show_players(public)
     # The map gets the full width, so the five equal tiles are big enough to read on a projector.
@@ -530,6 +527,11 @@ def board_round(code, public):
     """The board during the rounds: header with room, round and timer; the campus plan on
     the left; on the right who has moved and the evidence board."""
     story = public["story"]
+    if public["hot_seat"] is not None:
+        # The break between two rounds: the hot seat gets the whole board (with its own clock).
+        pause_notice(public)
+        show(ui.hot_seat_board(public["hot_seat"], public["players"], seconds_left(public), room=code))
+        return
     show(ui.board_head(code, public["map"]["round"], public["map"]["rounds"], seconds_left(public)))
     pause_notice(public)
     st.markdown(f'<div class="kicker">{ui.h(case_kicker(public))}</div>', unsafe_allow_html=True)
@@ -554,16 +556,8 @@ def board_screen(code):
 
 # ---------------------------------------------------------------- player (phone)
 
-def hot_seat_left(public):
-    """Seconds until the hot seat ends (0 if nobody sits there)."""
-    hot = public.get("hot_seat")
-    if not hot or hot["until"] is None:
-        return 0
-    return max(0, int(round(hot["until"] - time.time())))
-
-
 def hot_seat_phone(code, token, public, me):
-    """The phone in the discussion: pick who is grilled next, or rate the answers."""
+    """The phone in the break between two rounds: pick who is grilled, or rate the answers."""
     hot, mine = public.get("hot_seat"), me.get("hot_seat") or {}
     if hot is None:
         return
@@ -586,14 +580,15 @@ def hot_seat_phone(code, token, public, me):
     if not options:
         st.caption("Everybody has been in the hot seat. Keep talking!")
         return
-    st.markdown('<div class="kicker">🔥 Who goes in the hot seat next?</div>', unsafe_allow_html=True)
+    st.markdown('<div class="kicker">🔥 Hot seat – who should be grilled?</div>', unsafe_allow_html=True)
     for pid in options:
         label = f"{name_of(public, pid)} – {role_of(public, pid)}" if role_of(public, pid) else name_of(public, pid)
         chosen = mine.get("pick") == pid
         if st.button(("✓ " if chosen else "") + label, key=f"hot_{pid}",
                      type="primary" if chosen else "secondary", use_container_width=True):
             act(code, lambda g, on, now, pid=pid: logic.pick_hot_seat(g, token, pid, now))
-    st.caption(f"{hot['picked']} picked so far. It starts when everybody has picked.")
+    st.caption(f"{hot['picked']} picked so far. It starts when everybody has picked, "
+               f"or after {logic.HOT_SEAT_PICK_SECONDS} seconds.")
     if me["is_host"] and hot["picked"]:
         if st.button("Start the hot seat now (host)"):
             act(code, lambda g, on, now: logic.start_hot_seat(g, token, now))
@@ -766,11 +761,13 @@ def host_controls(code, token, public, me):
             else:
                 st.warning(f"{online} online – at most {logic.MAX_PLAYERS} players can play. "
                            "Remove a player below.")
+        hot_seat = st.checkbox("🔥 Hot seat between rounds", value=True,
+                               help="After rounds 1 and 2 the room grills one suspect out loud.")
         if st.button("Start game", type="primary", disabled=not ready or waiting):
             demo = choice == "demo"
             seed = logic.DEMO_SEED if demo else None
             act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=demo,
-                                                     use_ai=choice == "ai"))
+                                                     use_ai=choice == "ai", hot_seat=hot_seat))
         # "Add demo suspect" is rendered exactly once per run: in plain sight while players
         # are missing, otherwise folded into the expander (and not at all once the room is full).
         if missing > 0:
@@ -1176,12 +1173,14 @@ def player_screen(code, token):
     elif phase == "REVEAL":
         sealed_card(code, me, public["story"])
         st.info("Read your file. The investigation starts in a moment.")
+    elif phase == "INVESTIGATION" and public["hot_seat"] is not None:
+        hot_seat_phone(code, token, public, me)  # the break between two rounds
+        show_card(me, expanded=False)
     elif phase == "INVESTIGATION":
         investigation_actions(code, token, public, me)
         show_card(me, expanded=False)
     elif phase == "DISCUSSION":
         pending_reward(code, public)             # an exhibit solved in the very last second
-        hot_seat_phone(code, token, public, me)
         st.info("Talk to each other. Compare the alibis. Who is lying?")
         show_card(me, expanded=False)
     elif phase == "VOTE":
