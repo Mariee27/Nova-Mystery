@@ -261,6 +261,52 @@ def show_phase(public, big_timer=False):
     else:
         show(banner)
         show(ui.timer(left, logic.DURATIONS[phase]))
+    pause_notice(public)
+
+
+def pause_notice(public):
+    """While too few players are online the game is paused: say so, and how long it waits."""
+    since = public.get("paused_since")
+    if since is None:
+        return
+    online = sum(1 for p in public["players"] if p["online"])
+    wait = max(0, int(logic.PAUSE_LIMIT - (time.time() - since)))
+    st.warning(f"⏸ Paused – only {online} of {len(public['players'])} players are online, the game needs "
+               f"{logic.MIN_ONLINE}. Whoever dropped out: open your game tab again. The clock stands still; "
+               f"the game ends in {wait // 60}:{wait % 60:02d} if not enough players come back.")
+
+
+STAY_ONLINE = ("Keep this tab open and your screen on during the game. If you drop out, open this "
+               "same tab or link again: your seat waits for you.")
+
+
+def keep_screen_on():
+    """Asks the phone to keep its screen on while the game page is open (Screen Wake Lock:
+    Chrome, Android, Safari from iOS 16.4; elsewhere nothing happens). A phone whose screen
+    goes dark stops sending signs of life and soon counts as offline."""
+    v2 = getattr(getattr(st, "components", None), "v2", None)
+    if v2 is None:
+        return
+    key = (id(v2), "nova_wake")
+    if key not in minigame_ui.RENDERERS:
+        minigame_ui.RENDERERS[key] = v2.component("nova_wake", js=WAKE_JS)
+    minigame_ui.RENDERERS[key](key="nova-wake", data={"on": True})
+
+
+WAKE_JS = r"""
+export default function () {
+  const w = window;
+  if (w.__novaWake || !('wakeLock' in navigator)) return;   // once per page, where supported
+  w.__novaWake = true;
+  const grab = async () => {
+    if (document.visibilityState !== 'visible' || (w.__novaLock && !w.__novaLock.released)) return;
+    try { w.__novaLock = await navigator.wakeLock.request('screen'); } catch (e) { /* not allowed now */ }
+  };
+  document.addEventListener('visibilitychange', grab);       // the lock ends when the tab is hidden
+  document.addEventListener('pointerdown', grab, { passive: true });   // some browsers want a tap first
+  grab();
+}
+"""
 
 
 def show_rules(expanded=False):
@@ -396,6 +442,7 @@ def join_screen(code):
     with st.form("join"):
         name = st.text_input("Your name", max_chars=logic.MAX_NAME)
         submitted = st.form_submit_button("Join", type="primary")
+    st.caption(STAY_ONLINE)
     show_rules()
     if submitted:
         token = logic.new_token()
@@ -479,6 +526,7 @@ def board_round(code, public):
     the left; on the right who has moved and the evidence board."""
     story = public["story"]
     show(ui.board_head(code, public["map"]["round"], public["map"]["rounds"], seconds_left(public)))
+    pause_notice(public)
     st.markdown(f'<div class="kicker">{ui.h(case_kicker(public))}</div>', unsafe_allow_html=True)
     left, right = st.columns([3, 2])
     with left:
@@ -496,6 +544,7 @@ def board_screen(code):
     board_live(code)                             # first: always at the same place (see player_screen)
     if public is not None:
         play_case_intro(code, public)
+        keep_screen_on()                         # the projector laptop must not go to sleep either
 
 
 # ---------------------------------------------------------------- player (phone)
@@ -510,7 +559,7 @@ def signature(public, me):
     # The round and the state of every place: the map's markers depend on them.
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
-            evidence, me["host_note"], me.get("ai_status"), players, places)
+            evidence, me["host_note"], me.get("ai_status"), players, places, public.get("paused_since"))
 
 
 @st.fragment(run_every=POLL_SECONDS)
@@ -1037,6 +1086,7 @@ def player_screen(code, token):
                 unsafe_allow_html=True)
     player_status(code, token)
     play_case_intro(code, public)                # a fixed overlay: where it sits does not matter
+    keep_screen_on()                             # below the fragment, like everything that may vary
 
     flash = st.session_state.pop("flash", None)
     if flash:
@@ -1048,6 +1098,7 @@ def player_screen(code, token):
         host_controls(code, token, public, me)   # the host's "Start game" is the main thing here
         if not me["is_host"]:
             st.info("Keep this page open. The host starts the game.")
+        st.caption(STAY_ONLINE)
         show(ui.sealed_file())
         player_suspects(code, me["pid"])         # who has joined so far
         show_rules(expanded=True)

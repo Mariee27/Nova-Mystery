@@ -109,9 +109,11 @@ Phases end early when everybody is done, and the host can skip ahead.
   clues against them, no strong clue against innocents, …). See `logic.validate_case`.
 - **Hidden information:** each phone only ever receives its own card. The board shows no secrets until the result.
 - **A murderer's special move:** one planted fake clue that looks exactly like a real search result.
-- **Robust to real life:** players who lose connection are marked offline and never block the game, the host
-  role moves to another player, and the game stops cleanly if fewer than 3 players are left. Reloading the
-  page or coming back later via the same link restores the seat.
+- **Robust to real life:** the game page asks the phone to keep its screen on (Screen Wake Lock, where the
+  browser supports it). A player without a sign of life for 45 seconds is marked offline and never blocks the
+  game; the host role moves to another player. If fewer than 3 players are online, the game pauses (the clock
+  stands still, every screen says so) and runs on as soon as they are back; only after 3 minutes without
+  enough players does it end. Reopening the tab or the same link restores the seat.
 - **Timers** on every phase, so the game always ends.
 - **Host tools:** start the game, end a phase early, remove strangers from the lobby.
 
