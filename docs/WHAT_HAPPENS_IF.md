@@ -6,7 +6,7 @@ Each answer describes what the app actually does. The test that proves it is giv
 ## Failures
 
 **… a player goes offline (phone off, no internet)?**
-Every open phone checks in every 2 seconds. If nothing arrives for 20 seconds, the player is shown as "offline" in everyone's list. The game continues. Their action counts as "no action", their vote as an abstention. Nobody has to wait for them: the round ends as soon as all online players are done, at the latest when the timer runs out. (DW 12, 13)
+Every open phone checks in every 2 seconds. If nothing arrives for 45 seconds, the player is shown as "offline" in everyone's list. The game continues. Their action counts as "no action", their vote as an abstention. Nobody has to wait for them: the round ends as soon as all online players are done, at the latest when the timer runs out. (DW 12, 13)
 
 **… they come back?**
 They open the same link in the same browser and are back in their seat, with the same card, in any phase. The link contains their secret token (22 random characters). (Smoke test, DW 17)
@@ -15,10 +15,13 @@ They open the same link in the same browser and are back in their seat, with the
 It doesn't work without the link. This is intentional: if you could get back in with name and room code, anyone could take over someone else's seat and read their card.
 
 **… the host goes offline?**
-After 20 seconds, the next online player in join order automatically becomes host. If the old host comes back, the new host stays host. (DW 14)
+After 45 seconds, the next online player in join order automatically becomes host. If the old host comes back, the new host stays host. (DW 14)
 
 **… too many players drop out?**
-If fewer than 3 players are online during the game, the game ends with a message on all screens. With 3 it continues. (DW 15)
+If fewer than 3 players are online during the game, the game pauses: the clock stands still and every screen says who is missing. As soon as 3 are online again, the clock runs on with the time that was left. Only after 3 minutes without enough players does the game end with a message on all screens. The host can still end a phase while it is paused. (DW 15)
+
+**… a phone's screen turns off?**
+The game page asks the phone to keep its screen on (Screen Wake Lock: Chrome, Android, Safari from iOS 16.4). Where a browser does not support it, the lobby asks the players to keep the tab open and the screen on.
 
 **… the murderer goes offline?**
 The game continues normally. They can be voted for and are revealed at the end.

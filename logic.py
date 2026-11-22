@@ -29,10 +29,11 @@ NEXT_PHASE = {
     "DISCUSSION": "VOTE",
     "VOTE": "RESULT",
 }
-OFFLINE_AFTER = 20
+OFFLINE_AFTER = 45     # seconds without a sign from a phone: then the player counts as offline
 MIN_PLAYERS = 4
 MAX_PLAYERS = 6
 MIN_ONLINE = 3
+PAUSE_LIMIT = 180      # seconds a game waits, paused, for players to come back before it ends
 MAX_TEXT = 140
 MAX_NAME = 20
 MAX_CLUE_TEXT = 200
@@ -301,6 +302,7 @@ def _enter_phase(game, phase, now):
 def _advance(game, now):
     """End the current step of an already copied game: the next investigation round,
     or after the last round (and in every other phase) the next phase."""
+    game.pop("paused", None)        # a new step starts with a running clock (tick pauses again if needed)
     if game["phase"] == "INVESTIGATION" and game.get("round", 1) < ROUNDS:
         game["round"] = game.get("round", 1) + 1
         game["acted"] = []                  # everybody gets a new move
@@ -380,15 +382,32 @@ def tick(game, online, now):
         new["host"] = online_humans[0]
 
     if game["phase"] in NEXT_PHASE:
-        # 2. Abort when fewer than 3 players are left online.
+        # 2. Fewer than 3 players online: the game pauses (the clock stops) and waits for them.
+        # Phones drop out when a screen locks or a tab is in the background; they come back.
+        # Only after PAUSE_LIMIT seconds without enough players does the game end.
+        paused = game.get("paused")
         if len(online_players) < MIN_ONLINE:
+            if paused is None:
+                new = new or copy.deepcopy(game)
+                new["paused"] = {"since": now, "left": max(0.0, (game["deadline"] or now) - now)}
+                new["deadline"] = None
+                return new
+            if now - paused["since"] >= PAUSE_LIMIT:
+                new = new or copy.deepcopy(game)
+                new.pop("paused", None)
+                new["phase"] = "ABORTED"
+                new["phase_started"] = now
+                new["deadline"] = None
+                new["abort_reason"] = (
+                    f"Fewer than {MIN_ONLINE} players were online for {PAUSE_LIMIT // 60} minutes. "
+                    "Please create a new room."
+                )
+                return new
+            return new or game                  # still waiting: no timer, no early end
+        if paused is not None:                  # enough players again: the clock runs on
             new = new or copy.deepcopy(game)
-            new["phase"] = "ABORTED"
-            new["phase_started"] = now
-            new["deadline"] = None
-            new["abort_reason"] = (
-                f"Fewer than {MIN_ONLINE} players are online. Please create a new room."
-            )
+            new["deadline"] = now + paused["left"]
+            new.pop("paused")
             return new
         # 3. Timer, 4. early end.
         # A player with nothing left to search or share is not waited for.
@@ -747,6 +766,8 @@ def public_view(game, online):
         "phase": game["phase"],
         "deadline": game["deadline"],
         "demo": bool(game.get("demo")),
+        # While too few players are online: when the pause began (the game ends PAUSE_LIMIT later).
+        "paused_since": (game.get("paused") or {}).get("since"),
         "players": [
             {
                 "pid": p["pid"],

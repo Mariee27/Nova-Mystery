@@ -435,15 +435,18 @@ def waiting_list(players, me_pid):
 # ---------------------------------------------------------------- the board during the rounds
 
 def board_head(code, round_no, rounds, left):
-    """Room code, 'Round X of 3' and the big timer (the logo stands above it, ui.brand)."""
+    """Room code, 'Round X of 3' and the big timer (the logo stands above it, ui.brand).
+    left None: the game is paused, the clock shows a pause sign instead of 0:00."""
+    paused = left is None
     left = max(0, int(left or 0))
-    low = " low" if left <= 10 else ""
+    low = " low" if left <= 10 and not paused else ""
     rnd = (f'<div class="hbox"><div class="hk">Investigation</div><div class="hv">Round {h(round_no)} of {h(rounds)}</div></div>'
            if round_no else "")
     return (f'<div class="bhead"><div class="bh-boxes">'
             f'<div class="hbox"><div class="hk">Room</div><div class="hv">{h(code)}</div></div>{rnd}'
-            f'<div class="hbox clock{low}" role="timer" aria-label="{left} seconds left">'
-            f'{left // 60}:{left % 60:02d}</div></div></div>')
+            + ('<div class="hbox clock" role="timer" aria-label="paused">⏸</div></div></div>' if paused else
+               f'<div class="hbox clock{low}" role="timer" aria-label="{left} seconds left">'
+               f'{left // 60}:{left % 60:02d}</div></div></div>'))
 
 
 def detectives(players):
