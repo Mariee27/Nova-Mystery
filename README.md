@@ -7,7 +7,8 @@ The host plays the handcrafted case #001 "The Last Lecture" or asks an AI for a 
 
 **Course:** Introduction to Programming, Nova SBE
 
-**Live app:** not deployed yet – see [Deployment](#deployment). Run it locally in the meantime (section 4).
+**Live app:** <https://nova-mystery.streamlit.app> (Streamlit Community Cloud; see [Deployment](#deployment)).
+The app sleeps when nobody used it for a while: the first visit then wakes it up, which takes about a minute.
 
 ## Team
 
