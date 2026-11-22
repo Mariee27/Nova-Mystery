@@ -742,7 +742,7 @@ def _bot_investigate(game, bot, index, now):
 def bot_moves(game, now):
     """Let every bot make the moves that are due. Returns the same game if nothing happens."""
     bots = [p for p in game["players"] if p.get("bot")]
-    if not bots or game["phase"] not in ("INVESTIGATION", "VOTE"):
+    if not bots or game["phase"] not in ("INVESTIGATION", "DISCUSSION", "VOTE"):
         return game
     elapsed = now - game["phase_started"]
     for index, bot in enumerate(bots):
@@ -750,6 +750,9 @@ def bot_moves(game, now):
         due = elapsed >= BOT_FIRST_MOVE + BOT_STEP * index
         if game["phase"] == "INVESTIGATION" and due and pid not in game["acted"]:
             game = _bot_investigate(game, bot, index, now)
+        if game["phase"] == "DISCUSSION" and due and pid not in alibi_statements(game):
+            # A bot states the alibi on its card: the truth for an innocent, the lie for the murderer.
+            game = state_alibi(game, bot["token"], _character(game, pid)["alibi_location"], now)
         if game["phase"] == "VOTE" and due and str(pid) not in game["votes"]:
             game = vote(game, bot["token"], _bot_suspect(game, pid), now,
                         scene=_bot_scene(game, pid))

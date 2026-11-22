@@ -53,3 +53,20 @@ def test_statements_never_reveal_the_secret_alibi_on_the_card():
     for character in game["case"]["characters"]:
         assert character["alibi"] not in text
     assert "statements" not in logic.public_view(game, online_all(game))   # the contract is unchanged
+
+
+def test_demo_bots_state_the_alibi_on_their_card():
+    lobby = logic.new_game("DEMO", 0)
+    lobby = logic.join(lobby, "Ana", "human", 0)
+    for _ in range(4):
+        lobby = logic.add_bot(lobby, "human", 0)
+    online = {p["pid"] for p in lobby["players"]}
+    game = logic.start(lobby, "human", online, 0, seed=1)
+    while game["phase"] != "DISCUSSION":
+        game = logic.end_phase(game, "human", online, 10)
+    game = logic.bot_moves(game, 10 + 60)                    # all bots are due
+    said = logic.alibi_statements(game)
+    assert set(said) == {2, 3, 4, 5}                         # every bot, not the human
+    for character in game["case"]["characters"]:
+        if character["pid"] in said:
+            assert said[character["pid"]] == character["alibi_location"]
