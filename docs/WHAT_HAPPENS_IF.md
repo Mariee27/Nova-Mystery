@@ -6,19 +6,19 @@ Each answer describes what the app actually does. The test that proves it is giv
 ## Failures
 
 **… a player goes offline (phone off, no internet)?**
-Every open phone checks in every 2 seconds. If nothing arrives for 45 seconds, the player is shown as "offline" in everyone's list. The game continues. Their action counts as "no action", their vote as an abstention. Nobody has to wait for them: the round ends as soon as all online players are done, at the latest when the timer runs out. (DW 12, 13)
+Every open phone checks in every few seconds. If nothing arrives for 15 seconds, a stand-in takes over that seat: the computer plays it like a demo suspect (it searches or shares, picks and rates in the hot seat, and votes by the evidence the player could read). Board and phones mark the seat "stand-in". Nobody has to wait: the round ends as soon as everybody (stand-ins included) has moved. (`tests/test_stand_ins.py`)
 
 **… they come back?**
-They open the same link in the same browser and are back in their seat, with the same card, in any phase. The link contains their secret token (22 random characters). (Smoke test, DW 17)
+They open the same tab, their link, or just the room's QR code in the same browser, and are back in their seat, with the same card, in any phase; the stand-in stops at once. The link contains their secret token (22 random characters); the browser remembers it per room. (Smoke test, DW 17)
 
 **… they try from a different device?**
 It doesn't work without the link. This is intentional: if you could get back in with name and room code, anyone could take over someone else's seat and read their card.
 
 **… the host goes offline?**
-After 45 seconds, the next online player in join order automatically becomes host. If the old host comes back, the new host stays host. (DW 14)
+When the host's seat gets a stand-in (15 seconds) or the host counts as offline (45 seconds), the next player in join order who is there becomes host. If the old host comes back, the new host stays host. (DW 14, `tests/test_stand_ins.py`)
 
 **… too many players drop out?**
-If fewer than 3 players are online during the game, the game pauses: the clock stands still and every screen says who is missing. As soon as 3 are online again, the clock runs on with the time that was left. Only after 3 minutes without enough players does the game end with a message on all screens. The host can still end a phase while it is paused. (DW 15)
+Their seats get stand-ins, so the game goes on. (The pause below only applies if fewer than 3 seats are covered, which with stand-ins does not happen in the app.) If fewer than 3 players are online during the game, the game pauses: the clock stands still and every screen says who is missing. As soon as 3 are online again, the clock runs on with the time that was left. Only after 3 minutes without enough players does the game end with a message on all screens. The host can still end a phase while it is paused. (DW 15)
 
 **… a phone's screen turns off?**
 The game page asks the phone to keep its screen on (Screen Wake Lock: Chrome, Android, Safari from iOS 16.4). Where a browser does not support it, the lobby asks the players to keep the tab open and the screen on.

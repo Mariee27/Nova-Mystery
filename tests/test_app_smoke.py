@@ -22,6 +22,8 @@ import db      # noqa: E402
 import logic   # noqa: E402
 import minigames  # noqa: E402
 
+HOST_SKIP = "<the host's skip button>"   # pressed whatever it is called right now
+
 
 class Rerun(Exception):
     pass
@@ -64,6 +66,10 @@ class FakeStreamlit(types.ModuleType):
     def _pressed(self, label):
         if label in self.press:
             self.press.discard(label)
+            return True
+        # The host's skip button says what it ends ("⏭ End round 1 now (host)", ...).
+        if HOST_SKIP in self.press and label.startswith("⏭") and label.endswith("(host)"):
+            self.press.discard(HOST_SKIP)
             return True
         return False
 
@@ -159,7 +165,7 @@ def tap_on_map(phone, conn, code):
 def end_investigation(host, conn, code):
     """The host ends every round of the investigation."""
     while db.load(conn, code)["phase"] == "INVESTIGATION":
-        host.run(press=["End phase (host)"])
+        host.run(press=[HOST_SKIP])
 
 
 def token_of_phone(phone):
@@ -239,7 +245,7 @@ def test_full_game_through_the_screens(game_db):
         for phone in phones:
             page = phone.run()
             assert "Your card" in page
-        host.run(press=["End phase (host)"])
+        host.run(press=[HOST_SKIP])
         assert phase() == "INVESTIGATION"
 
         tap_on_map(phones[1], conn, code)
@@ -271,7 +277,7 @@ def test_full_game_through_the_screens(game_db):
 
         end_investigation(host, conn, code)                  # all rounds
         assert phase() == "DISCUSSION"
-        host.run(press=["End phase (host)"])
+        host.run(press=[HOST_SKIP])
         assert phase() == "VOTE"
 
         for index, phone in enumerate(phones, start=1):
@@ -347,7 +353,7 @@ def test_board_shows_the_evidence_board_and_the_phone_the_move_made(game_db):
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
-    phone.run(press=["End phase (host)"])                     # on to INVESTIGATION
+    phone.run(press=[HOST_SKIP])                     # on to INVESTIGATION
     conn = db.connect(game_db)
     try:
         place = tap_on_map(phone, conn, code)
@@ -398,13 +404,13 @@ def test_phone_shows_the_most_important_thing_first(game_db):
         assert 'class="suspects"' not in page                   # no big tiles on the phone
         assert 'class="suspects"' in board.run()                # the board keeps them
 
-        phone.run(press=["End phase (host)"])
+        phone.run(press=[HOST_SKIP])
         assert db.load(conn, code)["phase"] == "INVESTIGATION"
         page = phone.run()
         assert page.index("Your move.") < page.index("Your card") < page.index("Evidence &amp; statements")
 
         end_investigation(phone, conn, code)                  # all rounds
-        phone.run(press=["End phase (host)"])
+        phone.run(press=[HOST_SKIP])
         assert db.load(conn, code)["phase"] == "VOTE"
         page = phone.run()
         assert page.index("Name the right suspect") < page.index("Your card")
@@ -463,7 +469,7 @@ def test_only_the_murderer_sees_the_murderer_stamp_and_the_board_never(game_db):
     for _ in range(3):                                         # REVEAL → INVESTIGATION → DISCUSSION → VOTE
         page = board.run()
         assert 'class="dstamp' not in page                     # the board never shows a stamp
-        phones[0].run(press=["End phase (host)"])
+        phones[0].run(press=[HOST_SKIP])
     assert 'class="dstamp' not in board.run()
 
 
@@ -472,7 +478,7 @@ def test_the_phone_guides_through_one_move_and_explains_mistakes(game_db):
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
-    phone.run(press=["End phase (host)"])                     # on to INVESTIGATION
+    phone.run(press=[HOST_SKIP])                     # on to INVESTIGATION
     page = phone.run()
     assert "Your move." in page and page.count('class="act') >= 2
     assert "Interrogate" not in page and "Interrogations happen face to face" in page
@@ -519,7 +525,7 @@ def test_interrogations_are_out_loud_and_an_old_question_link_goes_back_to_your_
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
-    phone.run(press=["End phase (host)"])                     # on to INVESTIGATION
+    phone.run(press=[HOST_SKIP])                     # on to INVESTIGATION
     page = tap(phone, step="question", ask=2)                 # a link from before the change
     assert "Your move." in page and "Ask in public" not in page and "Your question" not in page
 
@@ -538,7 +544,7 @@ def test_interrogations_are_out_loud_and_an_old_question_link_goes_back_to_your_
         for _ in range(logic.ROUNDS + 1):                      # end every round, at most once each
             if db.load(conn, code)["phase"] == "DISCUSSION":
                 break
-            phone.run(press=["End phase (host)"])
+            phone.run(press=[HOST_SKIP])
         assert db.load(conn, code)["phase"] == "DISCUSSION"
     finally:
         conn.close()
@@ -647,8 +653,8 @@ def test_hot_seat_between_rounds_on_the_board_and_the_phones(game_db):
     phones[0].run(press=["Start game"], **{"Which case?": "rehearsal", "🔥 Hot seat between rounds": True})
     conn = db.connect(game_db)
     try:
-        phones[0].run(press=["End phase (host)"])               # REVEAL → round 1
-        phones[0].run(press=["End phase (host)"])               # round 1 → the break
+        phones[0].run(press=[HOST_SKIP])               # REVEAL → round 1
+        phones[0].run(press=[HOST_SKIP])               # round 1 → the break
         assert logic.hot_seat_open(db.load(conn, code))
         assert "Who goes in the hot seat?" in board_tab.run()
         page = phones[1].run()
@@ -665,7 +671,7 @@ def test_hot_seat_between_rounds_on_the_board_and_the_phones(game_db):
         phones[0].run(press=["👎 Lying"])                        # Ana rates
         assert db.load(conn, code)["hot_seat"]["ratings"] == {"1": "lie"}
         assert "👎 1" in board_tab.run()                         # the board shows the count only
-        phones[0].run(press=["End phase (host)"])               # the host ends the break
+        phones[0].run(press=[HOST_SKIP])               # the host ends the break
         game = db.load(conn, code)
         assert game["round"] == 2 and not logic.hot_seat_open(game)
         assert "Your move." in phones[1].run()
@@ -695,7 +701,7 @@ def test_a_tap_on_a_move_link_shows_the_step_without_a_reload(game_db):
     phone.run(press=["Play a demo"])
     code, token = phone.st.query_params["room"], phone.st.query_params["t"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
-    phone.run(press=["End phase (host)"])                       # REVEAL → round 1: "Your move."
+    phone.run(press=[HOST_SKIP])                       # REVEAL → round 1: "Your move."
     assert "Your move." in phone.run()
     # The page's tap listener (JavaScript) hands over the link instead of loading it.
     page = phone.run(component={"tap": f"?room={code}&t={token}&step=share#123"})
@@ -807,3 +813,47 @@ def make_lobby_for_ai():
     for i in range(1, 5):
         g = logic.join(g, f"P{i}", f"t{i}", 0)
     return g
+
+
+def test_a_player_who_lost_the_tab_comes_back_to_the_seat(game_db):
+    """The phone remembers its seat (SEAT_JS, localStorage). Scanning the room's QR code again
+    after the start opens that seat instead of "already started"."""
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code, token = phone.st.query_params["room"], token_of_phone(phone)
+    assert ("nova_seat", "nova-seat", {"room": code, "token": token}) in phone.st.mounted
+    phone.run(press=["Start game"])
+    again = Browser(room=code)                       # a new tab: only the room code
+    again.run(component={"seat": token})             # the browser hands back the stored token
+    assert again.st.query_params.get("t") == token
+
+
+def test_a_stored_token_of_another_room_gets_no_seat(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    phone.run(press=["Start game"])
+    stranger = Browser(room=code)
+    page = stranger.run(component={"seat": "not-a-token-of-this-room"})
+    assert "t" not in stranger.st.query_params
+    assert "already started" in page
+
+
+def test_the_board_shows_a_stand_in(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    phone.run(press=["Start game"])
+    conn = db.connect(game_db)
+    now = time.time()
+    # A second human whose phone went dark 30 seconds ago.
+    game = db.load(conn, code)
+    game["players"].append({"pid": 99, "name": "Gone", "token": "gone-token", "joined_at": now})
+    game["case"]["characters"].append(dict(game["case"]["characters"][0], pid=99))
+    game["phase"] = "INVESTIGATION"
+    conn.execute("UPDATE rooms SET state = ? WHERE code = ?", (db._dump(game), code))
+    db.forget_snapshot(code)
+    db.heartbeat(conn, code, 99, now - 30)
+    page = Browser(room=code, view="board").run()
+    assert "Stand-in plays" in page                 # the board's detectives list
+    assert 99 in logic.stand_in_ids(db.load(conn, code))

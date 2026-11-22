@@ -3,7 +3,7 @@
 import db
 import logic
 import minigames
-from test_app_smoke import Browser, game_db, tap  # noqa: F401  (game_db is a fixture)
+from test_app_smoke import HOST_SKIP, Browser, game_db, tap  # noqa: F401  (game_db is a fixture)
 
 
 def demo_round(game_db):
@@ -12,7 +12,7 @@ def demo_round(game_db):
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
-    phone.run(press=["End phase (host)"])
+    phone.run(press=[HOST_SKIP])
     conn = db.connect(game_db)
     assert db.load(conn, code)["phase"] == "INVESTIGATION"
     return phone, code, conn
@@ -26,7 +26,7 @@ def open_puzzle(phone, conn, code, kind=None):
                 and logic.locked_until(game, s["location"]) is None and s["location"] not in game["searched"]]
     game = db.load(conn, code)
     while not candidates(game):
-        phone.run(press=["End phase (host)"])
+        phone.run(press=[HOST_SKIP])
         game = db.load(conn, code)
     place = candidates(game)[0]
     tap(phone, step="search", place=place)
@@ -93,7 +93,7 @@ def test_the_reward_survives_the_end_of_the_round(game_db):
     phone, code, conn = demo_round(game_db)
     place, _ = open_puzzle(phone, conn, code)
     phone.run(component={"submit": minigames.solve(db.load(conn, code), place)})
-    phone.run(press=["End phase (host)"])                                    # round 2 starts
+    phone.run(press=[HOST_SKIP])                                    # round 2 starts
     assert db.load(conn, code)["round"] == 2
     page = phone.run()
     assert "Access granted" in page and "Your move.</div>" not in page
