@@ -53,6 +53,7 @@ they never came.
 | Investigation | 3 rounds, each up to 5 min | Each round every player has exactly **one** action in the app: search a place on the **campus map** or share one of their clues. Interrogations happen **out loud**: the players question each other face to face. A round ends early when everybody has moved or has nothing left to search or share. The murderer may additionally plant one fake clue. |
 | Discussion | 3 min | Players question each other in person and argue (lying is allowed). |
 | Vote | 1 min | Everybody taps a suspect (nothing is chosen in advance) and, if they like, the crime scene, then *Vote*. |
+| Result | – | The murderer and all cards are revealed. Detectives win only if the murderer got strictly the most votes. |
 
 **The round, step by step.** The phone first shows "Your move." with two big action cards
 (a third, "Plant a false clue", only on the murderer's phone). Each card leads to its own screen with a
@@ -87,7 +88,6 @@ It never shows private cards, private clues or the solution.
 Every rule (one move per round, locked or searched places, only your
 own clues, only players of your room) is checked on the server, with a test for the allowed and the
 refused case (`tests/test_rounds_and_map.py`).
-| Result | – | The murderer and all cards are revealed. Detectives win only if the murderer got strictly the most votes. |
 
 Phases end early when everybody is done, and the host can skip ahead.
 
@@ -96,12 +96,13 @@ Phases end early when everybody is done, and the host can skip ahead.
 - **Real-time multiplayer** for 4–6 players on their own phones, plus a public projector board.
 - **A new case every game.** The generator draws the murderer, the crime scene, roles, alibis and clues.
   A demo ("Play a demo") always plays the same case with the same culprit, for rehearsing a presentation.
-- **A new story for every room, written by AI (optional).** While the players join, an AI model writes a new
-  NOVA-campus story: victim, five locations, six suspects with motives, secrets and rumors, and the endings.
-  The AI only writes words. Who did it, where, and which clue points to whom is still decided by the generator,
-  and every AI story is checked (`logic.validate_story`) before it is used. If the AI is not set up, too slow,
-  over its daily limit, or writes something that fails the checks, the game plays case #001 and only the host
-  sees a short note. See section 4 for the setup.
+- **A new story for a room, written by AI (optional).** When the host picks it in the lobby, an AI model writes
+  a new NOVA-campus story while the players join: victim, five locations, six suspects with motives, secrets
+  and rumors, the endings, and the words of the five mini-games. The AI only writes words. Who did it, where,
+  and which clue points to whom is still decided by the generator, and every AI story is checked
+  (`logic.validate_story`) before it is used. If the AI is not set up, too slow, over its daily limit, or writes
+  something that fails the checks, only the host sees why and can try again or play case #001.
+  See section 4 for the setup.
 - **Every case has its own opening.** The home page plays a short intro about the game. When the host starts,
   the board and every phone play the intro of *this* case (six lines written with the story, then the case
   title) before the private files open. While the AI is still writing, the lobby says so instead of showing an
@@ -116,7 +117,8 @@ Phases end early when everybody is done, and the host can skip ahead.
   stands still, every screen says so) and runs on as soon as they are back; only after 3 minutes without
   enough players does it end. Reopening the tab or the same link restores the seat.
 - **Timers** on every phase, so the game always ends.
-- **Host tools:** start the game, end a phase early, remove strangers from the lobby.
+- **Host tools:** choose the case, start the game, end a phase early, add demo suspects (computer players for
+  presentations), remove strangers from the lobby.
 
 ### Evidence mini-games – play to unlock
 
@@ -135,8 +137,8 @@ the case's own words (see *Mini-games that fit the case* below).
 | 🗂️ Order the evening | Tap four torn diary entries in the order they happened | Their times (24-hour clock) |
 
 - **Checked in Python, never on the phone.** The phone only reports what the player did (digits, rubbed cells,
-  swaps, wheel setting). `minigames.verify` checks it against data the phone never gets (the code, the cipher
-  key) or cannot change (the seeded starting order), and `logic.search` refuses to hand out the clue without a
+  swaps, wheel setting, the order tapped). `minigames.verify` checks it against data the phone never gets (the
+  code, the cipher key, the right order) or cannot change (the seeded starting order), and `logic.search` refuses to hand out the clue without a
   valid proof. Each place still has exactly one clue, so evidence is awarded exactly once.
 - **Hints** on request, one by one (nudge → stronger hint → almost the answer), plus contextual feedback after a
   wrong attempt ("that is just one time from the case file …"). Wrong answers cost nothing but time.
@@ -176,8 +178,8 @@ uv sync
 uv run streamlit run app.py
 ```
 
-Then open <http://localhost:8501>. To try a full game alone, open the room in several browser windows
-(each window is one player).
+Then open <http://localhost:8501>. To try a full game alone, click **Play a demo** (you and four computer
+suspects), or open a room in several browser windows (each window is one player).
 
 Without uv:
 
@@ -238,7 +240,8 @@ without buying credit, and both speak the same OpenAI format, so only the addres
 
 1. One team member creates a free account at openrouter.ai and creates an API key.
 2. Share the key only privately (password manager or direct message), never in a chat, issue or commit.
-3. Put it into `.streamlit/secrets.toml` as `OPENROUTER_API_KEY = "..."` and restart the app.
+3. Put it into `.streamlit/secrets.toml` as `OPENROUTER_API_KEY = "..."` and restart the app (on Streamlit
+   Cloud: the app's **Settings → Secrets**, see Deployment).
 4. In the lobby the host picks "A new case written by the AI". Only then is the AI asked (creating rooms and
    demos never uses the quota). The host's phone shows "The AI is writing your case …" and, a little later,
    "New AI case ready"; *Start game* waits for it. If it fails or takes longer than 6 minutes, the host sees
@@ -254,11 +257,12 @@ with `OPENROUTER_MODEL`.
 
 ### Deployment
 
-The app runs on Streamlit Community Cloud: main file `app.py`, dependencies from `requirements.txt`.
-In the app's **Settings → Secrets**, add:
+The app runs on Streamlit Community Cloud (<https://nova-mystery.streamlit.app>): main file `app.py`. Streamlit
+Cloud installs the exact versions from `uv.lock` and runs Python 3.14; the tests run on 3.13 and the app needs
+3.11 or newer. In the app's **Settings → Secrets**, add:
 
 ```toml
-APP_BASE_URL = "https://<your-app>.streamlit.app"
+APP_BASE_URL = "https://nova-mystery.streamlit.app"
 OPENROUTER_API_KEY = "<the OpenRouter key>"
 ```
 
@@ -287,19 +291,22 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 
 | File | Tests | What it checks |
 |---|---|---|
-| `tests/test_rules.py` | 132 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, abort, planting rules, removing players, names that only look like another one. Rejected calls must leave the game unchanged. |
+| `tests/test_rules.py` | 141 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, the pause when players drop out, planting rules, removing players, names that only look like another one. Rejected calls must leave the game unchanged. |
 | `tests/test_ai_cases.py` | 118 | AI stories: reading the answer, the checks, the repair round, busy models, the story on every screen. |
-| `tests/test_minigames.py` | 85 | The four puzzles: solvable from the story, the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
+| `tests/test_minigames.py` | 84 | The puzzles: solvable from the story, the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
+| `tests/test_case_minigames.py` | 70 | Mini-games that fit the case: five different games for the five places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
 | `tests/test_rounds_and_map.py` | 52 | Rounds, locked places and the campus map: every pin in its building, pins far enough apart to tap, no car park. |
 | `tests/test_nova.py` | 38 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file). |
-| `tests/test_balanced_ai_cases.py` | 37 | AI cases: medium difficulty, the solution file, the test reading, the host's choice, the AI's status. |
+| `tests/test_balanced_ai_cases.py` | 38 | AI cases: medium difficulty, the solution file, the test reading, the host's choice, the AI's status. |
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
 | `tests/test_views.py` | 20 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card. |
 | `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
-| `tests/test_app_smoke.py` | 16 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input and invalid room codes. |
+| `tests/test_app_smoke.py` | 19 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
+
+All together: 658 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -308,21 +315,31 @@ The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in
 
 ```
 app.py         screens (Streamlit): board, phone, join form; only shows data and passes clicks on
+   │   ├── ui.py, minigame_ui.py   HTML building blocks and the mini-game component
    │
    ├── logic.py      all game rules as pure functions: game in → new game out, or Rejected
-   │      └── generator.py   builds a random case from the texts
-   │             └── content.py   all texts: roles, locations, clue templates
+   │      ├── generator.py   builds a random case from the texts (balance.py tunes AI cases)
+   │      ├── minigames.py   the evidence mini-games and their checks (exhibits.py draws the pictures)
+   │      └── content.py     all texts of case #001: roles, locations, clue templates, mini-games
    │
-   └── db.py         SQLite storage: one row per room (the game as JSON) + heartbeats
+   ├── ai.py         asks an AI (OpenRouter) for a new story, in a background thread
+   │
+   └── db.py         storage, SQLite or PostgreSQL: one row per room (the game as JSON) + heartbeats
 ```
 
 | File | Lines | Responsibility |
 |---|---|---|
-| `logic.py` | ~570 | Rules, phases, timers, results, the public and private views, case validator |
-| `app.py` | ~500 | All screens and the polling loop |
-| `generator.py` | ~140 | Turns a seed into a complete case |
-| `db.py` | ~110 | Rooms, transactions, heartbeats |
-| `content.py` | ~80 | Story texts |
+| `logic.py` | ~1200 | Rules, phases, timers, the pause, results, the public and private views, case and story validator |
+| `app.py` | ~1150 | All screens and the polling loop |
+| `ui.py` | ~750 | HTML building blocks: map, cards, board, result |
+| `ai.py` | ~660 | The AI request, reading and repairing the answer, the test reading |
+| `minigames.py` | ~500 | The five mini-games: what the phone gets, the checks, hints, the case's words |
+| `minigame_ui.py` | ~490 | The mini-games on the phone (one custom component) |
+| `content.py` | ~330 | Case #001: story texts, the campus map, clue templates, the mini-games' words |
+| `balance.py` | ~320 | Medium difficulty for AI cases and the solution file |
+| `db.py` | ~260 | Rooms, transactions, heartbeats, room and AI limits |
+| `generator.py` | ~210 | Turns a seed into a complete case |
+| `exhibits.py` | ~180 | The mini-games' pictures (camera stills and documents) as SVG |
 
 A game is one plain dictionary (see `docs/CONTRACT.md` for its exact shape). Each click runs like this:
 
@@ -339,8 +356,8 @@ and advances the timers.
 | Decision | Why |
 |---|---|
 | **Rules as pure functions in `logic.py`**, with no Streamlit and no database code | The rules can be tested quickly without a browser or a database (the whole suite runs in a few seconds). A rejected action can never leave a half-changed game behind. |
-| **The whole game stored as one JSON row** in SQLite | A game is small and short-lived. One row per room means every action is a single read-modify-write inside one transaction, which also makes simultaneous clicks safe (`BEGIN IMMEDIATE`). No server or database setup is needed. |
-| **Polling every 2 seconds** instead of WebSockets | Streamlit has no push channel for this. Polling is simple, works on every phone, and 2 seconds is fast enough for a talking game. The same poll doubles as the "I am online" heartbeat and drives the timers, so no background process is needed. |
+| **The whole game stored as one JSON row**, in SQLite or PostgreSQL | A game is small and short-lived. One row per room means every action is a single read-modify-write inside one transaction, which also makes simultaneous clicks safe (one writer at a time). SQLite needs no setup at all; with `DATABASE_URL` the same code uses PostgreSQL, so rooms survive a restart. |
+| **Polling every 2 seconds** instead of WebSockets | Streamlit has no push channel for this. Polling is simple, works on every phone, and 2 seconds is fast enough for a talking game. The same poll doubles as the "I am online" heartbeat and drives the timers, so no background process is needed. Only one part of each screen refreshes itself, always at the same place; the rest is redrawn when something changes (two self-refreshing parts at moving places crashed Streamlit in the browser). |
 | **A secret token in each player's link** instead of accounts | Joining takes a few seconds with no password and no personal data. The token (22 random characters from `secrets`) is the only way to see a card, so nobody can take over another seat with just a name and room code. |
 | **The server builds separate public and private views** | Secrets are filtered on the server, so they never reach a screen where they don't belong. Tests check this for every phase. |
 | **A generator plus a validator** instead of hand-written cases | Every game is new, and the validator guarantees that every case is solvable and fair. |
@@ -364,12 +381,15 @@ and advances the timers.
   escaped before it is shown, so HTML and Markdown are shown as plain text; case texts in widget labels are
   escaped for Markdown too (`ui.md`), so an AI text can never become a link or load an image.
   Room codes from the URL must be exactly 4 valid letters. SQL always uses placeholders.
+- **No error details for players:** Streamlit never shows a player the technical details of an error
+  (`showErrorDetails = "none"` in `.streamlit/config.toml`); a database problem shows a short message, and the
+  details go to the server log only.
 - **Abuse limits:** at most 6 players per room, and the host can remove strangers from the lobby. At most 200 new
   rooms per hour; when that is reached, lobbies nobody was active in for 5 minutes are freed, so a flood of rooms
   blocks new ones for minutes, not an hour. The AI is only asked when a host picks an AI case, and for at most
   5 cases per hour and 10 per day; past that, the host is told why and plays case #001. Both limits work without recognising visitors,
   because behind the host's proxy their addresses are not reliable.
-- **Dependencies:** four direct dependencies (`streamlit`, `qrcode[pil]`, `openai` for the OpenRouter calls, and `psycopg` for PostgreSQL). All 50 packages are pinned to exact versions
+- **Dependencies:** four direct dependencies (`streamlit`, `qrcode[pil]`, `openai` for the OpenRouter calls, and `psycopg` for PostgreSQL). All 50 packages the app needs are pinned to exact versions
   in `uv.lock` and `requirements.txt` and checked against the OSV vulnerability database (no known vulnerabilities at the time of submission;
   the check runs again on every push).
 
@@ -383,15 +403,17 @@ More scenarios, each with the test that proves it, are in [`docs/WHAT_HAPPENS_IF
 - **The link is the key:** whoever has a player's link (screenshot, browser history) can see that card. Coming back on another device
   is not possible without the link.
 - **2-second delay:** updates appear with up to 2 seconds of delay, and every open screen causes a small amount of server work.
+- **Phones that sleep:** the page keeps the screen on where the browser allows it (not on iOS before 16.4). A phone
+  that goes dark anyway counts as offline after 45 seconds; with fewer than 3 players online the game pauses.
 - **Fixed size:** every case has 6 roles and 5 locations, so the game supports at most 6 players. Without the AI,
   repeat players get to know the texts of case #001.
-- **AI quality varies:** a free model sometimes writes a weaker story or one that fails the checks (then case #001
-  is played). The free plan allows 200 new rooms per day.
+- **AI quality varies:** a free model sometimes writes a weaker story or one that fails the checks (then the host
+  can try again or play case #001). The free plan allows about 50 AI requests a day, enough for about 10 AI
+  cases; the app writes at most 10 a day and 5 an hour.
 - **English only.**
 
 ## 10. How it could change
 
-- **Persistent database** (e.g. PostgreSQL) so games survive restarts. Only `db.py` would change, since the rest never touches storage.
 - **Push updates via WebSockets** (e.g. a FastAPI backend) to remove the polling delay. `logic.py` could be reused unchanged.
 - **More content:** more roles, locations and story variants in `content.py`. The validator would keep new cases fair.
 - **More players or game modes,** for example several rounds, an accomplice, or adjustable timers.
@@ -410,10 +432,12 @@ ai.py                   asks an AI (via OpenRouter) for a new story
 db.py                   storage: SQLite or PostgreSQL
 minigames.py            evidence mini-games: puzzles, hints and the Python-side check
 minigame_ui.py          the mini-games on the phone (HTML fragments and one custom component)
+exhibits.py             the mini-games' pictures: camera stills and documents, drawn as SVG
+assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (576 tests); tests/e2e/ the browser check
+tests/                  pytest suite (658 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
-requirements.txt        the same pinned dependencies for pip / Streamlit Cloud
+requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)
 ```
