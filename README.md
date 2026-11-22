@@ -13,10 +13,10 @@ The host plays the handcrafted case #001 "The Last Lecture" or asks an AI for a 
 
 | Name | Student number |
 |---|---|
-| Emilia Vetter | 81228 |
 | Laura Ann Emke | 78309 |
-| Tassilo Stewanowitsch | 78127 |
 | Marie-Christin Pelz | 80454 |
+| Tassilo Stewanowitsch | 78127 |
+| Emilia Vetter | 81228 |
 
 ---
 
