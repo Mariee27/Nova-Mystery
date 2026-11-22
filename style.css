@@ -45,6 +45,14 @@ h1, h2, h3 { font-family: var(--serif) !important; color: var(--ivory) !importan
 p, li, label, .stMarkdown { font-family: var(--sans); }
 [data-testid="stCaptionContainer"] { color: var(--muted) !important; }
 
+/* ---------- no dimming while the page refreshes ----------
+   Streamlit greys out what is on screen while a refresh runs longer than about half a second
+   (with a far-away database, every 2 seconds): the page seemed to flicker. Keep showing the
+   last state at full strength until the new one arrives. */
+[data-stale="true"], .stale-element {
+  opacity: 1 !important; transition: none !important; filter: none !important;
+}
+
 /* ---------- widgets ---------- */
 .stButton button, [data-testid="stFormSubmitButton"] button {
   font-family: var(--mono); text-transform: uppercase; letter-spacing: .12em; font-size: .78rem;

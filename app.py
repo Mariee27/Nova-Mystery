@@ -30,6 +30,7 @@ import ui
 
 DB_PATH = os.environ.get("MURDER_DB", "data/murder.db")
 POLL_SECONDS = 2   # every open screen asks for the current state this often
+HEARTBEAT_SECONDS = 10   # ... and tells the database it is online this often (see sync)
 
 PHASE_TITLES = {
     "LOBBY": "Lobby – the suspects arrive",
@@ -91,7 +92,13 @@ def sync(code, token=None):
             return None, None
         me = logic.private_view(game, token)
         if me is not None:
-            db.heartbeat(conn, code, me["pid"], now)
+            # "I am online" goes to the database every HEARTBEAT_SECONDS, not on every poll: one
+            # write less per poll (a far-away database makes every query count), and a player
+            # only counts as offline after logic.OFFLINE_AFTER seconds anyway.
+            beat = f"heartbeat-{code}-{me['pid']}"
+            if now - st.session_state.get(beat, 0) >= HEARTBEAT_SECONDS:
+                db.heartbeat(conn, code, me["pid"], now)
+                st.session_state[beat] = now
             seen = {**seen, me["pid"]: now}
         online = logic.with_bots(game, logic.online_ids(seen, now))
 
