@@ -846,3 +846,62 @@ def notebook_summary(players, marks, scenes):
     if not parts:
         return ""
     return f'<div class="nb-sum"><div class="lh">📓 Your notebook</div>{" · ".join(parts)}</div>'
+# ---------------------------------------------------------------- hot seat (between rounds)
+
+def hot_verdict(believe, lie):
+    """What the room thinks of the answers, from the counts only."""
+    if lie > believe:
+        return "The room thinks: lying"
+    if believe > lie:
+        return "The room thinks: believable"
+    return "The room is undecided"
+
+
+def hot_meter(believe, lie):
+    """A bar: green part = believe, red part = lie (both as counts, never who)."""
+    total = believe + lie
+    green = 50 if total == 0 else round(believe / total * 100)
+    return (f'<div class="hs-meter" aria-label="{believe} believe, {lie} lie">'
+            f'<div class="hs-yes" style="width:{green}%">👍 {believe}</div>'
+            f'<div class="hs-no" style="width:{100 - green}%">👎 {lie}</div></div>')
+
+
+def _clock(left):
+    left = max(0, int(left or 0))
+    return f'<div class="hs-clock" role="timer">{left // 60}:{left % 60:02d}</div>'
+
+
+def hot_seat_board(hot, players, left, room=""):
+    """The board during the break between two rounds: first who may be picked and how many
+    have picked (not whom), then the suspect in the hot seat with the clock and the live meter."""
+    if hot is None:
+        return ""
+    by_pid = {p["pid"]: p for p in players}
+    history = "".join(
+        f'<div class="hs-past">After round {h(e["after_round"])}: <b>{h(by_pid[e["pid"]]["name"])}</b>'
+        f' · 👍 {e["believe"]} 👎 {e["lie"]} · <i>{h(hot_verdict(e["believe"], e["lie"]))}</i></div>'
+        for e in hot["history"] if e["pid"] in by_pid)
+    title = f'🔥 Hot seat · after round {h(hot["after_round"])}<span>Room {h(room)}</span>'
+    if hot["seat"] is not None:
+        who = by_pid.get(hot["seat"], {"name": "Someone", "role": ""})
+        return (f'<div class="hs live"><div class="hs-k">{title}</div>'
+                f'<div class="hs-main"><span class="face">{initial(who["name"])}</span>'
+                f'<div><div class="hs-name">{h(who["name"])}</div><div class="hs-role">{h(who.get("role") or "")}</div></div>'
+                f'{_clock(left)}</div>'
+                f'<div class="hs-hint">Ask out loud! Everybody else: believe or lie? Vote on your phone.</div>'
+                f'{hot_meter(hot["believe"], hot["lie"])}{history}</div>')
+    names = "".join(
+        f'<div class="hs-row"><span class="face">{initial(by_pid[pid]["name"])}</span>'
+        f'<span class="hs-n">{h(by_pid[pid]["name"])}</span><span class="hs-r">{h(by_pid[pid].get("role") or "")}</span></div>'
+        for pid in hot["candidates"] if pid in by_pid)
+    return (f'<div class="hs choosing"><div class="hs-k">{title}</div>'
+            f'<div class="hs-main"><div><div class="hs-name">Who goes in the hot seat?</div>'
+            f'<div class="hs-role">Pick on your phone · {h(hot["picked"])} picked so far</div></div>{_clock(left)}</div>'
+            f'{names}{history}</div>')
+
+
+def hot_seat_you(alibi):
+    """The phone of the player in the hot seat: answer out loud, your story as a cheat sheet."""
+    return (f'<div class="hs-you"><div class="hs-k">🔥 You are in the hot seat!</div>'
+            f'<div>Everybody is grilling you. Answer out loud and stay calm.</div>'
+            f'<div class="hs-alibi">Your story: “{h(alibi or "")}”</div></div>')
