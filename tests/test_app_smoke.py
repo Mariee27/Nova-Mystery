@@ -671,3 +671,17 @@ def test_hot_seat_between_rounds_on_the_board_and_the_phones(game_db):
         assert "Your move." in phones[1].run()
     finally:
         conn.close()
+
+
+def test_after_joining_the_phone_shows_the_waiting_room(game_db):
+    board = Browser()
+    board.run(press=["Create room"])
+    code = board.st.query_params["room"]
+    ana = Browser(room=code)
+    page = ana.run(press=["Join"], **{"Your name": "Ana"})
+    page = ana.run()
+    assert "You’re in, Ana." in page and "Checked in" in page and f"Room {code}" in page
+    ben = Browser(room=code)
+    ben.run(press=["Join"], **{"Your name": "Ben"})
+    page = ana.run()                                         # Ana sees Ben arrive
+    assert "Ben" in page and f"2 of {logic.MIN_PLAYERS}" in page

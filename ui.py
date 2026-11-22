@@ -863,3 +863,38 @@ def hot_seat_you(alibi):
     return (f'<div class="hs-you"><div class="hs-k">🔥 You are in the hot seat!</div>'
             f'<div>Everybody is grilling you. Answer out loud and stay calm.</div>'
             f'<div class="hs-alibi">Your story: “{h(alibi or "")}”</div></div>')
+
+
+# ---------------------------------------------------------------- phone: waiting room (lobby)
+
+WAITING_TIPS = (
+    "Everybody may lie. Only one of you knows the truth.",
+    "Keep your file to yourself: the person next to you may be the murderer.",
+    "Listen for alibis that do not fit the evidence.",
+)
+
+
+def waiting_room(me, code, players, is_host, tip=0):
+    """The phone right after joining: you are checked in, who else is here, and what happens
+    next. me: the private view (pid, name); players: public players (pid, name, online).
+    Only names: in the lobby nothing secret exists yet. tip: which tip to show."""
+    here = [p for p in players if p.get("online", True)]
+    need = max(0, logic.MIN_PLAYERS - len(here))
+    if need:
+        count = f"{len(here)} of {logic.MIN_PLAYERS}–{logic.MAX_PLAYERS} here · {need} more needed"
+    else:
+        count = f"{len(here)} suspects here · ready to start"
+    if is_host:
+        wait = "You are the host. Start when everybody is in."
+    else:
+        wait = 'Waiting for the host to start<span class="dots"><i>.</i><i>.</i><i>.</i></span>'
+    faces = "".join(
+        f'<div class="wr-p{" me" if p["pid"] == me["pid"] else ""}" style="--i:{i}">'
+        f'<span class="face">{initial(p["name"])}</span><span class="n">{h(p["name"])}</span></div>'
+        for i, p in enumerate(here))
+    return (f'<div class="wr"><div class="wr-stamp">Checked in</div>'
+            f'<div class="wr-k">Room {h(code)}</div>'
+            f'<div class="wr-hi">You’re in, {h(me["name"])}.</div>'
+            f'<div class="wr-wait">{wait}</div>'
+            f'<div class="wr-count">{h(count)}</div><div class="wr-faces">{faces}</div>'
+            f'<div class="wr-tip">While you wait: {h(WAITING_TIPS[tip % len(WAITING_TIPS)])}</div></div>')
