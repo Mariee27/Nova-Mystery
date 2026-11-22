@@ -1,6 +1,7 @@
 # NOVA MYSTERY
 
-A multiplayer murder mystery for 4 to 6 players (up to 20 minutes once it starts), built with Python and Streamlit.
+A multiplayer murder mystery for 4 to 6 players (about 20 minutes once it starts, plus two short hot-seat
+breaks of about a minute each), built with Python and Streamlit.
 One screen (the projector) shows the public board. Every player joins on their own phone, gets a
 secret role card, and together the group has to find out who committed the murder before time runs out.
 The host plays the handcrafted case #001 "The Last Lecture" or asks an AI for a brand-new case.
@@ -51,6 +52,7 @@ they never came.
 |---|---|---|
 | Reveal | 30 s | Everybody reads their card. |
 | Investigation | 3 rounds, each up to 5 min | Each round every player has exactly **one** action in the app: search a place on the **campus map** or share one of their clues. Interrogations happen **out loud**: the players question each other face to face. A round ends early when everybody has moved or has nothing left to search or share. The murderer may additionally plant one fake clue. |
+| Hot seat | after rounds 1 and 2, about 1 min | A short break (the host can switch it off in the lobby). Everybody picks on their phone whom the room should grill (20 s; never yourself, nobody twice). The suspect with the most picks sits in the hot seat for 45 s: the room questions them out loud, their phone shows their own story as a cheat sheet, and everybody else taps 👍 Believe or 👎 Lying. The board shows only counts, never who picked or rated whom. Nobody can search, share or plant during the break. |
 | Discussion | 3 min | Players question each other in person and argue (lying is allowed). |
 | Vote | 1 min | Everybody taps a suspect (nothing is chosen in advance) and, if they like, the crime scene, then *Vote*. |
 | Result | – | The murderer and all cards are revealed. Detectives win only if the murderer got strictly the most votes. |
@@ -60,7 +62,11 @@ they never came.
 "Change action" link back: *Search a place* (tap a pin on the campus plan, read the paper card, press
 "Search <place>") or *Share a clue* (tap one of your private clues, "Share with everyone").
 Afterwards "Move made." shows your move with a LOGGED stamp and who is still choosing.
-A solved exhibit first shows "Access granted" until the player taps *Continue*.
+A solved exhibit first shows "Access granted" until the player taps *Continue*. Opening a place's mini-game
+holds that place for 2 minutes: nobody else can open or search it meanwhile (one place per player; the hold
+ends with the find, the time or the round), and nobody sees who holds it. Taps on cards, pins and chips are
+handled without reloading the page, so the phone never goes blank between two steps. "Your move." shows the
+round, and from round 2 on says that a new round has begun.
 There is no interrogation in the app: the players sit in one room and question, accuse and
 defend their alibis out loud. A player with nothing left to search or share is told so and is
 not waited for.
@@ -106,21 +112,27 @@ Phases end early when everybody is done, and the host can skip ahead.
   fails (no key, limit, busy, timeout), only the host sees why and can try again or play case #001.
   See section 4 for the setup.
 - **Every case has its own opening.** The home page plays a short intro about the game. When the host starts,
-  the board and every phone play the intro of *this* case (six lines written with the story, then the case
-  title) before the private files open. While the AI is still writing, the lobby says so instead of showing an
+  every phone plays the intro of *this* case (six lines written with the story, then the case title) before
+  the private files open. The board plays a longer scene that everybody watches together: police tape and
+  blue lights, the victim and where the body was found ("But this is not where Vale died."), then the
+  suspects as file cards (name, role, public dossier line) landing one by one, all within the 30 seconds of
+  "Read your file". Only public facts; who did it stays secret. While the AI is still writing, the lobby says so instead of showing an
   old case file.
 - **Every case is checked for fairness** before the game starts (exactly one murderer, at least two strong
   clues against them, no strong clue against innocents, …). See `logic.validate_case`.
 - **Hidden information:** each phone only ever receives its own card. The board shows no secrets until the result.
 - **A murderer's special move:** one planted fake clue that looks exactly like a real search result.
+- **Hot seat between rounds:** the interrogation happens out loud, with a little structure: the phones pick
+  the suspect, the board shows them with a clock and a live 👍/👎 meter (see the phase table above).
 - **Robust to real life:** the game page asks the phone to keep its screen on (Screen Wake Lock, where the
   browser supports it). A player without a sign of life for 45 seconds is marked offline and never blocks the
   game; the host role moves to another player. If fewer than 3 players are online, the game pauses (the clock
   stands still, every screen says so) and runs on as soon as they are back; only after 3 minutes without
   enough players does it end. Reopening the tab or the same link restores the seat.
 - **Timers** on every phase, so the game always ends.
-- **Host tools:** choose the case, start the game, end a phase early, add demo suspects (computer players for
-  presentations), remove strangers from the lobby.
+- **Host tools:** choose the case, switch the hot seat on or off, start the game, start the hot seat early, end
+  a phase or the break early, add demo suspects (computer players for presentations), remove strangers from
+  the lobby.
 
 ### Evidence mini-games – play to unlock
 
@@ -250,6 +262,9 @@ without buying credit, and both speak the same OpenAI format, so only the addres
    why and can *Try again* or switch to case #001. *Write a different AI case* asks for another one. At most
    5 AI cases per hour and 10 per day are written for the whole app (a case takes up to 5 requests, the free
    plan allows 50 a day); raise `MAX_AI_CASES_PER_HOUR` / `_PER_DAY` in `db.py` if you buy credit.
+   These limits are rolling windows, not a reset at a fixed time: a new case is allowed if fewer than 5 were
+   started in the last 60 minutes and fewer than 10 in the last 24 hours. An automatic second try counts as a
+   case of its own. OpenRouter's own limit for free models resets once a day.
 
 If a key ever leaks: revoke it on openrouter.ai immediately, create a new one, and update it locally and on
 Streamlit Cloud. Deleting the commit does not remove it from the history.
@@ -298,17 +313,19 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_minigames.py` | 84 | The puzzles: solvable from the story, the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
 | `tests/test_case_minigames.py` | 70 | Mini-games that fit the case: five different games for the five places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
 | `tests/test_rounds_and_map.py` | 52 | Rounds, locked places and the campus map: every pin in its building, pins far enough apart to tap, no car park. |
-| `tests/test_nova.py` | 38 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file). |
+| `tests/test_nova.py` | 44 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file), the board's crime-scene intro and suspect cards. |
 | `tests/test_balanced_ai_cases.py` | 38 | AI cases: medium difficulty, the solution file, the test reading, the host's choice, the AI's status. |
+| `tests/test_app_smoke.py` | 28 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case, a broken database, the hot seat and the AI's automatic second try. |
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
 | `tests/test_views.py` | 20 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card. |
-| `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
+| `tests/test_hot_seat.py` | 19 | The hot seat: when the break happens, picking, ties, rating, the clock, counts only on the board, bots never search in the break. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
-| `tests/test_app_smoke.py` | 19 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
+| `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
+| `tests/test_playtest_fixes.py` | 9 | Fixes from the first playtest: a place is held while somebody solves it, no late intro over the file, a locked-in hot-seat pick, the new-round banner. |
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
 
-All together: 658 tests.
+All together: 701 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -331,10 +348,10 @@ app.py         screens (Streamlit): board, phone, join form; only shows data and
 
 | File | Lines | Responsibility |
 |---|---|---|
-| `logic.py` | ~1200 | Rules, phases, timers, the pause, results, the public and private views, case and story validator |
-| `app.py` | ~1150 | All screens and the polling loop |
-| `ui.py` | ~750 | HTML building blocks: map, cards, board, result |
-| `ai.py` | ~660 | The AI request, reading and repairing the answer, the test reading |
+| `logic.py` | ~1500 | Rules, phases, timers, the pause, the hot seat, held places, results, the public and private views, case and story validator |
+| `app.py` | ~1350 | All screens, taps without reloading, and the polling loop |
+| `ui.py` | ~880 | HTML building blocks: map, cards, board, the board's intro, result |
+| `ai.py` | ~670 | The AI request, reading and repairing the answer, the test reading |
 | `minigames.py` | ~500 | The five mini-games: what the phone gets, the checks, hints, the case's words |
 | `minigame_ui.py` | ~490 | The mini-games on the phone (one custom component) |
 | `content.py` | ~330 | Case #001: story texts, the campus map, clue templates, the mini-games' words |
@@ -438,7 +455,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (658 tests); tests/e2e/ the browser check
+tests/                  pytest suite (701 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)
