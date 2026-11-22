@@ -671,3 +671,20 @@ def test_hot_seat_between_rounds_on_the_board_and_the_phones(game_db):
         assert "Your move." in phones[1].run()
     finally:
         conn.close()
+
+
+def test_a_phone_that_reloads_late_in_the_reveal_skips_the_intro(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code, token = phone.st.query_params["room"], phone.st.query_params["t"]
+    phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
+    early = Browser(room=code, t=token).run()                    # a fresh session right at the start
+    assert 'class="intro case short"' in early
+    conn = db.connect(game_db)
+    try:
+        now = time.time()                                        # 20 of the 30 seconds are gone
+        db.apply(conn, code, lambda g: dict(g, deadline=now + 10))
+    finally:
+        conn.close()
+    late = Browser(room=code, t=token).run()                     # the phone reloads now
+    assert 'class="intro case short"' not in late and 'class="envelope"' in late   # the envelope is there

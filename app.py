@@ -116,9 +116,11 @@ def views(game, online, token=None):
     public = logic.public_view(game, online)
     public["story"] = logic.story_view(game)
     public["map"] = logic.map_view(game)
+    public["busy"] = logic.busy_places(game, time.time())   # held by somebody (who stays private)
     public["hot_seat"] = logic.hot_seat_view(game)          # None outside the discussion
     me = logic.private_view(game, token)
     if me is not None:
+        me["holding"] = logic.my_hold(game, token, time.time())
         me["hot_seat"] = logic.my_hot_seat(game, token)      # only my own pick and rating
         me["host_note"] = logic.host_note(game, token)
         me["ai_status"] = logic.ai_status(game, token)
@@ -150,12 +152,22 @@ def show(html):
     st.markdown(html, unsafe_allow_html=True)
 
 
+INTRO_LATE = 5   # seconds into "Read your file": after that a phone that reloads skips the intro
+
+
 def play_case_intro(code, public, scene=False):
     """The intro of this room's case plays once on each screen, when the game starts.
-    scene=True (the board): with the crime-scene moment before the title."""
+    scene=True (the board): with the crime-scene moment before the title.
+    A phone that reloads later in the reveal (a locked screen, a dropped connection) starts a
+    new session; it must not see the 8-second intro again, which would cover "Open your file"
+    while the 30 seconds run out."""
     key = f"case_intro_{code}"
     if public["phase"] == "REVEAL" and not st.session_state.get(key):
         st.session_state[key] = True
+        late = public["deadline"] is not None and (
+            logic.DURATIONS["REVEAL"] - seconds_left(public) > INTRO_LATE)
+        if late and not scene:
+            return
         players = public["players"] if scene else None      # the board introduces the suspects
         show(ui.case_intro(public["story"], suspects=len(public["players"]), scene=scene, players=players))
 
@@ -589,6 +601,15 @@ def hot_seat_phone(code, token, public, me):
     if not options:
         st.caption("Everybody has been in the hot seat. Keep talking!")
         return
+    if mine.get("pick") is not None:            # locked in: no second tap can change it
+        st.markdown(f'<div class="kicker">🔒 Locked in: {ui.h(name_of(public, mine["pick"]))}</div>',
+                    unsafe_allow_html=True)
+        st.caption(f"{hot['picked']} picked so far. The hot seat starts when everybody has picked, "
+                   f"or after {logic.HOT_SEAT_PICK_SECONDS} seconds.")
+        if me["is_host"]:
+            if st.button("Start the hot seat now (host)"):
+                act(code, lambda g, on, now: logic.start_hot_seat(g, token, now))
+        return
     st.markdown('<div class="kicker">🔥 Hot seat – who should be grilled?</div>', unsafe_allow_html=True)
     for pid in options:
         label = f"{name_of(public, pid)} – {role_of(public, pid)}" if role_of(public, pid) else name_of(public, pid)
@@ -854,6 +875,7 @@ def choose_action(code, token, public, me):
          "info": f"{unshared} private clue{'s' if unshared != 1 else ''}" if unshared else "All shared"},
     ]
     if open_places or unshared:
+        show(ui.round_banner(public["map"]["round"], public["map"]["rounds"]))
         show(ui.step_head("Your move.", "One action per round. Choose wisely."))
     else:
         show(ui.step_head("Nothing left to search or share.",
@@ -881,12 +903,17 @@ def search_step(code, token, public, me, move):
     found = [e for e in public["log"] if e["kind"] == "search" and e.get("location") == place]
     show(ui.place_card(place, places.get(place), found, story=public["story"]))
     sealed = me["puzzles"].get(place)
+    taken = place in public.get("busy", []) and place != me.get("holding")
+    if place and taken and places[place]["state"] == "open":
+        st.warning("Somebody is searching this place right now. Pick another one.")
+        return
     if sealed and places[place]["state"] == "open":
         show(minigame_ui.sealed_line(sealed))
     if (place and places[place]["state"] == "open"
             and st.button(f"Search {ui.md(place)}", type="primary", use_container_width=True)):
-        if sealed:      # the clue is sealed: open its mini-game first
-            st.session_state["move"] = dict(move, play=place)
+        if sealed:      # the clue is sealed: hold the place, then open its mini-game
+            if attempt(code, lambda g, on, now: logic.open_place(g, token, place, now)):
+                st.session_state["move"] = dict(move, play=place)
             st.rerun()
         act(code, lambda g, on, now: logic.search(g, token, place, now))
 
