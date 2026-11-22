@@ -488,6 +488,25 @@ def test_the_phone_guides_through_one_move_and_explains_mistakes(game_db):
         conn.close()
 
 
+def test_only_the_board_plays_the_crime_scene_moment_at_the_start(game_db):
+    board = Browser()
+    board.run(press=["Create room"])
+    code = board.st.query_params["room"]
+    board_tab = Browser(room=code, view="board")
+    board_tab.run()                                            # the board is open in the lobby
+    phones = []
+    for name in ["Ana", "Ben", "Caro", "Dev"]:
+        phone = Browser(room=code)
+        phone.run(press=["Join"], **{"Your name": name})
+        phones.append(phone)
+    phones[0].run(press=["Start game"], **{"Which case?": "rehearsal"})
+    intro = board_tab.run()                                    # REVEAL: the board shows who died where ...
+    assert 'class="scene"' in intro
+    assert 'class="lineup"' in intro and all(name in intro for name in ["Ana", "Ben", "Caro", "Dev"])
+    assert 'class="scene"' not in board_tab.run()              # only once per session
+    assert 'class="scene"' not in phones[1].run()              # phones keep the short intro
+
+
 def test_the_stand_in_keeps_one_components_object_like_streamlit():
     """app.mg_renderer caches by id(st.components.v2). A fresh object per access let a later
     test reuse a freed id and get an earlier test's component (a flaky mini-game test)."""

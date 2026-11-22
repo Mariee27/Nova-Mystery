@@ -77,10 +77,13 @@ NUMBER_WORDS = {4: "Four", 5: "Five", 6: "Six"}
 SUSPECT_RANGE = re.compile(r"4 to 6 suspects", re.IGNORECASE)
 
 
-def case_intro(story=None, suspects=None):
+def case_intro(story=None, suspects=None, scene=False, players=None):
     """The shorter intro of one case (about 8 seconds), on the board and every phone at the start.
 
     suspects: how many play in this room. Then "4 to 6 suspects." becomes e.g. "Five suspects."
+    scene: the board adds a crime-scene moment (who died, where the body was found) and then
+    introduces every player one by one, so everybody looks up at the projector together.
+    It ends before the reveal phase does (see BOARD_INTRO_END).
     """
     story = _story(story)
     if suspects in NUMBER_WORDS:
@@ -91,17 +94,62 @@ def case_intro(story=None, suspects=None):
     final = (f'<div class="no">CASE #{h(story["case_number"])}</div>'
              f'<div class="title case">{h(story["case_title"])}</div>'
              '<div class="tag">Your file is waiting.</div>')
+    if scene:
+        return _intro(story["intro_lines"], " case short long", 0.3, 0.65, final,
+                      middle=crime_scene(story) + lineup(players or [], story))
     return _intro(story["intro_lines"], " case short", 0.3, 0.65, final)
 
 
-def _intro(lines, css, start, step, final, red=3):
+def crime_scene(story):
+    """The crime-scene moment of the board's intro: police tape, the victim and where the
+    body was found. Only public story facts: the real crime scene stays secret."""
+    tape = '<div class="tape{}">' + " · ".join(["CRIME SCENE – DO NOT CROSS"] * 4) + "</div>"
+    place = story["found_place"]
+    place = place[:1].upper() + place[1:]     # AI cases write it in lowercase ("the boathouse")
+    return (f'<div class="scene">{tape.format("")}'
+            '<div class="sk">Body found</div>'
+            f'<div class="victim">{h(story["victim"])}</div>'
+            f'<div class="where">📍 {h(place)}</div>'
+            f'<div class="twist">But this is not where {h(story["victim_short"])} died.</div>'
+            f'{tape.format(" b")}</div>')
+
+
+# The board intro must be over before the reveal phase ends (logic.DURATIONS["REVEAL"] = 30 s):
+# at the next phase the board redraws and the intro would be cut off.
+SUSPECTS_FROM = 10.8      # seconds: the first suspect card flies in after the crime scene
+SUSPECTS_LAST_IN = 21.0   # the last card has landed by then; all stay up to be read
+SUSPECTS_STEP = 3.0       # at most this many seconds between two cards (few players)
+SUSPECTS_UNTIL = 27.6     # the lineup fades out
+BOARD_INTRO_END = 28.0    # the whole intro fades out (style.css: .intro.long)
+
+def lineup(players, story=None):
+    """The players as file cards that fly in one after another and stay, so the room can read
+    them all: number, name, role and the public dossier line. Only public facts (roles are
+    public once the game runs); who did it stays secret."""
+    if not players:
+        return ""
+    dossiers = _story(story).get("dossiers", {})
+    step = min(SUSPECTS_STEP, (SUSPECTS_LAST_IN - SUSPECTS_FROM) / max(len(players) - 1, 1))
+    cards = []
+    for i, player in enumerate(players):
+        role = player.get("role") or ""
+        cards.append(
+            f'<div class="lu" style="--in:{SUSPECTS_FROM + i * step:.2f}s">'
+            f'<div class="top"><span class="no">Suspect #{i + 1}</span>'
+            f'<span class="face">{initial(player["name"])}</span></div>'
+            f'<div class="n">{h(player["name"])}</div><div class="r">{h(role)}</div>'
+            f'<div class="bio">{h(dossiers.get(role, ""))}</div></div>')
+    return f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{"".join(cards)}</div></div>'
+
+
+def _intro(lines, css, start, step, final, red=3, middle=""):
     """Lines appear one by one (line number `red`, counted from 0, in red), then the final title."""
     parts = []
     for number, line in enumerate(lines):
         colour = " red" if number == red else ""
         parts.append(f'<div class="line{colour}" style="animation-delay:{start + number * step:.2f}s">{h(line)}</div>')
     return (f'<div class="intro{css}" aria-hidden="true"><div class="glitch"></div>'
-            f'<div class="lines">{"".join(parts)}</div><div class="final">{final}</div></div>')
+            f'<div class="lines">{"".join(parts)}</div>{middle}<div class="final">{final}</div></div>')
 
 
 def teaser():

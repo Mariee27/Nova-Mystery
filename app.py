@@ -150,12 +150,14 @@ def show(html):
     st.markdown(html, unsafe_allow_html=True)
 
 
-def play_case_intro(code, public):
-    """The intro of this room's case plays once on each screen, when the game starts."""
+def play_case_intro(code, public, scene=False):
+    """The intro of this room's case plays once on each screen, when the game starts.
+    scene=True (the board): with the crime-scene moment before the title."""
     key = f"case_intro_{code}"
     if public["phase"] == "REVEAL" and not st.session_state.get(key):
         st.session_state[key] = True
-        show(ui.case_intro(public["story"], suspects=len(public["players"])))
+        players = public["players"] if scene else None      # the board introduces the suspects
+        show(ui.case_intro(public["story"], suspects=len(public["players"]), scene=scene, players=players))
 
 
 def case_kicker(public):
@@ -557,7 +559,7 @@ def board_screen(code):
         st.session_state["board_phase"] = public["phase"]
     board_live(code)                             # first: always at the same place (see player_screen)
     if public is not None:
-        play_case_intro(code, public)
+        play_case_intro(code, public, scene=True)
         keep_screen_on()                         # the projector laptop must not go to sleep either
 
 

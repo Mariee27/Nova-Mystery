@@ -601,6 +601,55 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .eb-t { font-family: var(--serif); font-weight: 800; font-size: 1.05rem; }
 .eb-b { font: .9rem/1.4 var(--sans); }
 
+/* ---------- board intro: crime scene 5–10.4 s, suspects one by one 10.8–27.6 s (ui.py), out 28 s ---------- */
+.intro.long { animation: introOut .8s ease 28s forwards; }
+.intro.long .final { display: none; }            /* the board shows the case title right after */
+.intro.long .glitch { animation: glitch .25s steps(2) 4.4s 2, glitch .25s steps(2) 10.3s 2; }
+.intro .scene, .intro .lineup { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; }
+.intro .scene { opacity: 0; animation: sceneIn .6s ease 5s forwards, sceneOut .4s ease 10.4s forwards; }
+.intro .scene::before { content: ""; position: absolute; inset: 0; opacity: 0;   /* police lights */
+  background: radial-gradient(circle at 15% 50%, rgba(185,28,28,.55), transparent 45%),
+              radial-gradient(circle at 85% 50%, rgba(37,99,235,.55), transparent 45%);
+  animation: siren .8s steps(1) 5s 6; }
+.intro .tape { position: absolute; top: 18%; left: -10%; right: -10%; padding: .45rem 0; background: #F2C230; color: #111;
+  font: 700 clamp(.7rem, 1.6vw, 1rem) var(--mono); letter-spacing: .25em; white-space: nowrap; overflow: hidden;
+  transform: rotate(-4deg); box-shadow: 0 6px 20px rgba(0,0,0,.6); animation: tapeIn .5s ease-out 5.1s both; }
+.intro .tape.b { top: auto; bottom: 18%; transform: rotate(3deg); animation-name: tapeInRight; animation-delay: 5.3s; }
+.intro .scene .sk { font: 700 1.15rem var(--mono); letter-spacing: .4em; text-transform: uppercase; color: var(--blood); }
+.intro .scene .victim { font-family: var(--serif); font-weight: 800; font-size: clamp(2rem, 6vw, 4.2rem); color: var(--ivory); margin: .3rem 0; }
+.intro .scene .where { font: clamp(1rem, 2.4vw, 1.5rem) var(--mono); color: var(--gold); letter-spacing: .08em;
+  animation: lineIn .5s ease 6s both; }
+.intro .scene .twist { font-family: var(--serif); font-style: italic; color: var(--ivory); font-size: clamp(1.1rem, 2.6vw, 1.7rem);
+  margin-top: 1.2rem; animation: lineIn .6s ease 7.2s both; }
+/* the lineup: cards fly in one after another (--in comes from ui.lineup) and stay */
+.intro .lineup { opacity: 0; animation: sceneIn .4s ease 10.5s forwards, sceneOut .4s ease 27.6s forwards; }
+.intro .lineup .lk { font: 700 1.1rem var(--mono); letter-spacing: .4em; text-transform: uppercase; color: var(--blood); margin-bottom: 1.4rem; }
+.intro .lu-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.1rem; max-width: 84rem; padding: 0 1rem; }
+.intro .lu { width: clamp(10rem, 14vw, 14rem); padding: .9rem 1rem 1.1rem; background: var(--paper); color: var(--ink);
+  text-align: left; border-top: 6px solid var(--act); box-shadow: 0 14px 30px rgba(0,0,0,.6); opacity: 0;
+  animation: luIn .7s cubic-bezier(.25,1.35,.5,1) var(--in) forwards; }
+.intro .lu:nth-child(odd) { --tilt: -1.5deg; }
+.intro .lu:nth-child(even) { --tilt: 1.5deg; }
+.intro .lu .top { display: flex; justify-content: space-between; align-items: center; }
+.intro .lu .no { font: 700 .7rem var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--act); }
+.intro .lu .face { width: 2.2rem; height: 2.2rem; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ink); color: var(--paper); font: 700 1rem var(--serif); }
+.intro .lu .n { font-family: var(--serif); font-weight: 800; font-size: clamp(1.3rem, 2.2vw, 1.85rem); margin-top: .5rem; line-height: 1.1; }
+.intro .lu .r { font: 700 .72rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: #6B5B3E;
+  margin: .3rem 0 .7rem; padding-bottom: .6rem; border-bottom: 1px dashed rgba(30,25,20,.35); }
+.intro .lu .bio { font-family: var(--serif); font-size: clamp(.95rem, 1.3vw, 1.15rem); line-height: 1.45; color: #2A241C; }
+@keyframes luIn { 0% { opacity: 0; transform: translateY(120px) rotate(12deg) scale(.7); }
+  100% { opacity: 1; transform: rotate(var(--tilt)); } }
+@keyframes sceneIn { from { opacity: 0; transform: scale(1.08); } to { opacity: 1; transform: none; } }
+@keyframes sceneOut { to { opacity: 0; filter: blur(8px); } }
+@keyframes siren {   /* red left + blue right, then swapped: like a police light bar */
+  0% { opacity: .9; }
+  50% { opacity: .9; background: radial-gradient(circle at 15% 50%, rgba(37,99,235,.55), transparent 45%),
+                                 radial-gradient(circle at 85% 50%, rgba(185,28,28,.55), transparent 45%); } }
+@keyframes tapeIn { from { transform: translateX(-110%) rotate(-4deg); } }
+@keyframes tapeInRight { from { transform: translateX(110%) rotate(3deg); } }
+
 /* ---------- evidence mini-games (minigame_ui.py) – phone first ---------- */
 .mg-seal { display: flex; gap: .55rem; align-items: center; margin: .2rem 0 .6rem; padding: .55rem .7rem; border-radius: 10px;
   border: 1px dashed rgba(212,168,83,.55); background: rgba(212,168,83,.07); font-size: .9rem; color: var(--ivory); }
