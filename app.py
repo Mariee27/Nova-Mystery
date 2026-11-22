@@ -411,6 +411,16 @@ def show_result(public):
 
 # ---------------------------------------------------------------- home and join
 
+def page_top():
+    """The top of every page that starts with the logo: an always-present slot (the start page's
+    intro), then the logo. Streamlit matches the parts of a page by their position; with the same
+    top on every page, going from one page to the next replaces the logo in place instead of
+    showing the old page under the new one while the new one loads. Returns the slot."""
+    slot = st.container()
+    show(ui.brand())
+    return slot
+
+
 def home_screen():
     # Presentation link ?demo=1: go straight into a demo game, without the intro.
     if st.query_params.get("demo"):
@@ -419,12 +429,16 @@ def home_screen():
         return
     # The opening plays once per browser session. It is pure CSS, works without sound,
     # and is switched off for people who ask their system for reduced motion.
+    # It sits in the slot of page_top, which is there on every page and empty after the first
+    # visit: a page whose top was two parts shorter than the last one showed the old and the
+    # new start page on top of each other while "Create room" ran.
+    slot = page_top()
     if not st.session_state.get("intro_seen"):
         st.session_state["intro_seen"] = True
-        show(ui.intro())
-        if st.button("Skip intro ›", key="skip_intro"):
-            st.rerun()
-    show(ui.brand())
+        with slot:
+            show(ui.intro())
+            if st.button("Skip intro ›", key="skip_intro"):
+                st.rerun()
     left, right = st.columns([3, 2])
     with left:
         show(ui.teaser())
@@ -478,7 +492,7 @@ def start_demo():
 
 def join_screen(code):
     public, _ = sync(code)
-    show(ui.brand())
+    page_top()
     if public is None:
         st.error(f"Room {code} does not exist.")
         if st.button("Back"):
@@ -596,7 +610,7 @@ def board_round(code, public):
 
 
 def board_screen(code):
-    show(ui.brand())
+    page_top()
     public, _ = sync(code)
     if public is not None:
         st.session_state["board_phase"] = public["phase"]
@@ -1324,7 +1338,7 @@ def main():
         home_screen()
     elif not valid_code(code):
         # Never echo an unchecked code: it could carry links or other Markdown.
-        show(ui.brand())
+        page_top()
         st.error("This is not a valid room code.")
         if st.button("Back"):
             st.query_params.clear()
