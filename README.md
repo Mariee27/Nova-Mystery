@@ -101,7 +101,9 @@ Phases end early when everybody is done, and the host can skip ahead.
   and rumors, the endings, and the words of the five mini-games. The AI only writes words. Who did it, where,
   and which clue points to whom is still decided by the generator, and every AI story is checked
   (`logic.validate_story`) before it is used. If the AI is not set up, too slow, over its daily limit, or writes
-  something that fails the checks, only the host sees why and can try again or play case #001.
+  something that fails the checks, the AI writes one more case on its own (if the AI quota allows it; the
+  host sees "The first AI case did not pass the checks …"). If that one fails too, or the AI service itself
+  fails (no key, limit, busy, timeout), only the host sees why and can try again or play case #001.
   See section 4 for the setup.
 - **Every case has its own opening.** The home page plays a short intro about the game. When the host starts,
   the board and every phone play the intro of *this* case (six lines written with the story, then the case

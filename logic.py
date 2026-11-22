@@ -1326,36 +1326,54 @@ def host_note(game, token):
     if ai is None:
         return None
     if ai["status"] == "writing":
+        if ai.get("attempt", 1) > 1:
+            return "The first AI case did not pass the checks. The AI is writing another one …"
         return "The AI is writing a new case for this room …"
     if ai["status"] == "ready":
         return f"New AI case ready: “{ai['story']['case_title']}”."
     return f"No AI case ({ai['reason']}). {FIXED_CASE_NOTE}"
 
 
-def ai_case_writing(game, now):
-    """Mark that an AI is writing a new case for this lobby."""
+def ai_case_writing(game, now, attempt=1):
+    """Mark that an AI is writing a new case for this lobby (attempt 2: the first one failed
+    the checks, and the AI tries once more on its own)."""
     _require_phase(game, "LOBBY")
     game = copy.deepcopy(game)
-    game["ai_case"] = {"status": "writing", "since": now}
+    game["ai_case"] = {"status": "writing", "since": now, "attempt": attempt}
     return game
 
 
-def ai_case_ready(game, story, now):
-    """Store a story the AI wrote, but only if it passes every check."""
-    if game["phase"] != "LOBBY":
-        return game   # too late: the game has already started with another case
+def ai_case_retrying(game, now):
+    """The first AI case failed the checks; a second one is being written. Ignored once the
+    game has started or the host has moved on (the AI case is no longer being written)."""
+    if game["phase"] != "LOBBY" or (game.get("ai_case") or {}).get("status") != "writing":
+        return game
+    return ai_case_writing(game, now, attempt=2)
+
+
+def story_problems(story):
+    """Every check an AI story must pass before it is played: the texts (validate_story), and
+    a fair, balanced case for every number of players. [] means: playable."""
     problems = validate_story(story)
     if not problems:
-        story = copy.deepcopy(story)
-        story["source"] = "ai"
-        story["case_number"] = game["code"]
-        # Every player count must give a fair, balanced case with this story.
         for count in range(MIN_PLAYERS, MAX_PLAYERS + 1):
             try:
                 balance.build_balanced_case(list(range(1, count + 1)), count, story)
             except Rejected as problem:
                 problems.append(str(problem))
                 break
+    return problems
+
+
+def ai_case_ready(game, story, now):
+    """Store a story the AI wrote, but only if it passes every check."""
+    if game["phase"] != "LOBBY":
+        return game   # too late: the game has already started with another case
+    problems = story_problems(story)
+    if not problems:
+        story = copy.deepcopy(story)
+        story["source"] = "ai"
+        story["case_number"] = game["code"]
     game = copy.deepcopy(game)
     if problems:
         game["ai_case"] = {"status": "failed", "reason": "the AI case did not pass the checks",

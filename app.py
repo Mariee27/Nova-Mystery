@@ -248,19 +248,50 @@ def begin_ai_case(code):
     threading.Thread(target=write_ai_case, args=(code, settings), daemon=True).start()
 
 
+AI_ATTEMPTS = 2   # an AI case that fails the checks is written once more on its own, quota permitting
+
+
 def write_ai_case(code, settings):
-    """Runs in the background thread: ask the AI, then save what came back."""
-    try:
-        story = ai.write_story(settings["key"], settings["model"])
-        change = lambda g: logic.ai_case_ready(g, story, time.time())
-    except ai.AIError as problem:
-        reason = str(problem)
-        change = lambda g: logic.ai_case_failed(g, reason, time.time())
+    """Runs in the background thread: ask the AI, check what came back, and save it.
+
+    A case that fails the checks (unreadable, against the rules, no fair case possible) is
+    written once more automatically, if the AI quota allows another case; the host sees
+    "The first AI case did not pass the checks …" meanwhile. A failing service (no key,
+    limit, busy, timeout) is not asked again at once. After the last try the host can still
+    press Try again or play case #001."""
+    reason = "the AI case did not pass the checks"
+    for attempt in range(1, AI_ATTEMPTS + 1):
+        if attempt > 1:
+            now = time.time()
+            if not save_ai_change(code, None, claim=True):
+                reason += " (no AI quota left for another try)"
+                break
+            save_ai_change(code, lambda g: logic.ai_case_retrying(g, now))
+        try:
+            story = ai.write_story(settings["key"], settings["model"])
+        except ai.AIError as problem:
+            reason = str(problem)
+            if not problem.retry:
+                break
+            continue
+        if not logic.story_problems(story):
+            save_ai_change(code, lambda g: logic.ai_case_ready(g, story, time.time()))
+            return
+        reason = "the AI case did not pass the checks"
+    save_ai_change(code, lambda g: logic.ai_case_failed(g, reason, time.time()))
+
+
+def save_ai_change(code, change, claim=False):
+    """Apply change to the room (ignored if the room is gone). claim=True: instead, take one
+    more AI case from the quota and say whether that was allowed."""
     try:
         with open_db() as conn:
+            if claim:
+                return db.claim_ai_case(conn, time.time())
             db.apply(conn, code, change)
     except logic.Rejected:
         pass   # the room is gone
+    return False
 
 
 # ---------------------------------------------------------------- shared pieces
