@@ -67,8 +67,8 @@ holds that place for 2 minutes: nobody else can open or search it meanwhile (one
 ends with the find, the time or the round), and nobody sees who holds it. Taps on cards, pins and chips are
 handled without reloading the page, so the phone never goes blank between two steps. "Your move." shows the
 round, and from round 2 on says that a new round has begun.
-There is no interrogation in the app: the players sit in one room and question, accuse and
-defend their alibis out loud. A player with nothing left to search or share is told so and is
+Interrogations are not typed into the app: the players sit in one room and question, accuse and
+defend their alibis out loud (the hot seat between rounds only gives this a little structure). A player with nothing left to search or share is told so and is
 not waited for.
 
 **The campus map.** A simplified plan of NOVA SBE Carcavelos, seen from above the way the campus is usually
