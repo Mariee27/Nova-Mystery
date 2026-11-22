@@ -16,7 +16,7 @@ import os
 import threading
 import time
 from contextlib import contextmanager
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode
 
 import streamlit as st
 
@@ -838,15 +838,14 @@ def move_link(code, token, move):
     return "?" + urlencode(params)
 
 
-def handle_move_links():
-    if "step" not in st.query_params:
-        return
+def move_from(get):
+    """The selection in a move link. get(name) -> the parameter's value or None."""
     move = {}
-    step = st.query_params.get("step")
+    step = get("step")
     if step in MOVE_STEPS:
         move["step"] = step
         for key in MOVE_KEYS:
-            value = st.query_params.get(key)
+            value = get(key)
             if not value:
                 continue
             if key in NUMBER_KEYS:
@@ -855,10 +854,60 @@ def handle_move_links():
                 except ValueError:
                     continue
             move[key] = value
+    return move
+
+
+def handle_move_links():
+    """A move link opened as a real page (an old tab, a bookmark, or before tap_listener runs)."""
+    if "step" not in st.query_params:
+        return
+    move = move_from(st.query_params.get)
     for key in ("step",) + MOVE_KEYS:
         if key in st.query_params:
             del st.query_params[key]
     st.session_state["move"] = move
+
+
+TAPS_JS = r"""
+export default function (component) {
+  // Taps on the game's links (action cards, map pins, clue cards, chips, "Change action")
+  // would load the whole page again: a blank screen, a new connection, a new session.
+  // Instead the link is handed to Python, which shows the next step without a reload.
+  const w = window;
+  w.__novaTap = component.setTriggerValue;          // always the newest one
+  if (w.__novaTaps) return;                          // one listener per page
+  w.__novaTaps = true;
+  document.addEventListener('click', (ev) => {
+    if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+    const a = ev.target.closest ? ev.target.closest('a[href]') : null;
+    if (!a) return;
+    const href = a.getAttribute('href') || '';
+    if (!href.startsWith('?') || href.indexOf('step=') < 0 || !w.__novaTap) return;
+    ev.preventDefault();
+    w.__novaTap('tap', href + '#' + Date.now());     // unique: the same tap twice still counts
+  }, true);
+}
+"""
+
+
+def tap_listener(code, token):
+    """Receives the taps that TAPS_JS caught and shows the chosen step, without a reload.
+    It sits at the end of the phone page, so it never takes a mini-game's answer away."""
+    v2 = getattr(getattr(st, "components", None), "v2", None)
+    if v2 is None:
+        return
+    key = (id(v2), "nova_taps")
+    if key not in minigame_ui.RENDERERS:
+        minigame_ui.RENDERERS[key] = v2.component("nova_taps", js=TAPS_JS)
+    result = minigame_ui.RENDERERS[key](key="nova-taps", data={"on": True}, on_tap_change=_ignore)
+    href = getattr(result, "tap", None)
+    if not isinstance(href, str):
+        return
+    params = {k: v[0] for k, v in parse_qs(href.split("#")[0].lstrip("?")).items()}
+    if params.get("room") != code or params.get("t") != token:
+        return                                   # not a link of this player's own page
+    st.session_state["move"] = move_from(params.get)
+    st.rerun()
 
 
 def choose_action(code, token, public, me):
@@ -1229,6 +1278,7 @@ def player_screen(code, token):
     if phase != "RESULT":
         st.divider()
         player_log(code)
+    tap_listener(code, token)                    # last: taps become steps without a reload
 
 
 # ---------------------------------------------------------------- entry point
