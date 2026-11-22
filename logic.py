@@ -23,6 +23,7 @@ DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
 # seconds and ends early when every online player has made their one move or has no move
 # left (nothing to search, nothing to share). Interrogations happen out loud, not in the app.
 ROUNDS = 3
+HOLD_SECONDS = 120          # a place stays reserved this long while somebody solves its mini-game
 HOT_SEAT_SECONDS = 45       # how long one suspect is grilled out loud between two rounds
 HOT_SEAT_PICK_SECONDS = 20  # time to pick who is grilled; then the most picks so far count
 LOCKED_PLACES = 2      # places that are locked at the start (the crime scene is always one)
@@ -319,6 +320,7 @@ def _advance(game, now):
             _open_hot_seat(game, now)       # a round is over: first the hot seat, then the next round
             return
         game["round"] = game.get("round", 1) + 1
+        game["holds"] = {}                  # reservations belong to the round that is over
         game["acted"] = []                  # everybody gets a new move
         game["phase_started"] = now
         game["deadline"] = now + DURATIONS["INVESTIGATION"]
@@ -470,10 +472,15 @@ def search(game, token, location, now, proof=None):
         raise Rejected(f"This place is locked. It opens in round {opens}.")
     if location in game["searched"]:
         raise Rejected("This place has already been searched. Pick another one.")
+    # A place another player is solving is theirs for now. (Demo bots never pick such a place
+    # themselves, see _bot_investigate; the rule is there for people.)
+    if not player.get("bot") and place_holder(game, location, now) not in (None, player["pid"]):
+        raise Rejected("Somebody else is searching this place right now. Pick another one.")
     if minigames.enabled(game) and not player.get("bot") and not minigames.verify(game, location, proof):
         raise Rejected("The evidence is still sealed. Solve the puzzle first.")
     clue = next(c for c in game["case"]["location_clues"] if c["location"] == location)
     game = copy.deepcopy(game)
+    game.get("holds", {}).pop(location, None)      # found: the reservation is no longer needed
     game["searched"].append(location)
     game["acted"].append(player["pid"])
     _add_log(game, "search", player["pid"], clue["text"], location=location,
@@ -483,6 +490,49 @@ def search(game, token, location, now, proof=None):
 
 
 EVIDENCE_KINDS = ("search", "share")   # log entries that are public evidence
+
+
+# ---------------------------------------------------------------- holding a place (mini-games)
+#
+# A mini-game takes 30 to 90 seconds. Without a reservation two players could work on the same
+# place and the slower one would lose the move for nothing. So opening a place's mini-game holds
+# it for HOLD_SECONDS: nobody else can open or search it meanwhile. One place per player; the
+# hold ends when the place is found, the time runs out, or the round ends. Who holds a place
+# stays private (busy_places only lists the places), like who searched it.
+
+def place_holder(game, location, now):
+    """The pid holding this place right now, or None."""
+    hold = game.get("holds", {}).get(location)
+    return hold["pid"] if hold and hold["until"] > now else None
+
+
+def open_place(game, token, location, now):
+    """A player starts the mini-game of a place and holds it for HOLD_SECONDS."""
+    player = _begin_action(game, token)
+    if location not in story_of(game)["locations"]:
+        raise Rejected("Unknown location.")
+    if locked_until(game, location) is not None or location in game["searched"]:
+        raise Rejected("This place cannot be searched right now. Pick another one.")
+    if place_holder(game, location, now) not in (None, player["pid"]):
+        raise Rejected("Somebody else is searching this place right now. Pick another one.")
+    game = copy.deepcopy(game)
+    holds = {loc: h for loc, h in game.get("holds", {}).items() if h["pid"] != player["pid"]}
+    holds[location] = {"pid": player["pid"], "until": now + HOLD_SECONDS}
+    game["holds"] = holds
+    return game
+
+
+def busy_places(game, now):
+    """Places somebody is searching right now (without saying who)."""
+    return sorted(loc for loc in game.get("holds", {}) if place_holder(game, loc, now) is not None)
+
+
+def my_hold(game, token, now):
+    """The place this player is holding, or None."""
+    player = next((p for p in game["players"] if token and p["token"] == token), None)
+    if player is None:
+        return None
+    return next((loc for loc in game.get("holds", {}) if place_holder(game, loc, now) == player["pid"]), None)
 
 
 def share(game, token, clue_id, now):
@@ -699,11 +749,14 @@ def _close_hot_seat(game):
 
 
 def pick_hot_seat(game, token, target_pid, now):
-    """A player picks who should sit in the hot seat. They may change their pick."""
+    """A player picks who should sit in the hot seat. The pick is locked in: it cannot be
+    changed afterwards (playtest: picks changed by accident with a second tap)."""
     _require_hot_seat(game)
     player = _player_by_token(game, token)
     if game["hot_seat"]["seat"] is not None:
         raise Rejected("Somebody is already in the hot seat.")
+    if str(player["pid"]) in game["hot_seat"]["picks"]:
+        raise Rejected("Your pick is locked in.")
     if target_pid == player["pid"]:
         raise Rejected("You cannot put yourself in the hot seat.")
     if target_pid not in hot_seat_candidates(game):
@@ -907,7 +960,8 @@ def _bot_investigate(game, bot, index, now):
                                        for p in game["players"]):
         return game
     places = [loc for loc in story_of(game)["locations"] if locked_until(game, loc) is None]
-    free = [loc for loc in places if loc not in game["searched"]]
+    free = [loc for loc in places if loc not in game["searched"]
+            and place_holder(game, loc, now) in (None, pid)]
     if pid == game["case"]["murderer"]:
         # A guilty bot does not search where its own traces are.
         mine = {c["location"] for c in game["case"]["location_clues"]
@@ -926,7 +980,8 @@ def _bot_investigate(game, bot, index, now):
         return share(game, bot["token"], clue["id"], now)
     # Nothing it would rather do: a guilty bot searches its own place after all, so the round
     # can still end early. Places it leaves to a waiting human stay theirs.
-    rest = [loc for loc in places if loc not in game["searched"]]
+    rest = [loc for loc in places if loc not in game["searched"]
+            and place_holder(game, loc, now) in (None, pid)]
     if rest and not humans_waiting:
         return search(game, bot["token"], rest[index % len(rest)], now)
     return game       # nothing left at all: the round does not wait for it (has_move)

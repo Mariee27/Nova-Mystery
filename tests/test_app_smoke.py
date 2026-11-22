@@ -673,6 +673,38 @@ def test_hot_seat_between_rounds_on_the_board_and_the_phones(game_db):
         conn.close()
 
 
+def test_a_phone_that_reloads_late_in_the_reveal_skips_the_intro(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code, token = phone.st.query_params["room"], phone.st.query_params["t"]
+    phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
+    early = Browser(room=code, t=token).run()                    # a fresh session right at the start
+    assert 'class="intro case short"' in early
+    conn = db.connect(game_db)
+    try:
+        now = time.time()                                        # 20 of the 30 seconds are gone
+        db.apply(conn, code, lambda g: dict(g, deadline=now + 10))
+    finally:
+        conn.close()
+    late = Browser(room=code, t=token).run()                     # the phone reloads now
+    assert 'class="intro case short"' not in late and 'class="envelope"' in late   # the envelope is there
+
+
+def test_a_tap_on_a_move_link_shows_the_step_without_a_reload(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code, token = phone.st.query_params["room"], phone.st.query_params["t"]
+    phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
+    phone.run(press=["End phase (host)"])                       # REVEAL → round 1: "Your move."
+    assert "Your move." in phone.run()
+    # The page's tap listener (JavaScript) hands over the link instead of loading it.
+    page = phone.run(component={"tap": f"?room={code}&t={token}&step=share#123"})
+    assert "Share a clue" in page and "Only you know these" in page
+    assert "step" not in phone.st.query_params                 # no page load, the address stays
+    assert ("nova_taps", "nova-taps", {"on": True}) in phone.st.mounted
+    # A link of somebody else's page is ignored.
+    page = phone.run(component={"tap": f"?room={code}&t=someone-else&step=search#124"})
+    assert "Tap a red pin" not in page
 # ---------------------------------------------------------------- the AI case: one automatic second try
 
 def app_functions():

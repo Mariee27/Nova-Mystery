@@ -407,3 +407,10 @@ def test_widget_labels_with_case_texts_show_markdown_as_plain_text():
     assert ui.md("The <b>Dean</b> **x**") == "The \\<b\\>Dean\\</b\\> \\*\\*x\\*\\*"
     for place in content.PLACES:
         assert ui.md(place) == place                       # plain names stay as they are
+
+
+def test_round_banner_says_when_a_new_round_has_begun():
+    assert "Round 1 of 3" in ui.round_banner(1, 3) and "new move" not in ui.round_banner(1, 3)
+    second = ui.round_banner(2, 3)
+    assert "Round 2 of 3" in second and "everybody gets a new move" in second and "round-banner new" in second
+    assert ui.round_banner(0, 3) == ""

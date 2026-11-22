@@ -863,3 +863,14 @@ def hot_seat_you(alibi):
     return (f'<div class="hs-you"><div class="hs-k">🔥 You are in the hot seat!</div>'
             f'<div>Everybody is grilling you. Answer out loud and stay calm.</div>'
             f'<div class="hs-alibi">Your story: “{h(alibi or "")}”</div></div>')
+
+
+def round_banner(round_no, rounds):
+    """Above "Your move.": which round it is. From round 2 on it says clearly that a new round
+    has begun, so a new move does not look like a second move in the same round (playtest)."""
+    if not round_no:
+        return ""
+    if round_no == 1:
+        return f'<div class="round-banner">Round 1 of {h(rounds)}</div>'
+    return (f'<div class="round-banner new">Round {h(round_no)} of {h(rounds)} · '
+            f'a new round: everybody gets a new move</div>')
