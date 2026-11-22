@@ -755,3 +755,9 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 @keyframes wrIn { from { opacity: 0; transform: translateY(8px) scale(.8); } }
 @keyframes wrDot { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .wr-stamp, .wr-p, .wr-wait .dots i { animation: none; } }
+/* ---------- phone: which round it is, above "Your move." ---------- */
+.round-banner { font: 700 .72rem var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--gold); margin: .2rem 0 -.2rem; }
+.round-banner.new { color: var(--ivory); background: var(--act); display: inline-block; padding: .35rem .6rem; border-radius: 3px;
+  animation: roundIn .5s cubic-bezier(.3,1.4,.5,1) both; }
+@keyframes roundIn { from { opacity: 0; transform: translateY(-6px) scale(.95); } }
+@media (prefers-reduced-motion: reduce) { .round-banner.new { animation: none; } }

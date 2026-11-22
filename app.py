@@ -16,7 +16,7 @@ import os
 import threading
 import time
 from contextlib import contextmanager
-from urllib.parse import urlencode
+from urllib.parse import parse_qs, urlencode
 
 import streamlit as st
 
@@ -30,7 +30,8 @@ import ui
 
 DB_PATH = os.environ.get("MURDER_DB", "data/murder.db")
 POLL_SECONDS = 2   # every open screen asks for the current state this often
-HEARTBEAT_SECONDS = 10   # ... and tells the database it is online this often (see sync)
+HEARTBEAT_SECONDS = 5    # ... and tells the database it is online this often (see sync);
+                         # well below logic.STAND_IN_AFTER, so a phone that is there never gets a stand-in
 
 PHASE_TITLES = {
     "LOBBY": "Lobby – the suspects arrive",
@@ -100,15 +101,17 @@ def sync(code, token=None):
                 db.heartbeat(conn, code, me["pid"], now)
                 st.session_state[beat] = now
             seen = {**seen, me["pid"]: now}
-        online = logic.with_bots(game, logic.online_ids(seen, now))
 
-        def step(g):   # timers first, then whatever the demo suspects have to do
-            return logic.bot_moves(logic.tick(g, online, now), now)
+        def step(g):
+            # Who dropped out gets a stand-in (and who is back plays again), then the timers,
+            # then whatever the demo suspects and stand-ins have to do.
+            g = logic.update_stand_ins(g, seen, now)
+            return logic.bot_moves(logic.tick(g, logic.with_bots(g, logic.online_ids(seen, now)), now), now)
 
-        # Only write when the timers or the bots really change something.
+        # Only write when the stand-ins, the timers or the bots really change something.
         if step(game) is not game:
             game = db.apply(conn, code, step)
-        return views(game, online, token)
+        return views(game, logic.with_bots(game, logic.online_ids(seen, now)), token)
 
 
 def views(game, online, token=None):
@@ -116,9 +119,11 @@ def views(game, online, token=None):
     public = logic.public_view(game, online)
     public["story"] = logic.story_view(game)
     public["map"] = logic.map_view(game)
+    public["busy"] = logic.busy_places(game, time.time())   # held by somebody (who stays private)
     public["hot_seat"] = logic.hot_seat_view(game)          # None outside the discussion
     me = logic.private_view(game, token)
     if me is not None:
+        me["holding"] = logic.my_hold(game, token, time.time())
         me["hot_seat"] = logic.my_hot_seat(game, token)      # only my own pick and rating
         me["host_note"] = logic.host_note(game, token)
         me["ai_status"] = logic.ai_status(game, token)
@@ -150,12 +155,22 @@ def show(html):
     st.markdown(html, unsafe_allow_html=True)
 
 
+INTRO_LATE = 5   # seconds into "Read your file": after that a phone that reloads skips the intro
+
+
 def play_case_intro(code, public, scene=False):
     """The intro of this room's case plays once on each screen, when the game starts.
-    scene=True (the board): with the crime-scene moment before the title."""
+    scene=True (the board): with the crime-scene moment before the title.
+    A phone that reloads later in the reveal (a locked screen, a dropped connection) starts a
+    new session; it must not see the 8-second intro again, which would cover "Open your file"
+    while the 30 seconds run out."""
     key = f"case_intro_{code}"
     if public["phase"] == "REVEAL" and not st.session_state.get(key):
         st.session_state[key] = True
+        late = public["deadline"] is not None and (
+            logic.DURATIONS["REVEAL"] - seconds_left(public) > INTRO_LATE)
+        if late and not scene:
+            return
         players = public["players"] if scene else None      # the board introduces the suspects
         show(ui.case_intro(public["story"], suspects=len(public["players"]), scene=scene, players=players))
 
@@ -351,6 +366,40 @@ export default function () {
 """
 
 
+SEAT_JS = r"""
+export default function (component) {
+  // Remembers this browser's seat per room (the player link carries a secret token), so a
+  // player who closed the tab or scanned the room's QR code again gets back to their seat.
+  // The token never leaves this browser: it is only handed back to this same page.
+  const { data, setTriggerValue } = component;
+  if (!data || !data.room) return;
+  const key = 'nova-seat-' + data.room;
+  try {
+    if (data.token) { localStorage.setItem(key, data.token); return; }
+    const token = localStorage.getItem(key);
+    if (token && !window.__novaSeatAsked) { window.__novaSeatAsked = true; setTriggerValue('seat', token); }
+  } catch (e) { /* storage blocked (private mode): the link still works */ }
+}
+"""
+
+
+def seat_memory(code, token=None):
+    """With a token: remember this seat in the browser. Without: the remembered token, or None."""
+    v2 = getattr(getattr(st, "components", None), "v2", None)
+    if v2 is None:
+        return None
+    key = (id(v2), "nova_seat")
+    if key not in minigame_ui.RENDERERS:
+        minigame_ui.RENDERERS[key] = v2.component("nova_seat", js=SEAT_JS)
+    if token:                                     # only remember: nothing comes back
+        minigame_ui.RENDERERS[key](key="nova-seat", data={"room": code, "token": token})
+        return None
+    result = minigame_ui.RENDERERS[key](key="nova-seat", data={"room": code, "token": None},
+                                        on_seat_change=_ignore)
+    seat = getattr(result, "seat", None)
+    return seat if isinstance(seat, str) else None
+
+
 def show_rules(expanded=False):
     with st.expander("How to play", expanded=expanded):
         st.markdown(content.HOW_TO_PLAY)
@@ -475,8 +524,18 @@ def join_screen(code):
         return
     st.markdown(f'<div class="kicker">Room {ui.h(code)} · {ui.h(case_kicker(public))}</div>',
                 unsafe_allow_html=True)
+    # Back to your seat: this browser has played in this room before (tab closed, QR scanned again).
+    seat = seat_memory(code)
+    if seat:
+        with open_db() as conn:
+            game = db.load(conn, code)
+        if game is not None and logic.private_view(game, seat) is not None:
+            st.query_params["t"] = seat
+            st.rerun()
     if public["phase"] != "LOBBY":
-        st.warning("This investigation has already started. You can watch on the board.")
+        st.warning("This investigation has already started. If you are playing: open this room in the "
+                   "browser you joined with, or your own player link, and you are back in your seat "
+                   "(a stand-in plays for you meanwhile). Everybody else can watch on the board.")
         if st.button("Open the board"):
             st.query_params["view"] = "board"
             st.rerun()
@@ -620,6 +679,15 @@ def hot_seat_phone(code, token, public, me):
     if not options:
         st.caption("Everybody has been in the hot seat. Keep talking!")
         return
+    if mine.get("pick") is not None:            # locked in: no second tap can change it
+        st.markdown(f'<div class="kicker">🔒 Locked in: {ui.h(name_of(public, mine["pick"]))}</div>',
+                    unsafe_allow_html=True)
+        st.caption(f"{hot['picked']} picked so far. The hot seat starts when everybody has picked, "
+                   f"or after {logic.HOT_SEAT_PICK_SECONDS} seconds.")
+        if me["is_host"]:
+            if st.button("Start the hot seat now (host)"):
+                act(code, lambda g, on, now: logic.start_hot_seat(g, token, now))
+        return
     st.markdown('<div class="kicker">🔥 Hot seat – who should be grilled?</div>', unsafe_allow_html=True)
     for pid in options:
         label = f"{name_of(public, pid)} – {role_of(public, pid)}" if role_of(public, pid) else name_of(public, pid)
@@ -647,7 +715,7 @@ def signature(public, me):
     evidence = sum(1 for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS)
     # Who is in the room, online, has moved or voted: the suspect list shows it (it is drawn
     # with the page, so the page must be redrawn when it changes).
-    players = tuple((p["pid"], p["online"], p["acted"], p["voted"]) for p in public["players"])
+    players = tuple((p["pid"], p["online"], p["acted"], p["voted"], p.get("stand_in")) for p in public["players"])
     # The round and the state of every place: the map's markers depend on them.
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
@@ -825,8 +893,24 @@ def host_controls(code, token, public, me):
                     if st.button("Remove from room"):
                         act(code, lambda g, on, now: logic.kick(g, token, victim, now))
     elif public["phase"] in logic.DURATIONS:
-        if st.button("End phase (host)"):
+        if st.button(f"{skip_label(public)} (host)", key="host-skip", use_container_width=True):
             act(code, lambda g, on, now: logic.end_phase(g, token, on, now))
+
+
+def skip_label(public):
+    """What the host's button ends right now, in the words of the game."""
+    phase, rounds, round_no = public["phase"], public["map"]["rounds"], public["map"]["round"]
+    if phase == "REVEAL":
+        return "⏭ Start the investigation now"
+    if phase == "INVESTIGATION" and public.get("hot_seat") is not None:
+        return "⏭ End the hot seat – next round"
+    if phase == "INVESTIGATION" and round_no < rounds:
+        return f"⏭ End round {round_no} now"
+    if phase == "INVESTIGATION":
+        return "⏭ End the last round – to the discussion"
+    if phase == "DISCUSSION":
+        return "⏭ Start the vote now"
+    return "⏭ Close the vote now"
 
 
 # ---------------------------------------------------------------- the move, step by step
@@ -848,15 +932,14 @@ def move_link(code, token, move):
     return "?" + urlencode(params)
 
 
-def handle_move_links():
-    if "step" not in st.query_params:
-        return
+def move_from(get):
+    """The selection in a move link. get(name) -> the parameter's value or None."""
     move = {}
-    step = st.query_params.get("step")
+    step = get("step")
     if step in MOVE_STEPS:
         move["step"] = step
         for key in MOVE_KEYS:
-            value = st.query_params.get(key)
+            value = get(key)
             if not value:
                 continue
             if key in NUMBER_KEYS:
@@ -865,10 +948,60 @@ def handle_move_links():
                 except ValueError:
                     continue
             move[key] = value
+    return move
+
+
+def handle_move_links():
+    """A move link opened as a real page (an old tab, a bookmark, or before tap_listener runs)."""
+    if "step" not in st.query_params:
+        return
+    move = move_from(st.query_params.get)
     for key in ("step",) + MOVE_KEYS:
         if key in st.query_params:
             del st.query_params[key]
     st.session_state["move"] = move
+
+
+TAPS_JS = r"""
+export default function (component) {
+  // Taps on the game's links (action cards, map pins, clue cards, chips, "Change action")
+  // would load the whole page again: a blank screen, a new connection, a new session.
+  // Instead the link is handed to Python, which shows the next step without a reload.
+  const w = window;
+  w.__novaTap = component.setTriggerValue;          // always the newest one
+  if (w.__novaTaps) return;                          // one listener per page
+  w.__novaTaps = true;
+  document.addEventListener('click', (ev) => {
+    if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+    const a = ev.target.closest ? ev.target.closest('a[href]') : null;
+    if (!a) return;
+    const href = a.getAttribute('href') || '';
+    if (!href.startsWith('?') || href.indexOf('step=') < 0 || !w.__novaTap) return;
+    ev.preventDefault();
+    w.__novaTap('tap', href + '#' + Date.now());     // unique: the same tap twice still counts
+  }, true);
+}
+"""
+
+
+def tap_listener(code, token):
+    """Receives the taps that TAPS_JS caught and shows the chosen step, without a reload.
+    It sits at the end of the phone page, so it never takes a mini-game's answer away."""
+    v2 = getattr(getattr(st, "components", None), "v2", None)
+    if v2 is None:
+        return
+    key = (id(v2), "nova_taps")
+    if key not in minigame_ui.RENDERERS:
+        minigame_ui.RENDERERS[key] = v2.component("nova_taps", js=TAPS_JS)
+    result = minigame_ui.RENDERERS[key](key="nova-taps", data={"on": True}, on_tap_change=_ignore)
+    href = getattr(result, "tap", None)
+    if not isinstance(href, str):
+        return
+    params = {k: v[0] for k, v in parse_qs(href.split("#")[0].lstrip("?")).items()}
+    if params.get("room") != code or params.get("t") != token:
+        return                                   # not a link of this player's own page
+    st.session_state["move"] = move_from(params.get)
+    st.rerun()
 
 
 def choose_action(code, token, public, me):
@@ -885,6 +1018,7 @@ def choose_action(code, token, public, me):
          "info": f"{unshared} private clue{'s' if unshared != 1 else ''}" if unshared else "All shared"},
     ]
     if open_places or unshared:
+        show(ui.round_banner(public["map"]["round"], public["map"]["rounds"]))
         show(ui.step_head("Your move.", "One action per round. Choose wisely."))
     else:
         show(ui.step_head("Nothing left to search or share.",
@@ -912,12 +1046,17 @@ def search_step(code, token, public, me, move):
     found = [e for e in public["log"] if e["kind"] == "search" and e.get("location") == place]
     show(ui.place_card(place, places.get(place), found, story=public["story"]))
     sealed = me["puzzles"].get(place)
+    taken = place in public.get("busy", []) and place != me.get("holding")
+    if place and taken and places[place]["state"] == "open":
+        st.warning("Somebody is searching this place right now. Pick another one.")
+        return
     if sealed and places[place]["state"] == "open":
         show(minigame_ui.sealed_line(sealed))
     if (place and places[place]["state"] == "open"
             and st.button(f"Search {ui.md(place)}", type="primary", use_container_width=True)):
-        if sealed:      # the clue is sealed: open its mini-game first
-            st.session_state["move"] = dict(move, play=place)
+        if sealed:      # the clue is sealed: hold the place, then open its mini-game
+            if attempt(code, lambda g, on, now: logic.open_place(g, token, place, now)):
+                st.session_state["move"] = dict(move, play=place)
             st.rerun()
         act(code, lambda g, on, now: logic.search(g, token, place, now))
 
@@ -1191,6 +1330,7 @@ def player_screen(code, token):
     player_status(code, token)
     play_case_intro(code, public)                # a fixed overlay: where it sits does not matter
     keep_screen_on()                             # below the fragment, like everything that may vary
+    seat_memory(code, token)                     # this browser finds its way back to this seat
 
     flash = st.session_state.pop("flash", None)
     if flash:
@@ -1215,24 +1355,25 @@ def player_screen(code, token):
         st.info("Read your file. The investigation starts in a moment.")
     elif phase == "INVESTIGATION" and public["hot_seat"] is not None:
         hot_seat_phone(code, token, public, me)  # the break between two rounds
-        show_card(me, expanded=False)
     elif phase == "INVESTIGATION":
         investigation_actions(code, token, public, me)
-        show_card(me, expanded=False)
     elif phase == "DISCUSSION":
         pending_reward(code, public)             # an exhibit solved in the very last second
         st.info("Talk to each other. Compare the alibis. Who is lying?")
-        show_card(me, expanded=False)
     elif phase == "VOTE":
         vote_form(code, token, public, me)
-        show_card(me, expanded=False)
 
     if phase in logic.DURATIONS:                 # REVEAL, INVESTIGATION, DISCUSSION, VOTE
-        host_controls(code, token, public, me)   # "End phase" sits below the player's own move
+        # The host's "End round now" sits right below the player's own move, before the card,
+        # so the host finds it without scrolling when everybody is done.
+        host_controls(code, token, public, me)
+        if phase != "REVEAL":
+            show_card(me, expanded=False)
         player_suspects(code, me["pid"])
     if phase != "RESULT":
         st.divider()
         player_log(code)
+    tap_listener(code, token)                    # last: taps become steps without a reload
 
 
 # ---------------------------------------------------------------- entry point

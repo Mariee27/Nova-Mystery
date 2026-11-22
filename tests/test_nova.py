@@ -428,3 +428,8 @@ def test_waiting_room_for_the_host_and_a_full_room():
     assert f"{logic.MIN_PLAYERS} suspects here · ready to start" in html
     tips = {ui.waiting_room({"pid": 1, "name": "P1"}, "ABCD", players, True, tip=t) for t in range(3)}
     assert len(tips) == 3                                 # the tip changes as people join
+def test_round_banner_says_when_a_new_round_has_begun():
+    assert "Round 1 of 3" in ui.round_banner(1, 3) and "new move" not in ui.round_banner(1, 3)
+    second = ui.round_banner(2, 3)
+    assert "Round 2 of 3" in second and "everybody gets a new move" in second and "round-banner new" in second
+    assert ui.round_banner(0, 3) == ""
