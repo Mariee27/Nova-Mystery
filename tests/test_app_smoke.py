@@ -613,3 +613,42 @@ def test_players_never_see_the_details_of_an_error():
     import tomllib
     config = tomllib.loads((ROOT / ".streamlit" / "config.toml").read_text(encoding="utf-8"))
     assert config["client"]["showErrorDetails"] == "none"
+
+
+def test_hot_seat_between_rounds_on_the_board_and_the_phones(game_db):
+    board = Browser()
+    board.run(press=["Create room"])
+    code = board.st.query_params["room"]
+    board_tab = Browser(room=code, view="board")
+    phones = []
+    for name in ["Ana", "Ben", "Caro", "Dev"]:
+        phone = Browser(room=code)
+        phone.run(press=["Join"], **{"Your name": name})
+        phones.append(phone)
+    phones[0].run(press=["Start game"], **{"Which case?": "rehearsal", "🔥 Hot seat between rounds": True})
+    conn = db.connect(game_db)
+    try:
+        phones[0].run(press=["End phase (host)"])               # REVEAL → round 1
+        phones[0].run(press=["End phase (host)"])               # round 1 → the break
+        assert logic.hot_seat_open(db.load(conn, code))
+        assert "Who goes in the hot seat?" in board_tab.run()
+        page = phones[1].run()
+        assert "Hot seat – who should be grilled?" in page and "Your move." not in page
+
+        # Everybody picks Caro (pid 3); Caro picks Ana. The seat starts on the next tick.
+        now = time.time()
+        for pid, target in [(1, 3), (2, 3), (3, 1), (4, 3)]:
+            token = token_of_phone(phones[pid - 1])
+            db.apply(conn, code, lambda g, t=token, x=target: logic.pick_hot_seat(g, t, x, now))
+        board_page = board_tab.run()
+        assert "Ask out loud!" in board_page and "Caro" in board_page
+        assert "You are in the hot seat!" in phones[2].run()     # Caro's phone: answer out loud
+        phones[0].run(press=["👎 Lying"])                        # Ana rates
+        assert db.load(conn, code)["hot_seat"]["ratings"] == {"1": "lie"}
+        assert "👎 1" in board_tab.run()                         # the board shows the count only
+        phones[0].run(press=["End phase (host)"])               # the host ends the break
+        game = db.load(conn, code)
+        assert game["round"] == 2 and not logic.hot_seat_open(game)
+        assert "Your move." in phones[1].run()
+    finally:
+        conn.close()

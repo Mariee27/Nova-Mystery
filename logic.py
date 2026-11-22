@@ -8,6 +8,7 @@ No Streamlit and no database code belongs in here.
 """
 
 import copy
+import random
 import secrets
 import unicodedata
 
@@ -22,6 +23,8 @@ DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
 # seconds and ends early when every online player has made their one move or has no move
 # left (nothing to search, nothing to share). Interrogations happen out loud, not in the app.
 ROUNDS = 3
+HOT_SEAT_SECONDS = 45       # how long one suspect is grilled out loud between two rounds
+HOT_SEAT_PICK_SECONDS = 20  # time to pick who is grilled; then the most picks so far count
 LOCKED_PLACES = 2      # places that are locked at the start (the crime scene is always one)
 NEXT_PHASE = {
     "REVEAL": "INVESTIGATION",
@@ -233,8 +236,11 @@ def kick(game, token, target_pid, now):
     return game
 
 
-def start(game, token, online, now, seed=None, fixed_case=False, use_ai=True):
+def start(game, token, online, now, seed=None, fixed_case=False, use_ai=True, hot_seat=False):
     """Start the game. The story is the AI-written one if it is ready, otherwise case #001.
+
+    hot_seat=True plays a hot seat after every investigation round except the last one
+    (see "hot seat" below). The app always switches it on.
 
     fixed_case=True always plays case #001 with its fixed seed (rehearsal mode).
     use_ai=False plays case #001 even if an AI case is ready (the host chose it). If an AI
@@ -269,6 +275,8 @@ def start(game, token, online, now, seed=None, fixed_case=False, use_ai=True):
     game["story"] = story
     if note:
         game["story_note"] = note
+    if hot_seat:
+        game["hot_seat"] = new_hot_seat()
     _enter_phase(game, "REVEAL", now)
     return game
 
@@ -304,6 +312,12 @@ def _advance(game, now):
     or after the last round (and in every other phase) the next phase."""
     game.pop("paused", None)        # a new step starts with a running clock (tick pauses again if needed)
     if game["phase"] == "INVESTIGATION" and game.get("round", 1) < ROUNDS:
+        hot = game.get("hot_seat")
+        if hot is not None and hot["open"]:
+            _close_hot_seat(game)           # the break is over: on to the next round
+        elif hot is not None and hot_seat_candidates(game):
+            _open_hot_seat(game, now)       # a round is over: first the hot seat, then the next round
+            return
         game["round"] = game.get("round", 1) + 1
         game["acted"] = []                  # everybody gets a new move
         game["phase_started"] = now
@@ -409,6 +423,10 @@ def tick(game, online, now):
             new["deadline"] = now + paused["left"]
             new.pop("paused")
             return new
+        # The break between two rounds: only the hot seat clock counts.
+        if hot_seat_open(game):
+            changed = _hot_seat_tick(new or game, online_players, now)
+            return changed if changed is not None else (new or game)
         # 3. Timer, 4. early end.
         # A player with nothing left to search or share is not waited for.
         everyone_acted = game["phase"] == "INVESTIGATION" and all(
@@ -429,6 +447,7 @@ def tick(game, online, now):
 def _begin_action(game, token):
     """Checks shared by search and share. Returns the acting player."""
     _require_phase(game, "INVESTIGATION")
+    _no_hot_seat(game)
     player = _player_by_token(game, token)
     if player["pid"] in game["acted"]:
         raise Rejected("You have already used your action in this round.")
@@ -520,6 +539,7 @@ def plant_locations(game):
 def plant(game, token, target_pid, location, now):
     """The murderer's extra move: one fake clue per game. Looks like a search result."""
     _require_phase(game, "INVESTIGATION")
+    _no_hot_seat(game)
     player = _player_by_token(game, token)
     if player["pid"] != game["case"]["murderer"]:
         raise Rejected("This action is not available to you.")
@@ -611,6 +631,202 @@ def _compute_result(game):
             {key: h[key] for key in ("points_at", "explained_by", "cleared_by")}
             for h in game["case"]["solution"]["red_herrings"]]
     return result
+
+
+# ---------------------------------------------------------------- hot seat (between rounds)
+#
+# Everybody sits in one room, so the interrogation happens out loud. After every investigation
+# round except the last one there is a short break (the phase stays INVESTIGATION, the round
+# number stays the finished one, nobody can search):
+#   1. Every player picks a suspect (not themselves, not someone who already sat there).
+#      After HOT_SEAT_PICK_SECONDS (or when everybody online has picked, or the host starts
+#      it) the suspect with the most picks sits in the hot seat. A tie: chance decides.
+#   2. For HOT_SEAT_SECONDS the room grills them out loud. The others rate on their phone:
+#      "believe" or "lie". The board shows only counts, never who picked or rated whom.
+#   3. Then the counts go into the history and the next round starts.
+# The rule is switched on with start(..., hot_seat=True); without it the rounds follow each
+# other directly. The break uses game["deadline"] as its clock, so a pause stops it too.
+
+HOT_SEAT_VERDICTS = ("believe", "lie")
+
+
+def new_hot_seat():
+    return {"open": False, "picks": {}, "seat": None, "ratings": {}, "history": []}
+
+
+def hot_seat_open(game):
+    """True during the break between two rounds."""
+    hot = game.get("hot_seat")
+    return game["phase"] == "INVESTIGATION" and hot is not None and hot["open"]
+
+
+def _no_hot_seat(game):
+    if hot_seat_open(game):
+        raise Rejected("The hot seat is on. The next round starts right after it.")
+
+
+def _require_hot_seat(game):
+    if not hot_seat_open(game):
+        raise Rejected("There is no hot seat right now.")
+
+
+def hot_seat_candidates(game):
+    """Who can still be put in the hot seat: everybody who has not sat there yet."""
+    grilled = {entry["pid"] for entry in game["hot_seat"]["history"]}
+    return [pid for pid in _player_ids(game) if pid not in grilled]
+
+
+def _can_pick(game, pid):
+    """A player can pick if there is somebody other than themselves left to grill."""
+    return any(other != pid for other in hot_seat_candidates(game))
+
+
+def _open_hot_seat(game, now):
+    """Start the break of an already copied game: picking time."""
+    game["hot_seat"].update(open=True, picks={}, seat=None, ratings={})
+    game["phase_started"] = now          # the demo bots count their delay from here
+    game["deadline"] = now + HOT_SEAT_PICK_SECONDS
+
+
+def _close_hot_seat(game):
+    """End the break of an already copied game; the counts of the suspect go into the history."""
+    hot = game["hot_seat"]
+    if hot["seat"] is not None:
+        believe, lie = _rating_counts(hot)
+        hot["history"].append({"pid": hot["seat"], "after_round": game.get("round", 1),
+                               "believe": believe, "lie": lie})
+    hot.update(open=False, picks={}, seat=None, ratings={})
+
+
+def pick_hot_seat(game, token, target_pid, now):
+    """A player picks who should sit in the hot seat. They may change their pick."""
+    _require_hot_seat(game)
+    player = _player_by_token(game, token)
+    if game["hot_seat"]["seat"] is not None:
+        raise Rejected("Somebody is already in the hot seat.")
+    if target_pid == player["pid"]:
+        raise Rejected("You cannot put yourself in the hot seat.")
+    if target_pid not in hot_seat_candidates(game):
+        raise Rejected("Pick somebody who has not been in the hot seat yet.")
+    game = copy.deepcopy(game)
+    game["hot_seat"]["picks"][str(player["pid"])] = target_pid
+    return game
+
+
+def hot_seat_tie(game, tied):
+    """Chance decides between suspects with the same number of picks.
+    The dice are seeded with the room code and the number of earlier hot seats: different in
+    every room and every time, but the same game state always gives the same answer
+    (so a test can check it, and two screens never disagree)."""
+    tied = sorted(tied)
+    if len(tied) == 1:
+        return tied[0]
+    dice = random.Random(f"{game['code']}-{len(game['hot_seat']['history'])}")
+    return dice.choice(tied)
+
+
+def _start_hot_seat(game, now):
+    """Seat the suspect with the most picks (an already copied game with at least one pick)."""
+    hot = game["hot_seat"]
+    counts = {}
+    for target in hot["picks"].values():
+        counts[target] = counts.get(target, 0) + 1
+    most = max(counts.values())
+    hot["seat"] = hot_seat_tie(game, [pid for pid, n in counts.items() if n == most])
+    hot["picks"] = {}
+    hot["ratings"] = {}
+    game["phase_started"] = now
+    game["deadline"] = now + HOT_SEAT_SECONDS
+
+
+def start_hot_seat(game, token, now):
+    """The host starts the hot seat now, with the picks made so far."""
+    _require_hot_seat(game)
+    player = _player_by_token(game, token)
+    if player["pid"] != game["host"]:
+        raise Rejected("Only the host can start the hot seat.")
+    if game["hot_seat"]["seat"] is not None:
+        raise Rejected("Somebody is already in the hot seat.")
+    if not game["hot_seat"]["picks"]:
+        raise Rejected("Nobody has picked a suspect yet.")
+    game = copy.deepcopy(game)
+    _start_hot_seat(game, now)
+    return game
+
+
+def rate_hot_seat(game, token, verdict, now):
+    """A player rates the answers of the suspect in the hot seat: "believe" or "lie".
+    A player may change their mind until the time is up."""
+    _require_hot_seat(game)
+    player = _player_by_token(game, token)
+    hot = game["hot_seat"]
+    if hot["seat"] is None:
+        raise Rejected("Nobody is in the hot seat yet.")
+    if hot["seat"] == player["pid"]:
+        raise Rejected("You cannot rate yourself.")
+    if verdict not in HOT_SEAT_VERDICTS:
+        raise Rejected("Choose believe or lie.")
+    game = copy.deepcopy(game)
+    game["hot_seat"]["ratings"][str(player["pid"])] = verdict
+    return game
+
+
+def _rating_counts(hot):
+    votes = list(hot["ratings"].values())
+    return votes.count("believe"), votes.count("lie")
+
+
+def _hot_seat_tick(game, online_players, now):
+    """The clock of the break. Returns a changed copy, or None if nothing happens.
+    Picking: starts the seat when everybody online has picked or the picking time is up
+    (with nobody picked at all, the next round simply starts). Seat: on time, next round."""
+    hot = game["hot_seat"]
+    if hot["seat"] is not None:
+        if now < game["deadline"]:
+            return None
+        game = copy.deepcopy(game)
+        _advance(game, now)
+        return game
+    pickers = [pid for pid in online_players if _can_pick(game, pid)]
+    everybody = bool(pickers) and all(str(pid) in hot["picks"] for pid in pickers)
+    if not everybody and now < game["deadline"]:
+        return None
+    game = copy.deepcopy(game)
+    if hot["picks"]:
+        _start_hot_seat(game, now)
+    else:
+        _advance(game, now)
+    return game
+
+
+def hot_seat_view(game):
+    """The public part of the hot seat (board and every phone), or None outside the break.
+    Only counts: how many have picked (not whom, so nobody just follows the crowd) and the
+    believe/lie counts. Who picked or rated whom stays private (see my_hot_seat)."""
+    if not hot_seat_open(game):
+        return None
+    hot = game["hot_seat"]
+    believe, lie = _rating_counts(hot)
+    return {
+        "after_round": game.get("round", 1),
+        "seat": hot["seat"],
+        "until": game["deadline"],
+        "picked": len(hot["picks"]),
+        "believe": believe,
+        "lie": lie,
+        "candidates": hot_seat_candidates(game),
+        "history": copy.deepcopy(hot["history"]),
+    }
+
+
+def my_hot_seat(game, token):
+    """One player's own pick and rating, or None for an unknown token / outside the break."""
+    player = next((p for p in game["players"] if token and p["token"] == token), None)
+    if player is None or not hot_seat_open(game):
+        return None
+    hot = game["hot_seat"]
+    return {"pick": hot["picks"].get(str(player["pid"])),
+            "rating": hot["ratings"].get(str(player["pid"]))}
 
 
 # ---------------------------------------------------------------- demo suspects (bots)
@@ -716,6 +932,20 @@ def _bot_investigate(game, bot, index, now):
     return game       # nothing left at all: the round does not wait for it (has_move)
 
 
+def _bot_hot_seat(game, bot, now):
+    """A bot picks the suspect it trusts least, and calls them a liar in the hot seat."""
+    pid = bot["pid"]
+    hot = game["hot_seat"]
+    suspect = _bot_suspect(game, pid)
+    if hot["seat"] is None and str(pid) not in hot["picks"] and _can_pick(game, pid):
+        options = [other for other in hot_seat_candidates(game) if other != pid]
+        target = suspect if suspect in options else options[0]
+        return pick_hot_seat(game, bot["token"], target, now)
+    if hot["seat"] is not None and hot["seat"] != pid and str(pid) not in hot["ratings"]:
+        return rate_hot_seat(game, bot["token"], "lie" if hot["seat"] == suspect else "believe", now)
+    return game
+
+
 def bot_moves(game, now):
     """Let every bot make the moves that are due. Returns the same game if nothing happens."""
     bots = [p for p in game["players"] if p.get("bot")]
@@ -725,6 +955,10 @@ def bot_moves(game, now):
     for index, bot in enumerate(bots):
         pid = bot["pid"]
         due = elapsed >= BOT_FIRST_MOVE + BOT_STEP * index
+        if hot_seat_open(game):                  # the break between two rounds: no searching
+            if due:
+                game = _bot_hot_seat(game, bot, now)
+            continue
         if game["phase"] == "INVESTIGATION" and due and pid not in game["acted"]:
             game = _bot_investigate(game, bot, index, now)
         if game["phase"] == "VOTE" and due and str(pid) not in game["votes"]:

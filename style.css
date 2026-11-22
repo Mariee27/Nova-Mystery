@@ -651,3 +651,33 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 @media (prefers-reduced-motion: reduce) {
   .mg-reward .mg-burst, .mg-reward .mg-lock .sh, .mg-reward .mg-text, .mg-reward .mg-ev, .mg-hints li { animation: none !important; }
 }
+
+/* ---------- hot seat (discussion): grilled out loud, rated on the phones ---------- */
+.hs { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: .9rem 1.2rem 1.1rem; margin: .4rem 0 1.2rem; }
+.hs-k { font: 700 .8rem var(--mono); letter-spacing: .25em; text-transform: uppercase; color: var(--act-text);
+  display: flex; justify-content: space-between; gap: 1rem; }
+.hs-k span { color: var(--muted); letter-spacing: .12em; }
+.hs.live { border: 2px solid var(--act); box-shadow: 0 0 40px rgba(179,50,42,.35); }
+.hs-main { display: flex; align-items: center; gap: 1.2rem; margin: .8rem 0 .4rem; }
+.hs .face { flex: none; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 50%;
+  background: var(--paper); color: var(--ink); font: 700 .9rem var(--serif); }
+.hs-main .face { width: 4.2rem; height: 4.2rem; font-size: 1.8rem; background: var(--act); color: var(--ivory);
+  animation: hsPulse 1.2s ease-in-out infinite alternate; }
+.hs-name { font-family: var(--serif); font-weight: 800; font-size: clamp(2rem, 5vw, 3.4rem); color: var(--ivory); line-height: 1; }
+.hs-role { font: .8rem var(--mono); letter-spacing: .18em; text-transform: uppercase; color: var(--gold); margin-top: .3rem; }
+.hs-clock { margin-left: auto; font: 700 clamp(2.2rem, 5vw, 3.6rem) var(--mono); color: var(--ivory); }
+.hs-hint { font-family: var(--serif); font-style: italic; color: #B9BFCC; margin: .3rem 0 .7rem; }
+.hs-meter { display: flex; height: 2.2rem; border-radius: 4px; overflow: hidden; font: 700 .95rem var(--mono); }
+.hs-meter > div { display: grid; place-items: center; transition: width .6s ease; min-width: 3.2rem; white-space: nowrap; }
+.hs-yes { background: #1F6F3A; color: #DCFCE7; }
+.hs-no { background: var(--act); color: #FEE2E2; }
+.hs-row { display: flex; align-items: center; gap: .7rem; padding: .35rem 0; font-family: var(--sans); }
+.hs-n { font-weight: 700; min-width: 8rem; }
+.hs-r { font: .75rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
+.hs.choosing .hs-name { font-size: clamp(1.6rem, 3.6vw, 2.4rem); }
+.hs-past { font-family: var(--sans); color: #B9BFCC; font-size: .9rem; margin-top: .5rem; padding-top: .4rem; border-top: 1px dashed var(--line); }
+.hs-you { border: 2px solid var(--act); background: rgba(179,50,42,.18); border-radius: 8px; padding: .9rem 1rem; margin: .4rem 0 1rem;
+  font-family: var(--sans); color: var(--ivory); }
+.hs-alibi { margin-top: .6rem; font-family: var(--serif); font-style: italic; color: var(--gold); }
+@keyframes hsPulse { from { box-shadow: 0 0 0 0 rgba(179,50,42,.6); } to { box-shadow: 0 0 0 14px rgba(179,50,42,0); } }
+@media (prefers-reduced-motion: reduce) { .hs-main .face { animation: none; } .hs-meter > div { transition: none; } }
