@@ -22,6 +22,7 @@ DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
 # seconds and ends early when every online player has made their one move or has no move
 # left (nothing to search, nothing to share). Interrogations happen out loud, not in the app.
 ROUNDS = 3
+HOT_SEAT_SECONDS = 45   # how long one suspect is grilled out loud in the discussion
 LOCKED_PLACES = 2      # places that are locked at the start (the crime scene is always one)
 NEXT_PHASE = {
     "REVEAL": "INVESTIGATION",
@@ -295,6 +296,8 @@ def _enter_phase(game, phase, now):
     if phase == "INVESTIGATION":
         game["round"] = 1
         game["acted"] = []
+    if phase == "DISCUSSION":
+        game["hot_seat"] = new_hot_seat()
     if phase == "RESULT":
         game["result"] = _compute_result(game)
 
@@ -421,6 +424,12 @@ def tick(game, online, now):
         ):
             new = new or copy.deepcopy(game)
             _advance(new, now)
+            return new
+        # 5. The hot seat in the discussion: start it when everybody has picked, end it on time.
+        if game["phase"] == "DISCUSSION":
+            changed = _hot_seat_tick(new or game, online_players, now)
+            if changed is not None:
+                return changed
     return new or game
 
 
@@ -613,6 +622,164 @@ def _compute_result(game):
     return result
 
 
+# ---------------------------------------------------------------- hot seat (discussion)
+#
+# Everybody sits in one room, so the interrogation happens out loud. The phones only pick
+# who is grilled next and rate the answers. Flow:
+#   1. Every player picks a suspect (not themselves, not someone who already sat there).
+#   2. When everybody online has picked (or the host starts it), the suspect with the most
+#      picks sits in the hot seat for HOT_SEAT_SECONDS. Ties: the one who joined first.
+#   3. The others rate on their phone: "believe" or "lie". The board shows only the counts.
+#   4. When the time is up the counts go into the history and the next pick starts.
+
+HOT_SEAT_VERDICTS = ("believe", "lie")
+
+
+def new_hot_seat():
+    return {"picks": {}, "seat": None, "until": None, "ratings": {}, "history": []}
+
+
+def _hot(game):
+    """The hot seat of a game (older saved games may not have one yet)."""
+    return game.get("hot_seat") or new_hot_seat()
+
+
+def hot_seat_candidates(game):
+    """Who can still be put in the hot seat: everybody who has not sat there yet."""
+    grilled = {entry["pid"] for entry in _hot(game)["history"]}
+    return [pid for pid in _player_ids(game) if pid not in grilled]
+
+
+def _can_pick(game, pid):
+    """A player can pick if there is somebody other than themselves left to grill."""
+    return any(other != pid for other in hot_seat_candidates(game))
+
+
+def pick_hot_seat(game, token, target_pid, now):
+    """A player picks who should sit in the hot seat next."""
+    _require_phase(game, "DISCUSSION")
+    player = _player_by_token(game, token)
+    hot = _hot(game)
+    if hot["seat"] is not None:
+        raise Rejected("Somebody is already in the hot seat.")
+    if target_pid == player["pid"]:
+        raise Rejected("You cannot put yourself in the hot seat.")
+    if target_pid not in hot_seat_candidates(game):
+        raise Rejected("Pick somebody who has not been in the hot seat yet.")
+    game = copy.deepcopy(game)
+    game["hot_seat"] = hot = copy.deepcopy(hot)
+    hot["picks"][str(player["pid"])] = target_pid
+    return game
+
+
+def _start_hot_seat(game, now):
+    """Seat the suspect with the most picks (an already copied game with at least one pick)."""
+    hot = game["hot_seat"]
+    counts = {}
+    for target in hot["picks"].values():
+        counts[target] = counts.get(target, 0) + 1
+    most = max(counts.values())
+    hot["seat"] = min(pid for pid, n in counts.items() if n == most)   # tie: who joined first
+    hot["until"] = now + HOT_SEAT_SECONDS
+    hot["picks"] = {}
+    hot["ratings"] = {}
+
+
+def start_hot_seat(game, token, now):
+    """The host starts the hot seat now, with the picks made so far."""
+    _require_phase(game, "DISCUSSION")
+    player = _player_by_token(game, token)
+    if player["pid"] != game["host"]:
+        raise Rejected("Only the host can start the hot seat.")
+    hot = _hot(game)
+    if hot["seat"] is not None:
+        raise Rejected("Somebody is already in the hot seat.")
+    if not hot["picks"]:
+        raise Rejected("Nobody has picked a suspect yet.")
+    game = copy.deepcopy(game)
+    game["hot_seat"] = copy.deepcopy(hot)
+    _start_hot_seat(game, now)
+    return game
+
+
+def rate_hot_seat(game, token, verdict, now):
+    """A player rates the answers of the suspect in the hot seat: "believe" or "lie".
+    A player may change their mind until the time is up."""
+    _require_phase(game, "DISCUSSION")
+    player = _player_by_token(game, token)
+    hot = _hot(game)
+    if hot["seat"] is None:
+        raise Rejected("Nobody is in the hot seat.")
+    if hot["seat"] == player["pid"]:
+        raise Rejected("You cannot rate yourself.")
+    if verdict not in HOT_SEAT_VERDICTS:
+        raise Rejected("Choose believe or lie.")
+    game = copy.deepcopy(game)
+    game["hot_seat"] = hot = copy.deepcopy(hot)
+    hot["ratings"][str(player["pid"])] = verdict
+    return game
+
+
+def _rating_counts(hot):
+    votes = list(hot["ratings"].values())
+    return votes.count("believe"), votes.count("lie")
+
+
+def _hot_seat_tick(game, online_players, now):
+    """End the hot seat on time, or start it when every online player who can pick has picked.
+    Returns a changed copy, or None if nothing happens."""
+    hot = _hot(game)
+    if hot["seat"] is not None:
+        if now < hot["until"]:
+            return None
+        game = copy.deepcopy(game)
+        hot = game["hot_seat"]
+        believe, lie = _rating_counts(hot)
+        hot["history"].append({"pid": hot["seat"], "believe": believe, "lie": lie})
+        hot.update(seat=None, until=None, ratings={})
+        return game
+    pickers = [pid for pid in online_players if _can_pick(game, pid)]
+    if pickers and all(str(pid) in hot["picks"] for pid in pickers):
+        game = copy.deepcopy(game)
+        game["hot_seat"] = copy.deepcopy(hot)
+        _start_hot_seat(game, now)
+        return game
+    return None
+
+
+def hot_seat_view(game):
+    """The public part of the hot seat (board and every phone), or None outside the discussion:
+    who sits there, until when, and only COUNTS of the picks and ratings.
+    Who picked or rated whom stays private (see my_hot_seat)."""
+    if game["phase"] != "DISCUSSION":
+        return None
+    hot = _hot(game)
+    picks = {}
+    for target in hot["picks"].values():
+        picks[target] = picks.get(target, 0) + 1
+    believe, lie = _rating_counts(hot)
+    return {
+        "seat": hot["seat"],
+        "until": hot["until"],
+        "picks": picks,
+        "picked": len(hot["picks"]),
+        "believe": believe,
+        "lie": lie,
+        "candidates": hot_seat_candidates(game),
+        "history": copy.deepcopy(hot["history"]),
+    }
+
+
+def my_hot_seat(game, token):
+    """One player's own pick and rating, or None for an unknown token / outside the discussion."""
+    player = next((p for p in game["players"] if token and p["token"] == token), None)
+    if player is None or game["phase"] != "DISCUSSION":
+        return None
+    hot = _hot(game)
+    return {"pick": hot["picks"].get(str(player["pid"])),
+            "rating": hot["ratings"].get(str(player["pid"]))}
+
+
 # ---------------------------------------------------------------- demo suspects (bots)
 #
 # For presentations with fewer than 4 people. A bot is an ordinary player with
@@ -716,10 +883,24 @@ def _bot_investigate(game, bot, index, now):
     return game       # nothing left at all: the round does not wait for it (has_move)
 
 
+def _bot_hot_seat(game, bot, now):
+    """A bot picks the suspect it trusts least, and calls them a liar in the hot seat."""
+    pid = bot["pid"]
+    hot = _hot(game)
+    suspect = _bot_suspect(game, pid)
+    if hot["seat"] is None and str(pid) not in hot["picks"] and _can_pick(game, pid):
+        options = [other for other in hot_seat_candidates(game) if other != pid]
+        target = suspect if suspect in options else options[0]
+        return pick_hot_seat(game, bot["token"], target, now)
+    if hot["seat"] is not None and hot["seat"] != pid and str(pid) not in hot["ratings"]:
+        return rate_hot_seat(game, bot["token"], "lie" if hot["seat"] == suspect else "believe", now)
+    return game
+
+
 def bot_moves(game, now):
     """Let every bot make the moves that are due. Returns the same game if nothing happens."""
     bots = [p for p in game["players"] if p.get("bot")]
-    if not bots or game["phase"] not in ("INVESTIGATION", "VOTE"):
+    if not bots or game["phase"] not in ("INVESTIGATION", "DISCUSSION", "VOTE"):
         return game
     elapsed = now - game["phase_started"]
     for index, bot in enumerate(bots):
@@ -727,6 +908,8 @@ def bot_moves(game, now):
         due = elapsed >= BOT_FIRST_MOVE + BOT_STEP * index
         if game["phase"] == "INVESTIGATION" and due and pid not in game["acted"]:
             game = _bot_investigate(game, bot, index, now)
+        if game["phase"] == "DISCUSSION" and due:
+            game = _bot_hot_seat(game, bot, now)
         if game["phase"] == "VOTE" and due and str(pid) not in game["votes"]:
             game = vote(game, bot["token"], _bot_suspect(game, pid), now,
                         scene=_bot_scene(game, pid))

@@ -754,3 +754,64 @@ def vote_table(result, players, name_of):
     summary = f'{right} of {len(votes)} ballots named the killer'
     return (f'<div class="ballots"><div class="sum">{h(summary)}</div>'
             f'<div class="ballot-grid">{"".join(cards)}</div></div>')
+
+
+# ---------------------------------------------------------------- hot seat (discussion)
+
+def hot_verdict(believe, lie):
+    """What the room thinks of the answers, from the counts only."""
+    if lie > believe:
+        return "The room thinks: lying"
+    if believe > lie:
+        return "The room thinks: believable"
+    return "The room is undecided"
+
+
+def hot_meter(believe, lie):
+    """A bar: green part = believe, red part = lie (both as counts, never who)."""
+    total = believe + lie
+    green = 50 if total == 0 else round(believe / total * 100)
+    return (f'<div class="hs-meter" aria-label="{believe} believe, {lie} lie">'
+            f'<div class="hs-yes" style="width:{green}%">👍 {believe}</div>'
+            f'<div class="hs-no" style="width:{100 - green}%">👎 {lie}</div></div>')
+
+
+def hot_seat_board(hot, players, left):
+    """The board in the discussion: the suspect in the hot seat with a big clock and the live
+    meter, or (between two hot seats) how many picks everybody has. Counts only."""
+    if hot is None:
+        return ""
+    by_pid = {p["pid"]: p for p in players}
+    history = "".join(
+        f'<div class="hs-past"><b>{h(by_pid[e["pid"]]["name"])}</b> · 👍 {e["believe"]} 👎 {e["lie"]}'
+        f' · <i>{h(hot_verdict(e["believe"], e["lie"]))}</i></div>'
+        for e in hot["history"] if e["pid"] in by_pid)
+    if hot["seat"] is not None:
+        who = by_pid.get(hot["seat"], {"name": "Someone", "role": ""})
+        left = max(0, int(left or 0))
+        return (f'<div class="hs live"><div class="hs-k">🔥 In the hot seat</div>'
+                f'<div class="hs-main"><span class="face">{initial(who["name"])}</span>'
+                f'<div><div class="hs-name">{h(who["name"])}</div><div class="hs-role">{h(who.get("role") or "")}</div></div>'
+                f'<div class="hs-clock" role="timer">{left // 60}:{left % 60:02d}</div></div>'
+                f'<div class="hs-hint">Ask out loud! Everybody else: believe or lie? Vote on your phone.</div>'
+                f'{hot_meter(hot["believe"], hot["lie"])}{history}</div>')
+    if not hot["candidates"]:
+        return f'<div class="hs"><div class="hs-k">🔥 Hot seat</div><div class="hs-hint">Everybody has been grilled.</div>{history}</div>'
+    most = max(hot["picks"].values(), default=0)
+    rows = []
+    for pid in hot["candidates"]:
+        if pid not in by_pid:
+            continue
+        n = hot["picks"].get(pid, 0)
+        lead = " lead" if n and n == most else ""
+        rows.append(f'<div class="hs-row{lead}"><span class="face">{initial(by_pid[pid]["name"])}</span>'
+                    f'<span class="hs-n">{h(by_pid[pid]["name"])}</span><span class="hs-c">{"🔥" * n}</span></div>')
+    return (f'<div class="hs choosing"><div class="hs-k">🔥 Who goes in the hot seat next?'
+            f'<span>{hot["picked"]} picked · on your phone</span></div>{"".join(rows)}{history}</div>')
+
+
+def hot_seat_you(alibi):
+    """The phone of the player in the hot seat: answer out loud, your story as a cheat sheet."""
+    return (f'<div class="hs-you"><div class="hs-k">🔥 You are in the hot seat!</div>'
+            f'<div>Everybody is grilling you. Answer out loud and stay calm.</div>'
+            f'<div class="hs-alibi">Your story: “{h(alibi or "")}”</div></div>')

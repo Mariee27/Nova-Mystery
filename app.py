@@ -109,8 +109,10 @@ def views(game, online, token=None):
     public = logic.public_view(game, online)
     public["story"] = logic.story_view(game)
     public["map"] = logic.map_view(game)
+    public["hot_seat"] = logic.hot_seat_view(game)          # None outside the discussion
     me = logic.private_view(game, token)
     if me is not None:
+        me["hot_seat"] = logic.my_hot_seat(game, token)      # only my own pick and rating
         me["host_note"] = logic.host_note(game, token)
         me["ai_status"] = logic.ai_status(game, token)
     return public, me
@@ -507,6 +509,9 @@ def board_live(code):
             st.markdown("**How to play**")
             st.markdown(content.HOW_TO_PLAY)
         return
+    if phase == "DISCUSSION":
+        # The hot seat comes first: it is what the room talks about right now.
+        show(ui.hot_seat_board(public["hot_seat"], public["players"], hot_seat_left(public)))
     st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
     show_players(public)
     # The map gets the full width, so the five equal tiles are big enough to read on a projector.
@@ -549,6 +554,58 @@ def board_screen(code):
 
 # ---------------------------------------------------------------- player (phone)
 
+def hot_seat_left(public):
+    """Seconds until the hot seat ends (0 if nobody sits there)."""
+    hot = public.get("hot_seat")
+    if not hot or hot["until"] is None:
+        return 0
+    return max(0, int(round(hot["until"] - time.time())))
+
+
+def hot_seat_phone(code, token, public, me):
+    """The phone in the discussion: pick who is grilled next, or rate the answers."""
+    hot, mine = public.get("hot_seat"), me.get("hot_seat") or {}
+    if hot is None:
+        return
+    if hot["seat"] == me["pid"]:
+        show(ui.hot_seat_you(me["alibi"]))
+        return
+    if hot["seat"] is not None:
+        st.markdown(f'<div class="kicker">🔥 {ui.h(name_of(public, hot["seat"]))} is in the hot seat'
+                    '</div>', unsafe_allow_html=True)
+        st.caption("Ask out loud. Do you believe the answers?")
+        left, right = st.columns(2)
+        rating = mine.get("rating")
+        for column, verdict, label in ((left, "believe", "👍 Believe"), (right, "lie", "👎 Lying")):
+            with column:
+                if st.button(label, type="primary" if rating == verdict else "secondary",
+                             use_container_width=True):
+                    act(code, lambda g, on, now, v=verdict: logic.rate_hot_seat(g, token, v, now))
+        return
+    options = [pid for pid in hot["candidates"] if pid != me["pid"]]
+    if not options:
+        st.caption("Everybody has been in the hot seat. Keep talking!")
+        return
+    st.markdown('<div class="kicker">🔥 Who goes in the hot seat next?</div>', unsafe_allow_html=True)
+    for pid in options:
+        label = f"{name_of(public, pid)} – {role_of(public, pid)}" if role_of(public, pid) else name_of(public, pid)
+        chosen = mine.get("pick") == pid
+        if st.button(("✓ " if chosen else "") + label, key=f"hot_{pid}",
+                     type="primary" if chosen else "secondary", use_container_width=True):
+            act(code, lambda g, on, now, pid=pid: logic.pick_hot_seat(g, token, pid, now))
+    st.caption(f"{hot['picked']} picked so far. It starts when everybody has picked.")
+    if me["is_host"] and hot["picked"]:
+        if st.button("Start the hot seat now (host)"):
+            act(code, lambda g, on, now: logic.start_hot_seat(g, token, now))
+
+
+def role_of(public, pid):
+    for player in public["players"]:
+        if player["pid"] == pid:
+            return player["role"] or ""
+    return ""
+
+
 def signature(public, me):
     """Changes whenever the buttons on the phone have to change: also when new evidence
     arrives, so that the search list stays current."""
@@ -559,7 +616,17 @@ def signature(public, me):
     # The round and the state of every place: the map's markers depend on them.
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
-            evidence, me["host_note"], me.get("ai_status"), players, places, public.get("paused_since"))
+            evidence, me["host_note"], me.get("ai_status"), players, places, public.get("paused_since"),
+            hot_seat_signature(public, me))
+
+
+def hot_seat_signature(public, me):
+    """The hot seat changes the buttons: who sits there, how many picked, my own pick and rating."""
+    hot = public.get("hot_seat")
+    if hot is None:
+        return None
+    mine = me.get("hot_seat") or {}
+    return (hot["seat"], hot["picked"], len(hot["history"]), mine.get("pick"), mine.get("rating"))
 
 
 @st.fragment(run_every=POLL_SECONDS)
@@ -1114,6 +1181,7 @@ def player_screen(code, token):
         show_card(me, expanded=False)
     elif phase == "DISCUSSION":
         pending_reward(code, public)             # an exhibit solved in the very last second
+        hot_seat_phone(code, token, public, me)
         st.info("Talk to each other. Compare the alibis. Who is lying?")
         show_card(me, expanded=False)
     elif phase == "VOTE":
