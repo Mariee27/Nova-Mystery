@@ -685,3 +685,105 @@ def test_after_joining_the_phone_shows_the_waiting_room(game_db):
     ben.run(press=["Join"], **{"Your name": "Ben"})
     page = ana.run()                                         # Ana sees Ben arrive
     assert "Ben" in page and f"2 of {logic.MIN_PLAYERS}" in page
+# ---------------------------------------------------------------- the AI case: one automatic second try
+
+def app_functions():
+    """app.py's functions, loaded with the stand-in for Streamlit (the home page is drawn once)."""
+    sys.modules["streamlit"] = FakeStreamlit()
+    try:
+        return runpy.run_path(str(ROOT / "app.py"), run_name="app_under_test")
+    finally:
+        del sys.modules["streamlit"]
+
+
+def writing_room(conn):
+    code, _ = host_of_a_room()
+    db.apply(conn, code, lambda g: logic.ai_case_writing(g, time.time()))
+    return code
+
+
+def run_writer(app, code, answers):
+    """Let app.write_ai_case run with an AI that gives these answers one after the other."""
+    calls = []
+
+    def fake_write_story(*args, **kwargs):
+        answer = answers[len(calls)]
+        calls.append(answer)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+    sys.modules["streamlit"] = FakeStreamlit()
+    original = ai.write_story
+    ai.write_story = fake_write_story
+    try:
+        app["write_ai_case"](code, {"key": "k", "model": "m"})
+    finally:
+        ai.write_story = original
+        del sys.modules["streamlit"]
+    return calls
+
+
+def test_an_ai_case_that_fails_the_checks_is_written_once_more(game_db):
+    from test_ai_cases import fake_story
+    app = app_functions()
+    conn = db.connect(game_db)
+    try:
+        code = writing_room(conn)
+        calls = run_writer(app, code, [{}, fake_story()])       # first: rubbish, then a good case
+        assert len(calls) == 2
+        assert db.load(conn, code)["ai_case"]["status"] == "ready"
+    finally:
+        conn.close()
+
+
+def test_the_second_try_is_the_last_one(game_db):
+    app = app_functions()
+    conn = db.connect(game_db)
+    try:
+        code = writing_room(conn)
+        calls = run_writer(app, code, [{}, ai.AIError("no fair case could be built from the AI's texts")])
+        assert len(calls) == 2
+        case = db.load(conn, code)["ai_case"]
+        assert case["status"] == "failed" and "no fair case" in case["reason"]
+    finally:
+        conn.close()
+
+
+def test_a_failing_service_is_not_asked_again_at_once(game_db):
+    app = app_functions()
+    conn = db.connect(game_db)
+    try:
+        code = writing_room(conn)
+        calls = run_writer(app, code, [ai.AIError("the daily AI limit is reached", retry=False)])
+        assert len(calls) == 1
+        assert db.load(conn, code)["ai_case"] == {"status": "failed", "reason": "the daily AI limit is reached"}
+    finally:
+        conn.close()
+
+
+def test_no_second_try_without_quota(game_db):
+    app = app_functions()
+    conn = db.connect(game_db)
+    try:
+        code = writing_room(conn)
+        while db.claim_ai_case(conn, time.time()):
+            pass                                                 # the quota is used up
+        calls = run_writer(app, code, [{}])
+        assert len(calls) == 1
+        assert "no AI quota left" in db.load(conn, code)["ai_case"]["reason"]
+    finally:
+        conn.close()
+
+
+def test_the_host_sees_that_the_ai_tries_again():
+    g = logic.ai_case_retrying(logic.ai_case_writing(make_lobby_for_ai(), 0), 5)
+    assert g["ai_case"]["attempt"] == 2 and g["ai_case"]["since"] == 5
+    host = next(p for p in g["players"] if p["pid"] == g["host"])
+    assert "did not pass the checks" in logic.host_note(g, host["token"])
+
+
+def make_lobby_for_ai():
+    g = logic.new_game("ABCD", 0)
+    for i in range(1, 5):
+        g = logic.join(g, f"P{i}", f"t{i}", 0)
+    return g

@@ -43,7 +43,15 @@ DEFAULT_ICON = "📍"
 
 
 class AIError(Exception):
-    """The AI could not deliver a usable story. The message is shown to the host."""
+    """The AI could not deliver a usable story. The message is shown to the host.
+
+    retry: True if the AI answered but the case failed the checks; then a fresh case may well
+    pass (app.write_ai_case tries once more). False if the service itself failed (no key, limit,
+    busy, timeout): asking again at once would only fail again and use the quota."""
+
+    def __init__(self, message, retry=True):
+        super().__init__(message)
+        self.retry = retry
 
 
 SYSTEM_PROMPT = """You are the author of NOVA MYSTERY, a party murder-mystery game that 4 to 6 students
@@ -441,7 +449,7 @@ def _ask(client, model, messages, temperature=1.0):
         )
         return response.choices[0].message.content
     except Exception as problem:   # any network or service error: play case #001
-        raise AIError(_reason(problem)) from problem
+        raise AIError(_reason(problem), retry=False) from problem
 
 
 def parse_story(text, places=None):
