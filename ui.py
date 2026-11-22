@@ -220,6 +220,8 @@ def suspects(players, phase, guilty_pid=None, story=None):
             tags.append("host")
         if phase == "VOTE" and player.get("voted"):
             tags.append("voted")
+        if player.get("stand_in"):
+            tags.append(STAND_IN_TAG)
         dot = '<span class="dot"></span>' if player.get("online") else '<span class="dot off"></span>'
         guilty = " guilty" if guilty_pid is not None and player["pid"] == guilty_pid else ""
         role_html = f'<div class="r">{h(role)}</div>' if role else '<div class="r">awaiting file</div>'
@@ -231,6 +233,9 @@ def suspects(players, phase, guilty_pid=None, story=None):
     if not cards:
         return '<div class="muted">Nobody has joined yet.</div>'
     return f'<div class="suspects">{"".join(cards)}</div>'
+
+
+STAND_IN_TAG = "stand-in"   # dropped out: the computer plays this seat until they are back
 
 
 def suspect_list(players, phase, me_pid=None):
@@ -245,6 +250,8 @@ def suspect_list(players, phase, me_pid=None):
             tags.append("host")
         if phase == "VOTE" and player.get("voted"):
             tags.append("voted")
+        if player.get("stand_in"):
+            tags.append(STAND_IN_TAG)
         online = "online" if player.get("online") else "offline"
         dot_css = "dot" if player.get("online") else "dot off"
         mine = " me" if player["pid"] == me_pid else ""
@@ -471,6 +478,8 @@ def waiting_list(players, me_pid):
             state, css = "offline", "off"
         elif player.get("acted"):
             state, css = "done", "done"
+        elif player.get("stand_in"):
+            state, css = "stand-in plays", "wait"
         else:
             state, css = "choosing…", "wait"
         you = " (you)" if player["pid"] == me_pid else ""
@@ -507,6 +516,8 @@ def detectives(players):
             state, css = "Offline", "off"
         elif player.get("acted"):
             state, css = "Moved", "done"
+        elif player.get("stand_in"):
+            state, css = "Stand-in plays", "wait"
         else:
             state, css = "Choosing…", "wait"
         rows.append(f'<div class="dt-row"><span class="face">{initial(player["name"])}</span>'
