@@ -322,26 +322,24 @@ def test_opened_file_plays_once_and_tints_the_murderers_file():
     assert "guilty" not in later
 
 
-def test_alibi_check_flags_a_story_that_clashes_with_the_evidence_and_escapes_text():
+def test_alibi_check_flags_a_statement_that_clashes_with_the_evidence_and_escapes_text():
     players = [{"pid": 1, "name": EVIL, "role": "The IT Technician"},
                {"pid": 2, "name": "Ana", "role": "The Security Guard"},
                {"pid": 3, "name": "Ben", "role": "The Rival Professor"}]
     places = ["Library", "Main Library", "Main Deck"]
     log = [
-        {"id": 1, "kind": "answer", "by": 1, "text": "I was at the Main Library around 23:30."},
-        {"id": 2, "kind": "search", "by": None, "location": "Main Library",
+        {"id": 1, "kind": "search", "by": None, "location": "Main Library",
          "text": "The keycard log of the Main Library shows no entry by The IT Technician between 23:15 and 23:45."},
-        {"id": 3, "kind": "share", "by": 1, "text": "At 23:30 you saw The Security Guard at the Main Deck."},
-        {"id": 4, "kind": "answer", "by": 2, "text": "Main Deck, " + EVIL},
+        {"id": 2, "kind": "share", "by": 1, "text": "At 23:30 you saw The Security Guard at the Main Deck."},
     ]
-    html = ui.alibi_check(players, log, places)
+    statements = {1: "Main Library", 2: "Main Deck"}        # what they SAID in public (Ben: nothing)
+    html = ui.alibi_check(players, log, places, statements)
     assert "<script>" not in html and "&lt;script&gt;" in html
-    assert "Says: <b>Main Library</b>" in html                  # the longest place name wins
+    assert "Says: <b>Main Library</b>" in html
     assert html.count('class="ac-row clash"') == 1              # only the IT Technician clashes
-    assert "keycard: not at Main Library · Ex. 1" not in html   # the exhibit is the evidence, not the answer
-    assert "keycard: not at Main Library · Ex. 2" in html
-    assert 'class="ac-fact yes">seen at Main Deck · Ex. 3' in html
-    assert "No statement yet" in html and "No evidence about them yet" in html   # Ben
+    assert "keycard: not at Main Library · Ex. 1" in html       # the longest place name wins
+    assert 'class="ac-fact yes">seen at Main Deck · Ex. 2' in html
+    assert "Has not said yet" in html and "No evidence about them yet" in html   # Ben
     assert "1 story doesn’t add up" in html
 
 
@@ -349,7 +347,7 @@ def test_alibi_check_without_statements_flags_nobody():
     players = [{"pid": 1, "name": "Ana", "role": "The IT Technician"}]
     log = [{"id": 1, "kind": "search", "by": None, "location": "Library",
             "text": "The keycard log of the Library shows no entry by The IT Technician between 23:15 and 23:45."}]
-    html = ui.alibi_check(players, log, ["Library"])
+    html = ui.alibi_check(players, log, ["Library"], {})
     assert "clash" not in html and "0 stories don’t add up" in html
 
 

@@ -774,16 +774,6 @@ def _place_in(text, places):
     return max(found, key=len) if found else None
 
 
-def claimed_place(pid, log, places):
-    """Where a player says they were: the place in their latest answer, or None."""
-    for entry in reversed(log):
-        if entry["kind"] == "answer" and entry["by"] == pid:
-            place = _place_in(entry["text"], places)
-            if place:
-                return place
-    return None
-
-
 def facts_about(role, log, places):
     """What the public evidence says about where one role was: [(kind, label, place, exhibit)].
     Only search results and shared clues count; texts in other wording are skipped."""
@@ -810,13 +800,14 @@ def clashes(kind, place, claim):
     return place != claim           # seen or traced somewhere else
 
 
-def alibi_check(players, log, places):
-    """The board during the discussion: for every suspect what they say and what the
-    public evidence says. Uses only public data (answers, search results, shared clues)."""
+def alibi_check(players, log, places, statements):
+    """The board during the discussion: for every suspect where they SAY they were (their
+    public statement, logic.alibi_statements) and what the public evidence says.
+    Never the alibi on the card: that one stays secret."""
     rows, bad = [], 0
     for player in players:
         role = player.get("role") or ""
-        claim = claimed_place(player["pid"], log, places)
+        claim = statements.get(player["pid"])
         facts = facts_about(role, log, places) if role else []
         chips, clash = [], False
         for kind, label, place, exhibit in facts:
@@ -825,7 +816,7 @@ def alibi_check(players, log, places):
             css = "no" if wrong else ("yes" if claim else "")
             chips.append(f'<span class="ac-fact {css}">{h(label)} {h(place)} · Ex. {h(exhibit)}</span>')
         bad += clash
-        says = f'Says: <b>{h(claim)}</b>' if claim else '<i>No statement yet</i>'
+        says = f'Says: <b>{h(claim)}</b>' if claim else '<i>Has not said yet</i>'
         facts_html = "".join(chips) or '<span class="ac-none">No evidence about them yet</span>'
         flag = '<span class="ac-flag">⚠ Doesn’t add up</span>' if clash else ""
         rows.append(f'<div class="ac-row{" clash" if clash else ""}">'

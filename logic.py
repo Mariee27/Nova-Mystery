@@ -613,6 +613,29 @@ def _compute_result(game):
     return result
 
 
+# ---------------------------------------------------------------- alibi statements (discussion)
+#
+# In the discussion every player says out loud where they were at 23:30 and taps the same
+# place on their phone. That is a PUBLIC statement chosen by the player, not the alibi on the
+# card (which stays secret): anybody may lie, and the murderer has to. The board compares the
+# statements with the public evidence (ui.alibi_check).
+
+def state_alibi(game, token, location, now):
+    """A player states where they were. They may change it until the discussion ends."""
+    _require_phase(game, "DISCUSSION")
+    player = _player_by_token(game, token)
+    if location not in story_of(game)["locations"]:
+        raise Rejected("That place is not in this case.")
+    game = copy.deepcopy(game)
+    game.setdefault("statements", {})[str(player["pid"])] = location
+    return game
+
+
+def alibi_statements(game):
+    """What everybody has said in public: {pid: place}. Empty before the discussion."""
+    return {int(pid): place for pid, place in game.get("statements", {}).items()}
+
+
 # ---------------------------------------------------------------- demo suspects (bots)
 #
 # For presentations with fewer than 4 people. A bot is an ordinary player with

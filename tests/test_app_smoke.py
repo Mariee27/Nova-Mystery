@@ -507,8 +507,16 @@ def test_discussion_shows_the_alibi_check_on_the_board_and_the_notebook_only_on_
         conn.close()
 
     page = board.run()
-    assert "Alibi check" in page and 'class="ac-row' in page
+    assert "Alibi check" in page and 'class="ac-row' in page and "Has not said yet" in page
     assert "Your notebook" not in page                         # the board never shows a notebook
+
+    conn = db.connect(game_db)
+    try:
+        place = logic.story_of(db.load(conn, code))["locations"][0]
+    finally:
+        conn.close()
+    phones[1].run(press=[place])                               # Ben says where he was
+    assert f"Says: <b>{place}</b>" in board.run()
 
     phone_page = phones[1].run()
     assert "Your notebook · only on this phone" in phone_page

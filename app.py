@@ -109,6 +109,7 @@ def views(game, online, token=None):
     public = logic.public_view(game, online)
     public["story"] = logic.story_view(game)
     public["map"] = logic.map_view(game)
+    public["statements"] = logic.alibi_statements(game)     # where everybody SAYS they were
     me = logic.private_view(game, token)
     if me is not None:
         me["host_note"] = logic.host_note(game, token)
@@ -559,11 +560,9 @@ def board_discussion(public):
     """DISCUSSION on the board: the alibi check gets the full width so the room argues
     about it; below it the latest interrogation, the briefing and the evidence wall."""
     story = public["story"]
-    show(ui.alibi_check(public["players"], public["log"], story["locations"]))
+    show(ui.alibi_check(public["players"], public["log"], story["locations"], public["statements"]))
     left, right = st.columns([2, 3])
     with left:
-        show(ui.interrogation(public["log"], lambda pid: name_of(public, pid),
-                              lambda pid: role_of(public, pid)))
         st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
     with right:
         st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
@@ -649,6 +648,18 @@ def notebook_keys(code, me):
     return prefix + "_scenes", prefix + "_text", lambda pid: f"{prefix}_{pid}"
 
 
+def alibi_statement(code, token, public, me):
+    """The discussion on the phone: say out loud where you were, and tap the same place.
+    Everybody sees it on the board. You may lie (the murderer has to)."""
+    said = public["statements"].get(me["pid"])
+    st.markdown('<div class="kicker">📍 Where were you at 23:30?</div>', unsafe_allow_html=True)
+    st.caption("Say it out loud and tap it here. Everybody sees it on the board, so choose carefully.")
+    for place in public["story"]["locations"]:
+        if st.button(("✓ " if place == said else "") + ui.md(place), key=f"said_{place}",
+                     type="primary" if place == said else "secondary", use_container_width=True):
+            act(code, lambda g, on, now, p=place: logic.state_alibi(g, token, p, now))
+
+
 def notebook(code, public, me, expanded):
     """The player's private notebook. It lives only in this browser (st.session_state) and is
     never sent to the server, so nobody else – not even the board – can see it."""
@@ -658,7 +669,7 @@ def notebook(code, public, me, expanded):
         st.caption("Mark who looks suspicious. Nothing here is shared. A reload clears it.")
         for player in others:
             key = remember(mark_key(player["pid"]), "?")
-            st.segmented_control(player_label(public, player["pid"]), ui.NOTE_MARKS, key=key)
+            st.segmented_control(ui.md(player_label(public, player["pid"])), ui.NOTE_MARKS, key=key)
             keep(key)
         st.pills("Possible crime scenes", public["story"]["locations"], selection_mode="multi",
                  key=remember(scenes_key, []))
@@ -1193,6 +1204,7 @@ def player_screen(code, token):
         show_card(me, expanded=False)
     elif phase == "DISCUSSION":
         pending_reward(code, public)             # an exhibit solved in the very last second
+        alibi_statement(code, token, public, me)  # first: say where you were (public)
         st.info("Talk to each other. Compare the alibis. Who is lying?")
         notebook(code, public, me, expanded=True)
         show_card(me, expanded=False)
