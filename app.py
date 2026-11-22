@@ -1339,9 +1339,9 @@ def player_screen(code, token):
     # Mobile first: in every phase, the thing you have to do or read right now comes first.
     # Your card follows (folded away once you have read it), then the suspects, then the evidence.
     if phase == "LOBBY":
+        # The waiting room: you are checked in, who else is here, what happens next.
+        show(ui.waiting_room(me, code, public["players"], me["is_host"], tip=len(public["players"])))
         host_controls(code, token, public, me)   # the host's "Start game" is the main thing here
-        if not me["is_host"]:
-            st.info("Keep this page open. The host starts the game.")
         st.caption(STAY_ONLINE)
         show(ui.sealed_file())
         player_suspects(code, me["pid"])         # who has joined so far

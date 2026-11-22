@@ -409,6 +409,25 @@ def test_widget_labels_with_case_texts_show_markdown_as_plain_text():
         assert ui.md(place) == place                       # plain names stay as they are
 
 
+def test_waiting_room_greets_you_counts_who_is_here_and_escapes_names():
+    me = {"pid": 2, "name": EVIL}
+    players = [{"pid": 1, "name": "Ana", "online": True}, {"pid": 2, "name": EVIL, "online": True},
+               {"pid": 3, "name": "Ben", "online": False}]               # Ben has left: not counted
+    html = ui.waiting_room(me, "ABCD", players, is_host=False)
+    assert "<script>" not in html and "&lt;script&gt;" in html
+    assert "Checked in" in html and "Room ABCD" in html
+    assert "Waiting for the host to start" in html
+    assert f"2 of {logic.MIN_PLAYERS}–{logic.MAX_PLAYERS} here · {logic.MIN_PLAYERS - 2} more needed" in html
+    assert html.count('class="wr-p') == 2 and html.count('class="wr-p me"') == 1 and "Ben" not in html
+
+
+def test_waiting_room_for_the_host_and_a_full_room():
+    players = [{"pid": i, "name": f"P{i}", "online": True} for i in range(1, logic.MIN_PLAYERS + 1)]
+    html = ui.waiting_room({"pid": 1, "name": "P1"}, "ABCD", players, is_host=True)
+    assert "You are the host" in html and "Waiting for the host" not in html
+    assert f"{logic.MIN_PLAYERS} suspects here · ready to start" in html
+    tips = {ui.waiting_room({"pid": 1, "name": "P1"}, "ABCD", players, True, tip=t) for t in range(3)}
+    assert len(tips) == 3                                 # the tip changes as people join
 def test_round_banner_says_when_a_new_round_has_begun():
     assert "Round 1 of 3" in ui.round_banner(1, 3) and "new move" not in ui.round_banner(1, 3)
     second = ui.round_banner(2, 3)

@@ -876,6 +876,39 @@ def hot_seat_you(alibi):
             f'<div class="hs-alibi">Your story: “{h(alibi or "")}”</div></div>')
 
 
+# ---------------------------------------------------------------- phone: waiting room (lobby)
+
+WAITING_TIPS = (
+    "Everybody may lie. Only one of you knows the truth.",
+    "Keep your file to yourself: the person next to you may be the murderer.",
+    "Listen for alibis that do not fit the evidence.",
+)
+
+
+def waiting_room(me, code, players, is_host, tip=0):
+    """The phone right after joining: you are checked in, who else is here, and what happens
+    next. me: the private view (pid, name); players: public players (pid, name, online).
+    Only names: in the lobby nothing secret exists yet. tip: which tip to show."""
+    here = [p for p in players if p.get("online", True)]
+    need = max(0, logic.MIN_PLAYERS - len(here))
+    if need:
+        count = f"{len(here)} of {logic.MIN_PLAYERS}–{logic.MAX_PLAYERS} here · {need} more needed"
+    else:
+        count = f"{len(here)} suspects here · ready to start"
+    if is_host:
+        wait = "You are the host. Start when everybody is in."
+    else:
+        wait = 'Waiting for the host to start<span class="dots"><i>.</i><i>.</i><i>.</i></span>'
+    faces = "".join(
+        f'<div class="wr-p{" me" if p["pid"] == me["pid"] else ""}" style="--i:{i}">'
+        f'<span class="face">{initial(p["name"])}</span><span class="n">{h(p["name"])}</span></div>'
+        for i, p in enumerate(here))
+    return (f'<div class="wr"><div class="wr-stamp">Checked in</div>'
+            f'<div class="wr-k">Room {h(code)}</div>'
+            f'<div class="wr-hi">You’re in, {h(me["name"])}.</div>'
+            f'<div class="wr-wait">{wait}</div>'
+            f'<div class="wr-count">{h(count)}</div><div class="wr-faces">{faces}</div>'
+            f'<div class="wr-tip">While you wait: {h(WAITING_TIPS[tip % len(WAITING_TIPS)])}</div></div>')
 def round_banner(round_no, rounds):
     """Above "Your move.": which round it is. From round 2 on it says clearly that a new round
     has begun, so a new move does not look like a second move in the same round (playtest)."""
