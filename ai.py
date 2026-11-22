@@ -18,6 +18,7 @@ Settings (environment variables or .streamlit/secrets.toml, never in git):
 """
 
 import json
+import logging
 import random
 import re
 import string
@@ -34,6 +35,7 @@ DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free"
 FALLBACK_MODELS = ["google/gemma-4-31b-it:free", "nvidia/nemotron-3-ultra-550b-a55b:free"]
 TIMEOUT_SECONDS = 60        # per request; the lobby usually takes longer than this anyway
 MAX_REQUESTS = 2            # the first try, plus one round to repair what the checks found
+LOG = logging.getLogger("nova.ai")
 REVISIONS = 1               # after a failed test reading, the author may revise the case once
 REVIEW_SEED = 2027          # the sample case a test player reads (any fixed seed will do)
 REVIEW_PLAYERS = [1, 2, 3, 4, 5]
@@ -241,12 +243,19 @@ def write_story(api_key, model=DEFAULT_MODEL, client=None):
         return story   # still has problems: ai_case_ready will refuse it and case #001 is played
 
     # A test player reads a sample case built from the story, without knowing the solution.
+    # Its findings go back to the author for one revision. The test player is a free model
+    # too and often misreads a case, so its verdict improves a case but never throws one away:
+    # the code checks (logic.validate_story, and balance building a fair case for every number
+    # of players) decide. Only a story from which no fair case can be built is refused.
     for revision in range(REVISIONS + 1):
         verdict = review_story(client, model, story)
         if not verdict["available"] or verdict["ok"]:
             return story   # the test reading passed, or could not be done: the checks suffice
         if revision == REVISIONS:
-            raise AIError("the AI case did not pass the test reading")
+            if verdict.get("kind") == "balance":
+                raise AIError("no fair case could be built from the AI's texts")
+            LOG.warning("AI case played although the test reading found: %s", "; ".join(verdict["problems"][:8]))
+            return story
         messages += [
             {"role": "assistant", "content": text or ""},
             {"role": "user", "content": REVISION_REQUEST.replace("<FINDINGS>", "\n- ".join(verdict["problems"][:8]))},
@@ -343,7 +352,7 @@ def review_story(client, model, story):
             balance.build_balanced_case(list(range(1, count + 1)), REVIEW_SEED, story)
         case = balance.build_balanced_case(REVIEW_PLAYERS, REVIEW_SEED, story)
     except rules.Rejected as problem:
-        return {"available": True, "ok": False, "problems": [str(problem)], "answer": None}
+        return {"available": True, "ok": False, "problems": [str(problem)], "answer": None, "kind": "balance"}
     messages = [{"role": "system", "content": REVIEW_SYSTEM_PROMPT},
                 {"role": "user", "content": REVIEW_QUESTION + player_file(story, case)}]
     try:
@@ -354,7 +363,7 @@ def review_story(client, model, story):
     problems = judge(answer, culprit_role, [c["role"] for c in case["characters"]])
     if problems is None:
         return {"available": False, "ok": False, "problems": [], "answer": answer}
-    return {"available": True, "ok": not problems, "problems": problems, "answer": answer}
+    return {"available": True, "ok": not problems, "problems": problems, "answer": answer, "kind": "reader"}
 
 
 def judge(answer, culprit_role, roles):

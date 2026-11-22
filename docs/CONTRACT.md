@@ -178,7 +178,8 @@ logic.public_story(story) -> dict                # no intro, secret, trace or ru
 logic.story_view(game) -> dict                   # public_story(story_of(game)) + "pending" (AI still writing in the lobby)
 logic.host_note(game, token) -> str | None       # a note about the AI case, only for the host
 ai.write_story(api_key, model, client=None) -> story   # raises ai.AIError; the only module that calls an AI service
-ai.review_story(client, model, story) -> {"available", "ok", "problems", "answer"}   # the test reading
+ai.review_story(client, model, story) -> {"available", "ok", "problems", "answer", "kind"}   # the test reading;
+    # kind "balance": no fair case can be built (refused), "reader": the test player's findings (advice only)
 ai.judge(answer, culprit_role, roles) -> list[str] | None   # [] = passed, None = unusable answer
 ai.player_file(story, case) -> str               # what players can know, round by round; never the solution
 balance.build_balanced_case(pids, seed, story) -> case   # AI stories only; raises logic.Rejected

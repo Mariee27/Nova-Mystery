@@ -213,11 +213,23 @@ def test_a_failed_test_reading_gets_one_revision_with_the_findings():
     assert "too easy" in revision and "The trace names its owner." in revision and culprit not in revision
 
 
-def test_a_case_that_fails_the_test_reading_twice_is_not_played():
+def test_a_case_the_test_player_misreads_twice_is_still_played(caplog):
+    """The test player is a free model too: its verdict improves a case (one revision) but does
+    not throw away a case that passed every code check."""
     _, _, _, culprit = sample()
     bad = json.dumps(review(culprit, leap=True))
     client = SequenceClient([json.dumps(FAKE_ANSWER), bad, json.dumps(FAKE_ANSWER), bad])
-    with pytest.raises(ai.AIError, match="did not pass the test reading"):
+    story = ai.write_story("fake-key", client=client)
+    assert logic.validate_story(story) == [] and len(client.calls) == 4      # it was revised once
+    assert "test reading found" in caplog.text
+
+
+def test_a_story_from_which_no_fair_case_can_be_built_is_not_played(monkeypatch):
+    def no_fair_case(*args, **kwargs):
+        raise logic.Rejected("No fair case could be built.")
+    monkeypatch.setattr(balance, "build_balanced_case", no_fair_case)
+    client = SequenceClient([json.dumps(FAKE_ANSWER), json.dumps(FAKE_ANSWER)])
+    with pytest.raises(ai.AIError, match="no fair case could be built"):
         ai.write_story("fake-key", client=client)
 
 

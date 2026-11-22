@@ -223,8 +223,10 @@ tunes them and checks them; case #001 never passes through it and is built exact
 - *Test reading:* a second AI request reads a sample case like a player, without the solution, and says
   whom it suspects after round 1 and at the end. Code judges the answer: the reader must find the culprit at
   the end without being sure after round 1, without a leap of faith, with explainable red herrings and clear
-  texts. Otherwise the author gets the findings and revises once; a case that fails twice is not played. If
-  the test reading is unavailable, the code checks alone decide.
+  texts. Otherwise the author gets the findings and revises once. The test player is a free model too and
+  often misreads a case, so its verdict improves a case but never throws one away: a case that passed every
+  code check is played (the findings go to the server log). Only a story from which no fair case can be
+  built for every number of players is refused. If the test reading is unavailable, the code checks decide.
 
 **Why not Requesty, the course's standard?** We tried it first. Requesty rejected every request from our
 account, also for its free models, with "Your organization reached its limit of concurrent requests". Its limit
