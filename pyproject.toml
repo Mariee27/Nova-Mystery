@@ -1,5 +1,5 @@
 [project]
-name = "murder-at-nova"
+name = "nova-mystery"
 version = "1.0.0"
 description = "A five-minute multiplayer murder mystery (Introduction to Programming, Nova SBE)"
 requires-python = ">=3.11"
@@ -7,6 +7,7 @@ dependencies = [
     "streamlit==1.67.0",
     "qrcode[pil]==8.2",
     "openai==3.52.0",
+    "psycopg[binary]==3.3.9",
 ]
 
 [dependency-groups]

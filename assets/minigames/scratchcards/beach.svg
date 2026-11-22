@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500" width="400" height="500">
+<!-- From the campus terrace over Carcavelos beach at sunset: the white railing and a corner of
+     the building in front, the sand and the surf, the old fort on its point, the Atlantic. -->
+<defs>
+  <linearGradient id="bc-sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#26325e"/><stop offset=".45" stop-color="#8a5a7a"/><stop offset=".8" stop-color="#f09a5c"/><stop offset="1" stop-color="#ffd08a"/></linearGradient>
+  <linearGradient id="bc-sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e59a6a"/><stop offset=".4" stop-color="#6a6f9a"/><stop offset="1" stop-color="#2b3e6a"/></linearGradient>
+  <linearGradient id="bc-sand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8c79a"/><stop offset="1" stop-color="#b68f62"/></linearGradient>
+</defs>
+<rect width="400" height="500" fill="url(#bc-sky)"/>
+<circle cx="230" cy="214" r="34" fill="#ffe0a8"/>
+<rect x="0" y="228" width="400" height="92" fill="url(#bc-sea)"/>
+<g stroke="#ffe0a8" stroke-width="2.4" opacity=".7"><path d="M190 240 h80 M200 252 h60 M210 266 h40 M218 282 h24"/></g>
+<!-- the fort on its point -->
+<polygon points="300,228 400,228 400,252 290,252" fill="#4a4250"/>
+<g fill="#d9c9ae"><rect x="318" y="196" width="66" height="34"/><rect x="340" y="176" width="24" height="22"/></g>
+<g fill="#b8a78c"><rect x="318" y="190" width="8" height="8"/><rect x="334" y="190" width="8" height="8"/><rect x="368" y="190" width="8" height="8"/><rect x="340" y="170" width="6" height="7"/><rect x="358" y="170" width="6" height="7"/></g>
+<rect x="352" y="146" width="2" height="30" fill="#3a3a44"/><polygon points="354,146 372,152 354,158" fill="#c0392b"/>
+<!-- surf and sand -->
+<path d="M0 318 Q60 306 120 318 T240 318 T400 314 L400 330 L0 334 Z" fill="#f3efe6" opacity=".85"/>
+<path d="M0 300 Q80 292 160 302 T320 298 T400 300" stroke="#f3efe6" stroke-width="2" fill="none" opacity=".6"/>
+<polygon points="0,330 400,326 400,420 0,420" fill="url(#bc-sand)"/>
+<g fill="#2a2430"><circle cx="110" cy="344" r="3"/><rect x="108.5" y="346" width="3" height="10"/><circle cx="250" cy="340" r="2.6"/><rect x="248.8" y="342" width="2.6" height="9"/></g>
+<g><path d="M60 360 l30 -12 l-30 -4 z" fill="#c0392b" opacity=".85"/><rect x="58" y="344" width="2" height="26" fill="#3a2a20"/></g>
+<g fill="#2a2430"><path d="M170 312 l26 0 l-4 3 l-18 0 z"/><circle cx="183" cy="306" r="2.4"/></g>
+<!-- the terrace: railing and a corner of the building -->
+<rect x="0" y="420" width="400" height="80" fill="#c9c2b3"/>
+<g stroke="#b5ad9c" stroke-width="1"><path d="M0 446 H400 M0 474 H400 M100 420 v80 M220 420 v80 M340 420 v80"/></g>
+<rect x="0" y="384" width="400" height="6" fill="#f4f5f6"/>
+<g fill="#bfe0f0" opacity=".35"><rect x="0" y="390" width="400" height="30"/></g>
+<g fill="#e5e8eb"><rect x="40" y="390" width="4" height="30"/><rect x="140" y="390" width="4" height="30"/><rect x="240" y="390" width="4" height="30"/><rect x="340" y="390" width="4" height="30"/></g>
+<polygon points="0,0 54,0 54,420 0,420" fill="#f4f4f1"/>
+<polygon points="54,0 64,0 64,420 54,420" fill="#cfd4da"/>
+<g fill="#ffcf7a" opacity=".8"><rect x="10" y="80" width="34" height="40"/><rect x="10" y="200" width="34" height="40"/></g>
+<g stroke="#2a3346" stroke-width="2" fill="none"><path d="M120 120 q7 -7 14 0 q7 -7 14 0"/><path d="M160 150 q5 -5 10 0 q5 -5 10 0"/></g>
+<rect x="110" y="446" width="180" height="26" rx="3" fill="#1a2a44"/>
+<text x="200" y="463.5" font-family="Helvetica, Arial, sans-serif" font-size="11.5" font-weight="bold" letter-spacing="2.4" fill="#f2d79a" text-anchor="middle">PRAIA DE CARCAVELOS</text>
+</svg>

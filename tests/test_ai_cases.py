@@ -35,7 +35,7 @@ FAKE_ANSWER = {
          "neutral_clue": "A stack of exam covers waits to be stapled."},
         {"name": "Beach", "icon": "🚣", "flavor": "Oars drip onto the wooden floor.",
          "neutral_clue": "A life jacket hangs on its hook, perfectly dry."},
-        {"name": "ICA Canteen", "icon": "🏛️", "flavor": "Rain drums on the glass roof.",
+        {"name": "Horizon Hall", "icon": "🏛️", "flavor": "Rain drums on the glass roof.",
          "neutral_clue": "A vending machine hums with a full row of water bottles."},
     ],
     "suspects": [
@@ -349,8 +349,8 @@ def test_the_public_story_holds_no_secrets(phase):
 def test_the_ai_case_texts_reach_the_screens():
     g = start(lobby_with_ai())
     story = logic.story_view(g)
-    assert "The Silent Regatta" in ui.case_file(story)
-    assert "ICA Canteen" in ui.campus_map([], story=story)
+    assert story["case_title"] == "The Silent Regatta"
+    assert "Horizon Hall" in ui.campus_map([], story=story)
     assert "Library" in ui.campus_map([], story=story)
 
 
@@ -437,6 +437,11 @@ class SequenceClient(FakeClient):
         self.answer = self.answers.pop(0)
         return super().create(**kwargs)
 
+    @property
+    def author_calls(self):
+        """The requests to the author (the test reading is a separate conversation)."""
+        return [c for c in self.calls if c["messages"][0]["content"] == ai.SYSTEM_PROMPT]
+
 
 def five_suspects():
     answer = copy.deepcopy(FAKE_ANSWER)
@@ -448,8 +453,8 @@ def test_a_story_with_a_slip_gets_one_repair_round():
     client = SequenceClient([five_suspects(), json.dumps(FAKE_ANSWER)])
     story = ai.write_story("fake-key", client=client)
     assert logic.validate_story(story) == []
-    assert len(client.calls) == 2
-    repair = client.calls[1]["messages"][-1]["content"]
+    assert len(client.author_calls) == 2
+    repair = client.author_calls[1]["messages"][-1]["content"]
     assert "exactly 6 roles" in repair            # the model is told what to fix
 
 
@@ -469,7 +474,7 @@ def test_unreadable_twice_raises_ai_error():
 def test_a_good_first_answer_needs_only_one_request():
     client = SequenceClient([json.dumps(FAKE_ANSWER)])
     ai.write_story("fake-key", client=client)
-    assert len(client.calls) == 1
+    assert len(client.author_calls) == 1
 
 
 def test_busy_models_have_fallbacks_and_thinking_is_switched_off():
@@ -650,10 +655,10 @@ def test_the_ai_writes_about_five_given_campus_places():
 
 
 def test_answer_texts_are_matched_to_the_given_places_by_name_or_order():
-    places = ["Library", "Auditorium", "Main Deck", "Beach", "ICA Canteen"]
+    places = ["Library", "Auditorium", "Main Deck", "Beach", "Horizon Hall"]
     answer = copy.deepcopy(FAKE_ANSWER)
     answer["locations"].reverse()                       # any order
-    answer["locations"][0]["name"] = "Canteen"          # a shortened name
+    answer["locations"][0]["name"] = "Horizon"          # a shortened name
     story = ai.parse_story(json.dumps(answer), places)
     assert story["locations"] == places
     assert logic.validate_story(story) == []
