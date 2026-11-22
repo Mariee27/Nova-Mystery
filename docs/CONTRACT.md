@@ -251,7 +251,7 @@ gets a random theme and a random first letter for the victim, so rooms get diffe
   `{victim}`; the puzzle's may use `{pieces}`), plus cipher `message`, scratch `style` (note|printout|phone|photo),
   `title`, `lines`, puzzle `caption`, order `events` (4 × `["HH:MM", text]`). `minigames.clean_content(raw, story)`
   keeps the pieces that pass the checks; `minigames.piece(game, kind)` falls back to `content.MINIGAME_FALLBACK`.
-- Proofs: code `{"code": "1723"}`; scratch `{"cells": [cell indices]}` (at least 55 % of 10 × 14);
+- Proofs: code `{"code": "2160"}` (the lock of the place: `minigames._lock`, a new code every game); scratch `{"cells": [cell indices]}` (at least 55 % of 10 × 14);
   puzzle `{"swaps": [[a, b], ...]}` replayed on the seeded starting order; cipher `{"shift": n}`;
   order `{"order": [positions on screen, earliest entry first]}`.
 - `content.BUILDINGS` (letter of the official campus map -> `name`, `shape`: outline as [(x, y), ...] and
