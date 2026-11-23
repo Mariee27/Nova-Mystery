@@ -1,6 +1,6 @@
 # NOVA MYSTERY
 
-A multiplayer murder mystery for 4 to 6 players (up to 20 minutes once it starts), built with Python and Streamlit.
+A multiplayer murder mystery for 4 to 6 players (up to 20 minutes once it starts, plus about 2 minutes of hot seat), built with Python and Streamlit.
 One screen (the projector) shows the public board. Every player joins on their own phone, gets a
 secret role card, and together the group has to find out who committed the murder before time runs out.
 The host plays the handcrafted case #001 "The Last Lecture" or asks an AI for a brand-new case.
@@ -51,6 +51,7 @@ they never came.
 |---|---|---|
 | Reveal | 30 s | Everybody reads their card. |
 | Investigation | 3 rounds, each up to 5 min | Each round every player has exactly **one** action in the app: search a place on the **campus map** or share one of their clues. Interrogations happen **out loud**: the players question each other face to face. A round ends early when everybody has moved or has nothing left to search or share. The murderer may additionally plant one fake clue. |
+| Hot seat | after rounds 1 and 2, about 1 min | Everybody picks a suspect (20 s); the one with the most picks is grilled out loud for 45 s while the others tap *believe* or *lie*. Then the next round starts. |
 | Discussion | 3 min | Players question each other in person and argue (lying is allowed). |
 | Vote | 1 min | Everybody taps a suspect (nothing is chosen in advance) and, if they like, the crime scene, then *Vote*. |
 | Result | – | The murderer and all cards are revealed. Detectives win only if the murderer got strictly the most votes. |
@@ -61,9 +62,19 @@ they never came.
 "Search <place>") or *Share a clue* (tap one of your private clues, "Share with everyone").
 Afterwards "Move made." shows your move with a LOGGED stamp and who is still choosing.
 A solved exhibit first shows "Access granted" until the player taps *Continue*.
-There is no interrogation in the app: the players sit in one room and question, accuse and
+While a player solves a place's mini-game, the place is held for them for up to 2 minutes, so nobody
+else can open or search it meanwhile (the others only see that it is busy, not by whom).
+The app has no question-and-answer screen: the players sit in one room and question, accuse and
 defend their alibis out loud. A player with nothing left to search or share is told so and is
 not waited for.
+
+**The hot seat.** Between rounds 1 and 2 and between rounds 2 and 3 the game takes a short break (the host can
+switch it off in the lobby; it is on by default). Every player picks on their phone who should be grilled –
+nobody can pick themselves or someone who already sat there, and a pick is locked in. The seat starts when
+everybody has picked, after 20 seconds, or when the host starts it; a tie is decided by chance. For 45 seconds
+the room questions that suspect out loud, and everybody else rates the answers *believe* or *lie*. The board
+shows only how many have picked and the believe/lie counts, never who picked or rated whom. Nobody can
+search, share or plant during the break.
 
 **The campus map.** A simplified plan of NOVA SBE Carcavelos, seen from above the way the campus is usually
 shown (the architects' rendering): north to the upper left, the beach to the bottom right. Gallery / Main Deck
@@ -101,7 +112,9 @@ Phases end early when everybody is done, and the host can skip ahead.
   and rumors, the endings, and the words of the five mini-games. The AI only writes words. Who did it, where,
   and which clue points to whom is still decided by the generator, and every AI story is checked
   (`logic.validate_story`) before it is used. If the AI is not set up, too slow, over its daily limit, or writes
-  something that fails the checks, only the host sees why and can try again or play case #001.
+  something that fails the checks, the AI writes one more case on its own (if the AI quota allows it; the
+  host sees "The first AI case did not pass the checks …"). If that one fails too, or the AI service itself
+  fails (no key, limit, busy, timeout), only the host sees why and can try again or play case #001.
   See section 4 for the setup.
 - **Every case has its own opening.** The home page plays a short intro about the game. When the host starts,
   the board and every phone play the intro of *this* case (six lines written with the story, then the case
@@ -112,13 +125,17 @@ Phases end early when everybody is done, and the host can skip ahead.
 - **Hidden information:** each phone only ever receives its own card. The board shows no secrets until the result.
 - **A murderer's special move:** one planted fake clue that looks exactly like a real search result.
 - **Robust to real life:** the game page asks the phone to keep its screen on (Screen Wake Lock, where the
-  browser supports it). A player without a sign of life for 45 seconds is marked offline and never blocks the
-  game; the host role moves to another player. If fewer than 3 players are online, the game pauses (the clock
-  stands still, every screen says so) and runs on as soon as they are back; only after 3 minutes without
-  enough players does it end. Reopening the tab or the same link restores the seat.
+  browser supports it). A player whose phone gives no sign of life for 15 seconds gets a **stand-in**: the
+  computer plays that seat like a demo suspect (searches or shares, picks and rates in the hot seat, votes),
+  so the round never waits for a phone that went dark. Board and phones mark the seat "stand-in". As soon as
+  the phone is back, the player plays again; the host role moves to a player who is there. The phone also
+  remembers its seat: reopening the tab, the player link, or simply the room's QR code in the same browser
+  brings the player back to their seat.
 - **Timers** on every phase, so the game always ends.
-- **Host tools:** choose the case, start the game, end a phase early, add demo suspects (computer players for
-  presentations), remove strangers from the lobby.
+- **The hot seat** between the rounds: the room picks one suspect to grill out loud and rates the answers.
+- **Host tools:** choose the case, switch the hot seat on or off, start the game, skip ahead (the button says
+  what it ends: "End round 1 now", "End the hot seat – next round", "Start the vote now", …), start the
+  hot seat early, add demo suspects (computer players for presentations), remove strangers from the lobby.
 
 ### Evidence mini-games – play to unlock
 
@@ -296,17 +313,20 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_minigames.py` | 84 | The puzzles: solvable from the story, the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
 | `tests/test_case_minigames.py` | 70 | Mini-games that fit the case: five different games for the five places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
 | `tests/test_rounds_and_map.py` | 52 | Rounds, locked places and the campus map: every pin in its building, pins far enough apart to tap, no car park. |
-| `tests/test_nova.py` | 38 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file). |
+| `tests/test_nova.py` | 44 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file). |
 | `tests/test_balanced_ai_cases.py` | 38 | AI cases: medium difficulty, the solution file, the test reading, the host's choice, the AI's status. |
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
 | `tests/test_views.py` | 20 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card. |
 | `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
+| `tests/test_hot_seat.py` | 19 | The hot seat: allowed and refused picks and ratings, ties, the clock, the switch in `start`, only counts in the views, demo bots. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
-| `tests/test_app_smoke.py` | 19 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
+| `tests/test_app_smoke.py` | 31 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
+| `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
+| `tests/test_playtest_fixes.py` | 9 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 658 tests.
+All together: 719 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -329,9 +349,9 @@ app.py         screens (Streamlit): board, phone, join form; only shows data and
 
 | File | Lines | Responsibility |
 |---|---|---|
-| `logic.py` | ~1200 | Rules, phases, timers, the pause, results, the public and private views, case and story validator |
-| `app.py` | ~1150 | All screens and the polling loop |
-| `ui.py` | ~750 | HTML building blocks: map, cards, board, result |
+| `logic.py` | ~1550 | Rules, phases, timers, the pause, the hot seat, demo bots and stand-ins, results, the public and private views, case and story validator |
+| `app.py` | ~1400 | All screens and the polling loop |
+| `ui.py` | ~880 | HTML building blocks: map, cards, board, hot seat, result |
 | `ai.py` | ~660 | The AI request, reading and repairing the answer, the test reading |
 | `minigames.py` | ~500 | The five mini-games: what the phone gets, the checks, hints, the case's words |
 | `minigame_ui.py` | ~490 | The mini-games on the phone (one custom component) |
@@ -400,11 +420,11 @@ More scenarios, each with the test that proves it, are in [`docs/WHAT_HAPPENS_IF
 - **Storage on free hosting:** with SQLite, Streamlit Community Cloud loses every room when it restarts the app. Set
   `DATABASE_URL` to a free PostgreSQL database to keep them (see Deployment).
 - **One server process:** SQLite and polling are fine for a few rooms at a time, but not for hundreds of games at once.
-- **The link is the key:** whoever has a player's link (screenshot, browser history) can see that card. Coming back on another device
-  is not possible without the link.
+- **The link is the key:** whoever has a player's link (screenshot, browser history) can see that card. The seat is
+  remembered in the browser that joined (its local storage); coming back on another device is not possible without the link.
 - **2-second delay:** updates appear with up to 2 seconds of delay, and every open screen causes a small amount of server work.
 - **Phones that sleep:** the page keeps the screen on where the browser allows it (not on iOS before 16.4). A phone
-  that goes dark anyway counts as offline after 45 seconds; with fewer than 3 players online the game pauses.
+  that goes dark anyway gets a stand-in after 15 seconds, which may make that player's move before they are back.
 - **Fixed size:** every case has 6 roles and 5 locations, so the game supports at most 6 players. Without the AI,
   repeat players get to know the texts of case #001.
 - **AI quality varies:** a free model sometimes writes a weaker story or one that fails the checks (then the host
@@ -416,7 +436,7 @@ More scenarios, each with the test that proves it, are in [`docs/WHAT_HAPPENS_IF
 
 - **Push updates via WebSockets** (e.g. a FastAPI backend) to remove the polling delay. `logic.py` could be reused unchanged.
 - **More content:** more roles, locations and story variants in `content.py`. The validator would keep new cases fair.
-- **More players or game modes,** for example several rounds, an accomplice, or adjustable timers.
+- **More players or game modes,** for example an accomplice or adjustable timers.
 - **Other languages** by adding translated versions of `content.py` and the screen texts.
 
 ## 11. Repository structure
@@ -436,7 +456,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (658 tests); tests/e2e/ the browser check
+tests/                  pytest suite (719 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)

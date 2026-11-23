@@ -19,6 +19,8 @@ page.on('pageerror', (e) => errors.push(e.message));
 const settle = (ms = 2500) => page.waitForTimeout(ms);
 const click = async (name) => { await page.getByRole('button', { name, exact: true }).click(); await settle(); };
 const text = () => page.locator('body').innerText();
+// The host's skip button says what it ends ("⏭ End round 1 now (host)", ...).
+const skip = async () => { await page.getByRole('button', { name: /^⏭ .*\(host\)$/ }).click(); await settle(); };
 const goStep = async (params) => {
   const url = new URL(page.url());
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
@@ -37,7 +39,7 @@ try {
   const tinted = await page.locator('.unseal.guilty').count() === 1;
   check(tinted === (stamp.trim().toUpperCase() === 'MURDERER'), 'only the murderer\'s own file is tinted red');
 
-  await click('End phase (host)');
+  await skip();
   check(await page.locator('.act').count() >= 2, 'the round starts with the action cards');
   await goStep({ step: 'share' });
   check(await page.locator('.paper.clue').count() === 2, 'Share a clue shows exactly two paper cards');
@@ -73,14 +75,14 @@ try {
           'tapping numbers every entry and the order can be checked');
   }
 
-  for (let i = 0; i < 6 && !(await text()).includes('Who did it?'); i++) await click('End phase (host)');
+  for (let i = 0; i < 6 && !(await text()).includes('Who did it?'); i++) await skip();
   check((await text()).includes('Who did it?'), 'the vote opens');
   await click('Vote');
   check((await text()).includes('Choose who did it.'), 'nothing is chosen in advance');
   await page.locator('a.pick').first().click(); await settle(4000);
   await click('Vote');
   check((await text()).includes('Your accusation is filed'), 'a chosen suspect can be voted for');
-  await click('End phase (host)'); await settle(4000);
+  await skip(); await settle(4000);
   check(await page.locator('.culprit').count() === 1, 'the result names the culprit');
 
   const code = new URL(page.url()).searchParams.get('room');
