@@ -45,9 +45,7 @@ The app sleeps when nobody used it for a while: the first visit then wakes it up
 - **Keeping track:** our group chat and the pull request descriptions (what changed, why, what to check by
   hand). After every playtest we wrote a list of problems and turned each into a fix pull request.
 - **When `main` breaks:** nothing else is merged until a small fix pull request makes it green again.
-- **Rules for our coding agents:** we worked by these rules from the start, but each of us kept them in our own
-  setup. At the end we wrote them down together in [AGENTS.md](AGENTS.md), as the course guides recommend.
-  Next time we would put that file into the repository on the first day.
+- **Rules for our coding agents:** the rules every member's agent follows are in [AGENTS.md](AGENTS.md).
 
 ---
 
