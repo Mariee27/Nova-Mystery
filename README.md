@@ -112,8 +112,7 @@ shown (the architects' rendering): north to the upper left, the beach to the bot
 academic halls B, C, D and E hang below it as parallel wings; the Library (H) and Horizon Hall (G) stand
 just above it and the Grand Auditorium (F) just past its right end. As on the aerial views, the N6-7 runs
 along the bottom into the roundabout below the campus and the big road passes its right end; the beach of
-Carcavelos and the sea begin beyond that road, in the bottom right corner. The buildings carry the letters
-of the official campus map. The Canteen sits in the west part of the Gallery, and the Garage is a pin on the green
+Carcavelos and the sea begin beyond that road, in the bottom right corner. The Canteen sits in the west part of the Gallery, and the Garage is a pin on the green
 site in the bottom-left corner. The drawing is one SVG of
 building outlines, roads and grounds; it and the pins use percent of the map (`content.BUILDINGS`,
 `GROUNDS`, `ROADS`, `PLACES`), so phone and board draw the same plan. The buildings carry no letters (a
@@ -177,7 +176,9 @@ Phases end early when everybody is done, and the host can skip ahead.
   browser supports it). A player whose phone gives no sign of life for 15 seconds gets a **stand-in**: the
   computer plays that seat like a demo suspect (searches or shares, picks and rates in the hot seat, votes),
   so the round never waits for a phone that went dark. Board and phones mark the seat "stand-in". As soon as
-  the phone is back, the player plays again; the host role moves to a player who is there. The phone also
+  the phone is back, the player plays again; the host role moves to a player who is there. (The rules also
+  pause the clock if fewer than 3 players are online and end the game after 3 minutes; with stand-ins this
+  does not happen in the app, see `docs/WHAT_HAPPENS_IF.md`.) The phone also
   remembers its seat: reopening the tab, the player link, or simply the room's QR code in the same browser
   brings the player back to their seat.
 - **The case file on every phone.** From "Read your file" to the vote, a fold-out *Case file* under the
@@ -222,8 +223,9 @@ the case's own words (see *Mini-games that fit the case* below).
 | 👁️ Spot the difference | Tap every change (3–4) in a copy of a campus photo | Comparing the two prints; a limited number of misses |
 | 🔎 Find the object | Tap the victim's lost object (keycard, key, phone, glasses, USB stick) among five things | The note on the back of the photo names it |
 
-The last two (`minigames_extra.py`) have five picture variants each (Atrium, Library, Main Deck, Canteen,
-Garage, Auditorium). A place that has its own picture always shows it; any other place shows a photo the
+The last two (`minigames_extra.py`) have five pictures each, of six places between them (Spot the
+difference: Atrium, Library, Main Deck, Canteen, Garage; Find the object: Auditorium, Atrium, Library,
+Canteen, Garage). A place that has its own picture always shows it; any other place shows a photo the
 victim took somewhere else that evening, and the story says so.
 
 - **Checked in Python, never on the phone.** The phone only reports what the player did (digits, rubbed cells,
@@ -231,7 +233,9 @@ victim took somewhere else that evening, and the story says so.
   code, the cipher key, the right order) or cannot change (the seeded starting order), and `logic.search` refuses to hand out the clue without a
   valid proof. Each place still has exactly one clue, so evidence is awarded exactly once.
 - **Hints** on request, one by one (nudge → stronger hint → almost the answer), plus contextual feedback after a
-  wrong attempt ("that is just one time from the case file …"). Wrong answers cost nothing but time.
+  wrong attempt ("that is just one time from the case file …"). A player has at most 6 wrong answers per
+  place and round (`logic.MAX_WRONG_TRIES`); then the seal holds until the next round, so nobody can try
+  all 10 000 codes. An answer faster than a person could solve the puzzle is ignored (`MIN_SECONDS`).
 - **Reward:** "🔓 ACCESS GRANTED · NEW EVIDENCE DISCOVERED · Evidence #0N – …", the clue, the case progress and a
   link to the evidence log. It stays until *Continue*, even if the round ends in that very second.
 - **Phone first:** one custom Streamlit component (`st.components.v2`, no new package), pointer events for touch and
@@ -288,7 +292,7 @@ Optional environment variables:
 | `MURDER_DB` | `data/murder.db` | Where the SQLite file is stored when `DATABASE_URL` is not set. |
 | `APP_BASE_URL` | the page's own URL | Public address of the app, used for the QR code. Set it when deployed. |
 | `OPENROUTER_API_KEY` | not set | Key for AI-written cases. Without it, every game plays case #001. |
-| `OPENROUTER_MODEL` | `google/gemma-4-31b-it:free` | Which free OpenRouter model writes the stories. |
+| `OPENROUTER_MODEL` | `nvidia/nemotron-3.5-lightning:free` | Which free OpenRouter model writes the stories. If it fails, OpenRouter falls back to `google/gemma-4-31b-it:free` and `nvidia/nemotron-3-ultra-550b-a55b:free` (`ai.FALLBACK_MODELS`). |
 
 All of them can also go into `.streamlit/secrets.toml` (git ignores it). Copy
 `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and fill in the values.
@@ -298,7 +302,8 @@ All of them can also go into `.streamlit/secrets.toml` (git ignores it). Copy
 We use [OpenRouter](https://openrouter.ai) and one of its free models (the model id ends in `:free`). Without
 buying credit, free models allow 20 requests per minute and 50 per day. A new AI case takes 2 to 5 requests
 (writing, perhaps one repair, the test reading, perhaps one revision and a second test reading), so the free
-quota is enough for about 10 to 25 AI rooms a day; after that, rooms play case #001.
+quota would allow about 10 to 25 AI cases a day, and the app itself writes at most 10 a day (5 an hour);
+after that, rooms play case #001.
 
 **How an AI case is made, and why it is medium difficulty.** The AI only writes texts: the victim, six
 suspects with a motive, a secret and a rumor the secret explains, traces, places and endings, in the mood of a
@@ -379,6 +384,13 @@ The tables are created on the first visit. Nothing else changes; the same tests 
 uv run pytest
 ```
 
+Without uv (after the pip install from section 4):
+
+```bash
+.venv/bin/pip install pytest==9.2.0     # Windows: .venv\Scripts\pip
+.venv/bin/pytest
+```
+
 The same tests run automatically on GitHub for every push to `main` and every pull request (see
 `.github/workflows/tests.yml`): on SQLite and on PostgreSQL, together with a check of all dependencies for known
 vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs`).
@@ -431,16 +443,16 @@ app.py         screens (Streamlit): board, phone, join form; only shows data and
 | File | Lines | Responsibility |
 |---|---|---|
 | `logic.py` | ~1640 | Rules, phases, timers, the pause, the hot seat, demo bots and stand-ins, results, the public and private views, case and story validator |
-| `app.py` | ~1590 | All screens and the polling loop |
+| `app.py` | ~1630 | All screens and the polling loop |
 | `ui.py` | ~980 | HTML building blocks: map, cards, board, hot seat, finale, result |
-| `ai.py` | ~730 | The AI request, reading and repairing the answer, the test reading |
+| `ai.py` | ~760 | The AI request, reading and repairing the answer, the test reading |
 | `minigames.py` | ~570 | The first five mini-games: what the phone gets, the checks, hints, the case's words |
 | `minigames_extra.py` | ~370 | Spot the difference and Find the object: pictures, checks, hints |
 | `minigame_ui.py` | ~490 | The mini-games on the phone (one custom component) |
-| `content.py` | ~340 | Case #001: story texts, the campus map, clue templates, the mini-games' words |
+| `content.py` | ~350 | Case #001: story texts, the campus map, clue templates, the mini-games' words |
 | `balance.py` | ~320 | Medium difficulty for AI cases and the solution file |
 | `db.py` | ~260 | Rooms, transactions, heartbeats, room and AI limits |
-| `generator.py` | ~210 | Turns a seed into a complete case |
+| `generator.py` | ~230 | Turns a seed into a complete case |
 | `exhibits.py` | ~180 | The mini-games' pictures (camera stills and documents) as SVG |
 
 A game is one plain dictionary (see `docs/CONTRACT.md` for its exact shape). Each click runs like this:
