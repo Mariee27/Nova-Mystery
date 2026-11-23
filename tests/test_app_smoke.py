@@ -1069,3 +1069,29 @@ def test_without_a_board_the_file_opens_at_once(game_db):
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     page = phone.run()
     assert 'class="envelope"' in page and "Look at the board" not in page
+
+
+def test_in_the_discussion_the_board_shows_the_evidence_wall_right_under_the_map(game_db):
+    board = Browser()
+    board.run(press=["Create room"])
+    code = board.st.query_params["room"]
+    phones = []
+    for name in ["Ana", "Ben", "Caro", "Dev"]:
+        phone = Browser(room=code)
+        phone.run(press=["Join"], **{"Your name": name})
+        phones.append(phone)
+    phones[0].run(press=["Start game"], **{"Which case?": "rehearsal"})
+    conn = db.connect(game_db)
+    try:
+        host = token_of_phone(phones[0])
+        for _ in range(10):                                  # step the phases on, at most 10 times
+            game = db.load(conn, code)
+            if game["phase"] == "DISCUSSION":
+                break
+            online = {p["pid"] for p in game["players"]}
+            db.apply(conn, code, lambda g: logic.end_phase(g, host, online, time.time()))
+        assert db.load(conn, code)["phase"] == "DISCUSSION"
+    finally:
+        conn.close()
+    page = board.run()
+    assert page.index("Campus map") < page.index("Evidence wall · all rounds") < page.index('class="place"')

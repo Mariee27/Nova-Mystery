@@ -729,12 +729,10 @@ def board_live(code):
     # The map gets the full width, so the five equal tiles are big enough to read on a projector.
     st.markdown('<div class="kicker">Campus map</div>', unsafe_allow_html=True)
     show(ui.campus_map(public["searched"], story=story, view=public["map"], board=True))
-    left, right = st.columns([2, 3])
-    with left:
-        st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
-    with right:
-        st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
-        show_wall(public)
+    # Directly under the map, over the full width, as in the rounds: the whole evidence wall.
+    st.markdown('<div class="kicker">Evidence wall · all rounds</div>', unsafe_allow_html=True)
+    show_wall(public)
+    st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
 
 
 def board_round(code, public):
