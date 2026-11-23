@@ -117,11 +117,15 @@ of the official campus map. The Canteen sits in the west part of the Gallery, an
 site in the bottom-left corner. The drawing is one SVG of
 building outlines, roads and grounds; it and the pins use percent of the map (`content.BUILDINGS`,
 `GROUNDS`, `ROADS`, `PLACES`), so phone and board draw the same plan. The buildings carry no letters (a
-legend would only crowd the phone); every place of a case has its name on its pin. The plan has no north arrow. Every case happens at 5 of 9 places
+legend would only crowd the phone); every place of a case has its name on its pin. The plan has no north arrow. Every case happens at 7 of 9 places
 (Library, Horizon Hall, Auditorium, Main Deck, Hovione Atrium, Santander Hall, Beach, Canteen, Garage). Case #001
-always plays its own five (Santander Hall, Library, Horizon Hall, Auditorium, Main Deck); the Canteen and the
-Garage come up in AI cases. Each place holds exactly one clue. Pins are
-red (open), grey with a tick (searched) or dashed with a lock (locked). Two places are locked at the
+always plays its own seven (Santander Hall, Library, Horizon Hall, Auditorium, Main Deck, Hovione Atrium, Beach);
+the Canteen and the Garage come up in AI cases. Each place holds exactly one clue. Two of them are new with the
+seventh place: the culprit's way to the scene through a place where nobody was (one keycard swipe or one figure on
+camera at 23:24, no name, but holding the object found at the scene later), and the log of one pair's place that
+clears both of them. Pins are red (open), grey with a tick (searched) or dashed with a lock (locked). On the phone a
+place that somebody else is searching right now (solving its mini-game) is amber, says "Being searched" and cannot
+be tapped; who it is stays secret. Two places are locked at the
 start – the crime scene and one other – and open in rounds 2 and 3. The board names the round a place
 was searched in, never who searched it, so the murderer's planted clue does not stand out.
 
@@ -140,7 +144,7 @@ Phases end early when everybody is done, and the host can skip ahead.
 - **A new case every game.** The generator draws the murderer, the crime scene, roles, alibis and clues.
   A demo ("Play a demo") always plays the same case with the same culprit, for rehearsing a presentation.
 - **A new story for a room, written by AI (optional).** When the host picks it in the lobby, an AI model writes
-  a new NOVA-campus story while the players join: victim, five locations, six suspects with motives, secrets
+  a new NOVA-campus story while the players join: victim, seven locations, six suspects with motives, secrets
   and rumors, the endings, and the words of the five mini-games. The AI only writes words. Who did it, where,
   and which clue points to whom is still decided by the generator, and every AI story is checked
   (`logic.validate_story`) before it is used. If the AI is not set up, too slow, over its daily limit, or writes
@@ -179,7 +183,7 @@ Phases end early when everybody is done, and the host can skip ahead.
 - **The case file on every phone.** From "Read your file" to the vote, a fold-out *Case file* under the
   player's own card holds the facts of the night: case number and title, the victim, when (23:47) and where
   the body was found, the time of death (around 23:30), that the crime scene is still unknown and is one of
-  the five places, and the briefing. Only public facts: the board shows the same briefing.
+  the seven places, and the briefing. Only public facts: the board shows the same briefing.
 - **Double taps count once.** A tapped button looks pressed at once (with a small spinner) and ignores further
   taps until the answer has arrived. On the server, the same action from the same phone in the same moment of
   the game (same phase, same timer) within 2 seconds is ignored, so "End round now" tapped twice ends one
@@ -210,7 +214,7 @@ Phases end early when everybody is done, and the host can skip ahead.
 
 In every room created by the app, each place's clue is a **sealed exhibit**. Tap a pin, press
 *Search &lt;place&gt;*, and solve that place's puzzle on your phone; solving it is your move for the round.
-There are seven games and a case has five places: every case uses five of them, **never one twice**, and which
+There are seven games and a case has seven places: every case uses all seven, **never one twice**, and which
 place gets which game changes from game to game. The games are made of things the victim left behind that night, in
 the case's own words (see *Mini-games that fit the case* below).
 
@@ -390,7 +394,7 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_rules.py` | 141 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, the pause when players drop out, planting rules, removing players, names that only look like another one. Rejected calls must leave the game unchanged. |
 | `tests/test_ai_cases.py` | 134 | AI stories: reading the answer, the checks, the two repair rounds (with concrete counts), the second try with another model, slips the code repairs, busy models, the story on every screen. |
 | `tests/test_minigames.py` | 125 | The puzzles: solvable from the story (the lock from its note alone, with a new code every game), the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
-| `tests/test_case_minigames.py` | 72 | Mini-games that fit the case: five different games for the five places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
+| `tests/test_case_minigames.py` | 72 | Mini-games that fit the case: seven different games for the seven places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
 | `tests/test_rounds_and_map.py` | 52 | Rounds, locked places and the campus map: every pin in its building, pins far enough apart to tap, no car park. |
 | `tests/test_nova.py` | 52 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file, the evidence wall newest first, the typed note, the lobby fly-in, the dealt cards, the finale, the hall of fame). |
 | `tests/test_balanced_ai_cases.py` | 38 | AI cases: medium difficulty, the solution file, the test reading, the host's choice, the AI's status. |
@@ -406,8 +410,9 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
 | `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
 | `tests/test_playtest_fixes.py` | 14 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
+| `tests/test_seven_places.py` | 27 | Seven places per case: one clue each, the culprit's way through an empty place (the object, no name, counted once the scene is open), the log that clears a pair, AI cases still balanced, "Being searched" on the phone's map (not tappable, never who). |
 
-All together: 851 tests.
+All together: 878 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -511,7 +516,7 @@ More scenarios, each with the test that proves it, are in [`docs/WHAT_HAPPENS_IF
   database in the same region as the app would make it faster.
 - **Phones that sleep:** the page keeps the screen on where the browser allows it (not on iOS before 16.4). A phone
   that goes dark anyway gets a stand-in after 15 seconds, which may make that player's move before they are back.
-- **Fixed size:** every case has 6 roles and 5 locations, so the game supports at most 6 players. Without the AI,
+- **Fixed size:** every case has 6 roles and 7 locations, so the game supports at most 6 players. Without the AI,
   repeat players get to know the texts of case #001.
 - **AI quality varies:** a free model sometimes writes a weaker story or one that fails the checks (then the host
   can try again or play case #001). The free plan allows about 50 AI requests a day, enough for about 10 AI
@@ -577,7 +582,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (851 tests); tests/e2e/ the browser check
+tests/                  pytest suite (878 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)

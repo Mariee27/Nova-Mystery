@@ -1078,6 +1078,8 @@ def _pointed_at(game, text):
     characters = game["case"]["characters"]
     if "Whose could it be?" in text:            # physical evidence: whose object is it?
         return {c["pid"]: 3 for c in characters if story["roles"][c["role"]]["trace"] in text}
+    if "23:24" in text:                         # someone on the way, with an object: whose is it?
+        return {c["pid"]: 2 for c in characters if story["roles"][c["role"]]["trace"] in text}
     if "between 23:15 and 23:45" in text and "nobody" in text:   # an empty log: who says they were there?
         return {c["pid"]: 3 for c in characters if c["alibi_location"] in text}
     if "hurrying" in text:

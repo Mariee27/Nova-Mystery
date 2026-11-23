@@ -405,7 +405,7 @@ def test_pins_show_open_searched_and_locked_and_the_board_says_when():
     place = open_places(g)[0]
     g = logic.search(g, "t1", place, 5)
     board = ui.campus_map(g["searched"], view=logic.map_view(g), board=True)
-    assert board.count('class="pin2 open') == 2 and board.count('class="pin2 locked') == 2
+    assert board.count('class="pin2 open') == 4 and board.count('class="pin2 locked') == 2   # 7 places
     assert 'class="pin2 done now"' in board and "Just now" in board
     assert board.count("Opens round") == 2
     assert "t1" not in board and "P1" not in board               # never who searched

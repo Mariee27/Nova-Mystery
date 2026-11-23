@@ -37,7 +37,7 @@ def test_every_place_gets_a_puzzle_and_all_four_kinds_appear():
     game = investigation()
     specs = minigames.specs(game)
     assert [s["location"] for s in specs] == logic.story_of(game)["locations"]
-    assert {s["kind"] for s in specs} == set(minigames.KINDS[:5])            # five different kinds
+    assert {s["kind"] for s in specs} == set(minigames.KINDS)                # seven places, seven different kinds
     assert len({s["id"] for s in specs}) == len(specs)                       # unique ids
     for s in specs:
         clue = next(c for c in game["case"]["location_clues"] if c["location"] == s["location"])

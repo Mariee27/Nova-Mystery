@@ -42,6 +42,7 @@ WEIGHT = {
     ("place", "alibi_broken"): 2,   # the log or camera contradicts their alibi (compare alibis!)
     ("player", "scene"): 2,         # a witness saw them heading to the place that is the scene ...
     ("place", "suspicious"): 1,     # a note with a rumor about them
+    ("place", "route"): 1,          # someone with their object on the way, no name: needs the dossiers
     ("player", "suspicious"): 1,
 }
 WITNESS_WITHOUT_SCENE = 1           # ... but before the scene is found, that is only a sighting
@@ -85,6 +86,8 @@ def alibied(case, until_round):
             continue
         if item["type"] == "place" or _in_window(clue.get("time")):
             covered.add(clue["seen"])
+            if "seen_also" in clue:          # the log of a pair's place clears both
+                covered.add(clue["seen_also"])
     return covered
 
 
@@ -100,6 +103,8 @@ def suspicion(case, until_round):
         weight = WEIGHT.get((item["type"], clue["kind"]), 0)
         if (item["type"], clue["kind"]) == ("player", "scene") and not scene_known:
             weight = WITNESS_WITHOUT_SCENE
+        if clue["kind"] == "route" and not scene_known:
+            weight = 0      # an object in a hand: it means something once the same object turns up at the scene
         score[clue["implicates"]] = score.get(clue["implicates"], 0) + weight
     return score
 
@@ -169,8 +174,11 @@ def timeline_problems(case):
                     problems.append(f"inconsistent: sighting {clue['id']} is not at the place where "
                                     f"both of them were")
         if clue["kind"] == "confirms" and item["type"] == "place":
-            if place_of.get(clue.get("seen")) != clue["location"] or clue.get("seen") == culprit:
-                problems.append(f"inconsistent: the log {clue['id']} vouches for somebody who was not there")
+            for who in (clue.get("seen"), *([clue["seen_also"]] if "seen_also" in clue else [])):
+                if place_of.get(who) != clue["location"] or who == culprit:
+                    problems.append(f"inconsistent: the log {clue['id']} vouches for somebody who was not there")
+        if clue["kind"] == "route" and (clue["location"] in place_of.values() or clue["location"] == fake):
+            problems.append(f"inconsistent: the route {clue['id']} leads through a place where somebody was")
         if clue["kind"] == "scene" and item["type"] == "player" and scene not in clue["text"]:
             problems.append(f"inconsistent: witness clue {clue['id']} does not lead to the crime scene")
         if clue["kind"] == "scene" and item["type"] == "player" and item["holder"] == culprit:

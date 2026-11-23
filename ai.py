@@ -83,7 +83,7 @@ VICTIM_LETTERS = [ch for ch in string.ascii_uppercase if ch not in "QXYZ"]
 
 
 def pick_places(rng=random):
-    """The 5 places of a new case: real places of the NOVA campus, so the map can show them."""
+    """The places of a new case (logic.NUMBER_OF_LOCATIONS): real places of the NOVA campus, so the map can show them."""
     return rng.sample(list(content.PLACES), logic.NUMBER_OF_LOCATIONS)
 
 
@@ -97,13 +97,13 @@ def user_prompt(rng=random, places=None):
 
 USER_PROMPT = f"""Write a brand-new case. Facts every case shares:
 - At night on the NOVA SBE campus in Carcavelos, by the sea west of Lisbon, Portugal.
-- The victim died at {content.MURDER_TIME} at one of the 5 places below. The body was then moved to a
+- The victim died at {content.MURDER_TIME} at one of the {logic.NUMBER_OF_LOCATIONS} places below. The body was then moved to a
   different, locked place (the "found_place") and found there at {content.FOUND_TIME}.
 - Every suspect had a motive against the victim and hides a harmless but embarrassing secret
   that has nothing to do with the crime. Nothing may hint at who did it.
 
 This case happens during <THEME>: build the victim, the suspects and the mood around it.
-The 5 places of this case are fixed, real buildings and spots of the NOVA SBE campus in Carcavelos:
+The {logic.NUMBER_OF_LOCATIONS} places of this case are fixed, real buildings and spots of the NOVA SBE campus in Carcavelos:
 <PLACES>. Use exactly these names, each once.
 The victim's last name starts with the letter <LETTER>.
 
@@ -116,7 +116,7 @@ no real NOVA staff, students or famous people. Be original: avoid the obvious ch
 (no title starting with "Midnight", no "Night Porter", no "Rooftop Garden").
 
 Rules (the game checks them, a case that breaks one is thrown away):
-1. Exactly 7 suspects with different names, and exactly the 5 places above.
+1. Exactly 7 suspects with different names, and exactly the {logic.NUMBER_OF_LOCATIONS} places above.
 2. Role names start with "The" and describe a person on campus, max 40 characters.
    No role name may contain a place name or another role name.
 3. A rumor starts with the exact role name followed by " was seen " and describes something that
@@ -148,7 +148,7 @@ The JSON shape (replace every description with your text):
   "intro_lines": ["line 1: Carcavelos or a place nearby", "line 2: a time", "line 3: a detail of the night",
                   "line 4", "4 to 6 suspects.", "line 6: a hook"],
   "locations": [
-    {{"name": "one of the 5 places, written exactly as above",
+    {{"name": "one of the {logic.NUMBER_OF_LOCATIONS} places, written exactly as above",
       "flavor": "one atmospheric sentence about it tonight",
       "neutral_clue": "one harmless observation there"}}
   ],
@@ -481,7 +481,7 @@ def _ask(client, model, messages, temperature=1.0):
 def parse_story(text, places=None):
     """Turn the AI's answer (JSON text) into a story dict like content.DEFAULT_STORY.
 
-    places: the 5 campus places the AI was asked to write about. Without them (tests),
+    places: the campus places the AI was asked to write about. Without them (tests),
     the places are taken from the answer itself."""
     if not isinstance(text, str):
         raise AIError("the AI answer was empty")

@@ -39,7 +39,7 @@ def test_both_new_games_come_up_in_games_and_never_twice_in_one():
     seen = set()
     for seed in range(30):
         kinds = [s["kind"] for s in minigames.specs(game_with(seed=seed))]
-        assert len(kinds) == len(set(kinds)) == 5
+        assert len(kinds) == len(set(kinds)) == 7
         seen |= set(kinds)
     assert seen == set(KINDS7)
 
@@ -160,5 +160,6 @@ def test_an_ai_case_at_the_canteen_and_the_garage_can_be_searched():
                 assert place in after["searched"]
 
 
-def test_case_001_still_plays_its_own_five_places():
-    assert content.LOCATIONS == ["Santander Hall", "Library", "Horizon Hall", "Auditorium", "Main Deck"]
+def test_case_001_still_plays_its_own_seven_places():
+    assert content.LOCATIONS == ["Santander Hall", "Library", "Horizon Hall", "Auditorium", "Main Deck",
+                                 "Hovione Atrium", "Beach"]

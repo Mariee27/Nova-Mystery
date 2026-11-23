@@ -50,11 +50,11 @@ def ai_story(minigames_raw=None):
 # ---------------------------------------------------------------- no game twice
 
 @pytest.mark.parametrize("n", [4, 5, 6])
-def test_the_five_places_always_have_five_different_games(n):
+def test_the_seven_places_always_have_seven_different_games(n):
     for seed in range(40):
         for story in (None, ai_story(AI_MINIGAMES)):
             kinds = [s["kind"] for s in minigames.specs(game_with(story, seed=seed, n=n))]
-            assert len(kinds) == len(set(kinds)) == 5 and set(kinds) <= set(minigames.KINDS)
+            assert len(kinds) == len(set(kinds)) == 7 and set(kinds) <= set(minigames.KINDS)
 
 
 def test_which_place_gets_which_game_changes_from_game_to_game():
@@ -116,8 +116,9 @@ def test_an_ai_case_without_mini_games_uses_the_fallback_everywhere():
     assert story["minigames"] == {}
     g = game_with(story)
     for s in minigames.specs(g):
-        assert s["exhibit"] == minigames._fill(content.MINIGAME_FALLBACK[s["kind"]]["exhibit"], s["location"],
-                                               story["victim_short"])
+        if s["kind"] in content.MINIGAME_FALLBACK:      # the two newer games bring their own words
+            assert s["exhibit"] == minigames._fill(content.MINIGAME_FALLBACK[s["kind"]]["exhibit"], s["location"],
+                                                   story["victim_short"])
         assert "Vale" not in s["story"] + s.get("image", "")                 # never case #001's victim
         assert minigames.verify(g, s["location"], minigames.solve(g, s["location"]))
 

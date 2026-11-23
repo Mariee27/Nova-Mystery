@@ -9,7 +9,7 @@ import ui
 from conftest import (
     LOC, SECURE_TOKENS, advance_to, character, innocent_pids, innocent_token,
     make_lobby, make_started, murderer_pid, murderer_token,
-    online_all, own_clue_ids, pids_of, plant_spot, started_in, token_of, cast_votes,
+    online_all, own_clue_ids, open_places, pids_of, plant_spot, started_in, token_of, cast_votes,
 )
 
 PUBLIC_KEYS = {"code", "phase", "deadline", "demo", "paused_since", "players", "log", "searched",
@@ -103,7 +103,7 @@ def test_dw17_public_log_has_no_hidden_keys_also_after_plant():
     m = murderer_pid(g)
     inn = innocent_pids(g)
     g = logic.plant(g, murderer_token(g), inn[0], plant_spot(g), 5)
-    free = next(loc for loc in LOC if loc not in g["searched"])
+    free = open_places(g)[0]
     g = logic.search(g, innocent_token(g, 1), free, 6)
     g = logic.share(g, innocent_token(g, 2), own_clue_ids(g, inn[2])[0], 7)
     view = logic.public_view(g, online_all(g))
@@ -140,7 +140,8 @@ def test_dw17_public_view_result_phase_has_result_and_characters():
 
 def test_dw17_public_view_players_flags():
     g = started_in("INVESTIGATION")
-    g = logic.search(g, "t1", LOC[0], 5)
+    place = open_places(g)[0]
+    g = logic.search(g, "t1", place, 5)
     view = logic.public_view(g, {1, 2, 3})
     by = {p["pid"]: p for p in view["players"]}
     assert [by[i]["online"] for i in range(1, 6)] == [True, True, True, False, False]
@@ -149,7 +150,7 @@ def test_dw17_public_view_players_flags():
     assert by[1]["acted"] is True
     assert all(by[i]["acted"] is False for i in range(2, 6))
     assert all(by[i]["voted"] is False for i in range(1, 6))
-    assert view["searched"] == [LOC[0]]
+    assert view["searched"] == [place]
 
 
 def test_dw17_public_view_does_not_mutate_game():
