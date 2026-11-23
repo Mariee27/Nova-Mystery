@@ -18,7 +18,7 @@ import generator
 import minigames
 
 PHASES = ["LOBBY", "REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE", "RESULT", "ABORTED"]
-DURATIONS = {"REVEAL": 40, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
+DURATIONS = {"REVEAL": 60, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
 # The investigation has ROUNDS rounds. Each round lasts at most DURATIONS["INVESTIGATION"]
 # seconds and ends early when every online player has made their one move or has no move
 # left (nothing to search, nothing to share). Interrogations happen out loud, not in the app.
@@ -48,6 +48,26 @@ DEMO_SEED = 2026
 # Keys that would give the solution away. They are removed from the public log
 # until the game is over.
 HIDDEN_LOG_KEYS = ("implicates", "clue_kind", "planted")
+
+
+BOARD_INTRO_LATE = 5    # a board that starts the intro later than this does not make phones wait
+
+
+def mark_board_intro(game, now):
+    """The board has started the case intro: phones wait for the suspect cards before they open
+    the files. Only once, and only early in the reveal (a board opened late does not hold up
+    the reading). Returns the same game if nothing changes."""
+    if (game["phase"] != "REVEAL" or game.get("board_intro") is not None
+            or now - game["phase_started"] > BOARD_INTRO_LATE):
+        return game
+    game = copy.deepcopy(game)
+    game["board_intro"] = now
+    return game
+
+
+def board_intro_at(game):
+    """When the board started the case intro in this reveal, or None."""
+    return game.get("board_intro") if game["phase"] == "REVEAL" else None
 
 
 def max_minutes():

@@ -119,6 +119,7 @@ def views(game, online, token=None):
     public = logic.public_view(game, online)
     public["story"] = logic.story_view(game)
     public["map"] = logic.map_view(game)
+    public["board_intro"] = logic.board_intro_at(game)      # when the board started the case intro
     public["busy"] = logic.busy_places(game, time.time())   # held by somebody (who stays private)
     public["hot_seat"] = logic.hot_seat_view(game)          # None outside the discussion
     me = logic.private_view(game, token)
@@ -210,17 +211,19 @@ def play_case_intro(code, public, scene=False):
     """The intro of this room's case plays once on each screen, when the game starts.
     scene=True (the board): with the crime-scene moment before the title.
     A phone that reloads later in the reveal (a locked screen, a dropped connection) starts a
-    new session; it must not see the 14-second intro again, which would cover "Open your file"
-    while the 40 seconds run out."""
+    new session; it must not see the 14-second intro again, which would cover "Open your file".
+    Returns True when the intro was started on this screen."""
     key = f"case_intro_{code}"
     if public["phase"] == "REVEAL" and not st.session_state.get(key):
         st.session_state[key] = True
         late = public["deadline"] is not None and (
             logic.DURATIONS["REVEAL"] - seconds_left(public) > INTRO_LATE)
         if late and not scene:
-            return
+            return False
         players = public["players"] if scene else None      # the board introduces the suspects
         show(ui.case_intro(public["story"], suspects=len(public["players"]), scene=scene, players=players))
+        return True
+    return False
 
 
 def case_kicker(public):
@@ -763,7 +766,9 @@ def board_screen(code):
         st.session_state["board_phase"] = public["phase"]
     board_live(code)                             # first: always at the same place (see player_screen)
     if public is not None:
-        play_case_intro(code, public, scene=True)
+        if play_case_intro(code, public, scene=True):
+            # Tell the phones: they wait for the suspect cards before the files open.
+            attempt(code, lambda g, on, now: logic.mark_board_intro(g, now))
         keep_screen_on()                         # the projector laptop must not go to sleep either
 
 
@@ -837,7 +842,7 @@ def signature(public, me):
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
             evidence, me["host_note"], me.get("ai_status"), players, places, public.get("paused_since"),
-            hot_seat_signature(public, me))
+            hot_seat_signature(public, me), file_wait(public) > 0)
 
 
 def hot_seat_signature(public, me):
@@ -890,6 +895,16 @@ def show_case_file(story):
     card, so they can be looked up at any time from "Read your file" to the vote."""
     with st.expander(f"Case file: {ui.md(story['case_title'])}", expanded=False):
         show(ui.case_file(story))
+
+
+def file_wait(public):
+    """Seconds until the file may be opened. Only when a board is really showing the case intro
+    (logic.mark_board_intro): then everybody first watches the suspects (ui.SUSPECTS_LAST_IN)
+    and reads afterwards. Without a board the file opens at once."""
+    started = public.get("board_intro")
+    if public["phase"] != "REVEAL" or started is None or public["deadline"] is None:
+        return 0
+    return max(0, int(round(started + ui.SUSPECTS_LAST_IN - time.time())))
 
 
 def sealed_card(code, me, story):
@@ -1481,6 +1496,8 @@ def player_screen(code, token):
         st.error(public["abort_reason"])
     elif phase == "RESULT":
         show_result(public)
+    elif phase == "REVEAL" and file_wait(public):
+        show(ui.watch_board())                   # first everybody looks up: the suspects on the board
     elif phase == "REVEAL":
         sealed_card(code, me, public["story"])
         st.info("Read your file. The investigation starts in a moment.")

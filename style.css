@@ -603,7 +603,7 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .eb-b { font: .9rem/1.4 var(--sans); }
 
 /* ---------- board intro: crime scene 8.4–16 s, suspects one by one 16.4–34.6 s (ui.py), out 35 s ---------- */
-.intro.long { animation: introOut .8s ease 35s forwards; }
+.intro.long { animation: introOut .8s ease 58s forwards; }
 .intro.long .final { display: none; }            /* the board shows the case title right after */
 .intro.long .glitch { animation: glitch .25s steps(2) 7.6s 2, glitch .25s steps(2) 15.9s 2; }
 .intro .scene, .intro .lineup { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
@@ -624,7 +624,7 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .intro .scene .twist { font-family: var(--serif); font-style: italic; color: var(--ivory); font-size: clamp(1.1rem, 2.6vw, 1.7rem);
   margin-top: 1.2rem; animation: lineIn .6s ease 11.2s both; }
 /* the lineup: cards fly in one after another (--in comes from ui.lineup) and stay */
-.intro .lineup { opacity: 0; animation: sceneIn .4s ease 16.1s forwards, sceneOut .4s ease 34.6s forwards; }
+.intro .lineup { opacity: 0; animation: sceneIn .4s ease 16.1s forwards, sceneOut .4s ease 57.6s forwards; }
 .intro .lineup .lk { font: 700 1.1rem var(--mono); letter-spacing: .4em; text-transform: uppercase; color: var(--blood); margin-bottom: 1.4rem; }
 .intro .lu-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 1.1rem; max-width: 84rem; padding: 0 1rem; }
 .intro .lu { width: clamp(10rem, 14vw, 14rem); padding: .9rem 1rem 1.1rem; background: var(--paper); color: var(--ink);
@@ -789,3 +789,9 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 /* the board intro: after the quick suspect cards, a calm note while the phones read their files */
 .intro .lu-wait { margin-top: 1.6rem; font-family: var(--serif); font-style: italic; font-size: clamp(1rem, 1.8vw, 1.3rem);
   color: var(--gold); opacity: 0; animation: lineIn .6s ease var(--wait) forwards; }
+
+/* ---------- phone: look at the board while it introduces the suspects ---------- */
+.watch { border: 2px solid var(--gold); border-radius: 8px; padding: 1rem 1.1rem; margin: .4rem 0 1rem; background: rgba(212,168,83,.08); }
+.watch .wk { font: 700 .85rem var(--mono); letter-spacing: .22em; text-transform: uppercase; color: var(--gold); }
+.watch .wt { font-family: var(--serif); font-size: 1.35rem; line-height: 1.25; color: var(--ivory); margin: .4rem 0; }
+.watch .wc { font-family: var(--serif); font-style: italic; color: #B9BFCC; }

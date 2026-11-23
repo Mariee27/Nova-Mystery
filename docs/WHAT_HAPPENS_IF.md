@@ -65,7 +65,7 @@ They don't have the button, and the rules reject it as well. (DW 5)
 Do it out loud. The players sit in one room and question, accuse and defend their alibis face to face; the app has no question-and-answer function. (`test_dw07_interrogations_are_not_an_action_in_the_app`)
 
 **… nobody does anything?**
-The timers advance the phases: 30 s cards, 3 investigation rounds of up to 5 minutes each (a round ends early when everybody has moved or has nothing left to search or share), 3 min discussion, 1 min vote. (DW 6)
+The timers advance the phases: 60 s cards (20 s watching the suspects on the board, then 40 s reading), 3 investigation rounds of up to 5 minutes each (a round ends early when everybody has moved or has nothing left to search or share), 3 min discussion, 1 min vote. (DW 6)
 
 ## Security
 

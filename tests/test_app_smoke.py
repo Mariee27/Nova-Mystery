@@ -1036,3 +1036,33 @@ def test_clicking_join_twice_gives_one_seat_and_the_waiting_room(game_db):
         assert [p["name"] for p in db.load(conn, code)["players"]] == ["Ana"]   # no ghost seat
     finally:
         conn.close()
+
+
+def test_with_a_board_the_phones_watch_the_suspects_first_then_open_the_file(game_db):
+    board = Browser()
+    board.run(press=["Create room"])                             # this tab is the board
+    code = board.st.query_params["room"]
+    phones = []
+    for name in ["Ana", "Ben", "Caro", "Dev"]:
+        phone = Browser(room=code)
+        phone.run(press=["Join"], **{"Your name": name})
+        phones.append(phone)
+    phones[0].run(press=["Start game"], **{"Which case?": "rehearsal"})
+    board.run()                                                  # the board starts the case intro
+    page = phones[1].run()
+    assert "Look at the board" in page and 'class="envelope"' not in page
+    conn = db.connect(game_db)
+    try:                                                         # 25 s later: the cards are up
+        db.apply(conn, code, lambda g: dict(g, board_intro=g["board_intro"] - 25))
+    finally:
+        conn.close()
+    page = phones[1].run()
+    assert "Look at the board" not in page and 'class="envelope"' in page
+
+
+def test_without_a_board_the_file_opens_at_once(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
+    page = phone.run()
+    assert 'class="envelope"' in page and "Look at the board" not in page
