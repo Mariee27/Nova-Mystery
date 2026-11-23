@@ -116,7 +116,10 @@ Phases end early when everybody is done, and the host can skip ahead.
   (`logic.validate_story`) before it is used. If the AI is not set up, too slow, over its daily limit, or writes
   something that fails the checks, the AI writes one more case on its own (if the AI quota allows it; the
   host sees "The first AI case did not pass the checks …"). If that one fails too, or the AI service itself
-  fails (no key, limit, busy, timeout), only the host sees why and can try again or play case #001.
+  fails (no key, limit, busy, timeout), only the host sees why and can try again or play case #001. A case
+  refused by the checks names the first rules it broke ("Why: …", the full list is in the server log). Small
+  slips do not cost a case: the code shortens a text that is too long (after the last full sentence, or at a
+  word with "…") and turns "the murderer"/"the killer" in a clue into "someone".
   See section 4 for the setup.
 - **Every case has its own opening.** The home page plays a short intro about the game. When the host starts,
   every phone plays the intro of *this* case (six lines written with the story, then the case title) before the
@@ -317,7 +320,7 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | File | Tests | What it checks |
 |---|---|---|
 | `tests/test_rules.py` | 141 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, the pause when players drop out, planting rules, removing players, names that only look like another one. Rejected calls must leave the game unchanged. |
-| `tests/test_ai_cases.py` | 118 | AI stories: reading the answer, the checks, the repair round, busy models, the story on every screen. |
+| `tests/test_ai_cases.py` | 131 | AI stories: reading the answer, the checks, the repair round, slips the code repairs, busy models, the story on every screen. |
 | `tests/test_minigames.py` | 125 | The puzzles: solvable from the story (the lock from its note alone, with a new code every game), the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
 | `tests/test_case_minigames.py` | 70 | Mini-games that fit the case: five different games for the five places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
 | `tests/test_rounds_and_map.py` | 52 | Rounds, locked places and the campus map: every pin in its building, pins far enough apart to tap, no car park. |
@@ -328,13 +331,13 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
 | `tests/test_hot_seat.py` | 19 | The hot seat: allowed and refused picks and ratings, ties, the clock, the switch in `start`, only counts in the views, demo bots. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
-| `tests/test_app_smoke.py` | 32 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
+| `tests/test_app_smoke.py` | 33 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
 | `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
 | `tests/test_playtest_fixes.py` | 9 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 763 tests.
+All together: 777 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -464,7 +467,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (763 tests); tests/e2e/ the browser check
+tests/                  pytest suite (777 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)

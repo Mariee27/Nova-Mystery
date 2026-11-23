@@ -790,6 +790,23 @@ def test_the_second_try_is_the_last_one(game_db):
         conn.close()
 
 
+def test_the_rules_a_refused_case_broke_are_kept_for_the_host(game_db):
+    app = app_functions()
+    conn = db.connect(game_db)
+    try:
+        code = writing_room(conn)
+        calls = run_writer(app, code, [{}, {}])                  # rubbish twice
+        assert len(calls) == 2
+        game = db.load(conn, code)
+        case = game["ai_case"]
+        assert case["status"] == "failed" and case["reason"] == "the AI case did not pass the checks"
+        assert case["problems"] == logic.story_problems({})[:logic.AI_PROBLEMS_SHOWN]
+        host = next(p for p in game["players"] if p["pid"] == game["host"])
+        assert "Why: " + case["problems"][0] in logic.host_note(game, host["token"])
+    finally:
+        conn.close()
+
+
 def test_a_failing_service_is_not_asked_again_at_once(game_db):
     app = app_functions()
     conn = db.connect(game_db)
