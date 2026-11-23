@@ -37,6 +37,10 @@ FAKE_ANSWER = {
          "neutral_clue": "A life jacket hangs on its hook, perfectly dry."},
         {"name": "Horizon Hall", "icon": "🏛️", "flavor": "Rain drums on the glass roof.",
          "neutral_clue": "A vending machine hums with a full row of water bottles."},
+        {"name": "Hovione Atrium", "icon": "🏛️", "flavor": "Benches stand in rows under the dark skylight.",
+         "neutral_clue": "A forgotten scarf hangs over the back of a bench."},
+        {"name": "Santander Hall", "icon": "🧪", "flavor": "Fridges hum along an empty corridor of labs.",
+         "neutral_clue": "A timer on a lab bench beeps once, then goes quiet."},
     ],
     "suspects": [
         {"role": "The Exchange Student", "dossier": "Arrived from Milan in September.",
@@ -648,7 +652,7 @@ def test_a_trace_that_names_someone_is_made_neutral():
 
 def test_the_request_asks_for_spares_and_has_no_bracket_hints():
     prompt = ai.user_prompt()
-    assert "Exactly 7 suspects" in prompt and "exactly the 5 places above" in prompt
+    assert "Exactly 7 suspects" in prompt and "exactly the 7 places above" in prompt
     assert "[60]" not in prompt and "[40]" not in prompt
 
 
@@ -664,19 +668,19 @@ def test_every_request_gets_a_theme_and_a_letter_for_the_victim():
 
 # ---------------------------------------------------------------- places on the campus map
 
-def test_the_ai_writes_about_five_given_campus_places():
+def test_the_ai_writes_about_seven_given_campus_places():
     import random
     places = ai.pick_places(random.Random(3))
-    assert len(places) == 5 and all(place in content.PLACES for place in places)
+    assert len(places) == 7 == logic.NUMBER_OF_LOCATIONS and len(set(places)) == 7 and all(place in content.PLACES for place in places)
     prompt = ai.user_prompt(random.Random(3), places=places)
     assert ", ".join(places) in prompt and "<PLACES>" not in prompt
 
 
 def test_answer_texts_are_matched_to_the_given_places_by_name_or_order():
-    places = ["Library", "Auditorium", "Main Deck", "Beach", "Horizon Hall"]
+    places = ["Library", "Auditorium", "Main Deck", "Beach", "Horizon Hall", "Hovione Atrium", "Santander Hall"]
     answer = copy.deepcopy(FAKE_ANSWER)
     answer["locations"].reverse()                       # any order
-    answer["locations"][0]["name"] = "Horizon"          # a shortened name
+    next(loc for loc in answer["locations"] if loc["name"] == "Horizon Hall")["name"] = "Horizon"   # shortened
     story = ai.parse_story(json.dumps(answer), places)
     assert story["locations"] == places
     assert logic.validate_story(story) == []

@@ -886,3 +886,10 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 @keyframes finaleOut { to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .finale { display: none; } }
 
+/* A place somebody else is searching right now (solving its mini-game): amber, not tappable. */
+.pin2.busy .pc { background: #3A2E10; border: 2px solid #E0A93B; color: #F3C969; box-shadow: 0 0 0 4px rgba(224,169,59,.25);
+  animation: busyPulse 1.6s ease-in-out infinite; }
+.pin2.busy .pn { color: #F3C969; }
+.pin2.busy .ps { color: #E0A93B; }
+@keyframes busyPulse { 50% { box-shadow: 0 0 0 8px rgba(224,169,59,.08); } }
+@media (prefers-reduced-motion: reduce) { .pin2.busy .pc { animation: none; } }

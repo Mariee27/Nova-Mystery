@@ -298,7 +298,8 @@ def suspect_list(players, phase, me_pid=None):
 # HTML on top of it at the same percent positions, so text never stretches and, on the
 # phone, the pins can be links.
 
-STATE_LABELS = {"open": "Not searched yet", "done": "Searched", "locked": "Locked"}
+STATE_LABELS = {"open": "Not searched yet", "done": "Searched", "locked": "Locked",
+                "busy": "Somebody is searching it right now"}
 ICONS = {
     "lock": '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
     "check": '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
@@ -345,7 +346,7 @@ def _plan_ground():
 
 
 def campus_map(searched, scene=None, story=None, view=None, links=None, active=True,
-               selected=None, board=False):
+               selected=None, board=False, busy=()):
     """The campus plan with a pin for every place of this case.
 
     view: logic.map_view(game), the state of every place (open, done, locked).
@@ -355,6 +356,8 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
     selected: the place whose paper card is open on the phone (gets a gold ring).
     board: True adds a second line under each name (opens in round …, just now).
     scene: the crime scene, marked on the result screen.
+    busy: open places somebody else is searching right now (solving its mini-game): shown as
+          "Being searched" and not tappable. Who it is stays secret.
     """
     story = _story(story)
     if view is None:
@@ -366,11 +369,14 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
     pins = []
     for index, item in enumerate(view["places"]):
         name, state = item["name"], item["state"]
+        if state == "open" and name in busy:
+            state = "busy"
         x, y, letter = _spot(name, index)
         found_in = item.get("found_in")
         just_now = state == "done" and found_in is not None and found_in == this_round
-        face = icon("lock") if state == "locked" else icon("check") if state == "done" else h(letter)
-        sub = ""
+        face = (icon("lock") if state == "locked" else icon("check") if state == "done"
+                else icon("search") if state == "busy" else h(letter))
+        sub = "Being searched" if state == "busy" else ""
         if board and state == "locked":
             sub = f"Opens round {item['opens_in']}"
         elif board and state == "done":
@@ -381,7 +387,7 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
         inner = f'<span class="pc">{face}</span><span class="pl"><span class="pn">{h(name)}</span>{sub_html}</span>'
         style = f"left:{x}%;top:{y}%"
         label = f"{name}: {STATE_LABELS.get(state, '')}"
-        href = links.get(name)
+        href = links.get(name) if state != "busy" else None
         if href:
             pins.append(f'<a class="{css}" href="{h(href)}" target="_self" style="{style}" '
                         f'aria-label="{h(label)}">{inner}</a>')

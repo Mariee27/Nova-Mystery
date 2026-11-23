@@ -106,8 +106,8 @@ PLACES = {
 
 OPEN_AIR = {name for name, place in PLACES.items() if place.get("open_air")}   # no keycard reader there
 
-# Case #001 happens at these five places.
-LOCATIONS = ["Santander Hall", "Library", "Horizon Hall", "Auditorium", "Main Deck"]
+# Case #001 happens at these seven places (every case has seven: logic.NUMBER_OF_LOCATIONS).
+LOCATIONS = ["Santander Hall", "Library", "Horizon Hall", "Auditorium", "Main Deck", "Hovione Atrium", "Beach"]
 
 LOCATION_FLAVOR = {
     "Santander Hall": "Vale's lab on the second floor. Centrifuges tick as they cool down; a whiteboard still shows his handwriting, half wiped away.",
@@ -115,6 +115,8 @@ LOCATION_FLAVOR = {
     "Horizon Hall": "The server room in the basement: cold air, blinking lights and the hum of forty machines. One rack door is open that should be locked.",
     "Auditorium": "Rows of red seats in the dark. The stage light is still warm, as if someone switched it off a minute ago.",
     "Main Deck": "The guard's booth on the deck: twelve camera screens, two of them black, and a cold coffee next to tonight's patrol log.",
+    "Hovione Atrium": "The glass atrium at night: the skylight drips with rain, and the long benches throw shadows like ribs across the floor.",
+    "Beach": "Wet sand below the campus wall. The tide has wiped out most footprints; a lifeguard tower stands black against the lights of Cascais.",
 }
 
 LOCATION_ICONS = {place: PLACES[place]["icon"] for place in LOCATIONS}
@@ -177,6 +179,8 @@ NEUTRAL_LOCATION_CLUES = {
     "Horizon Hall": "A backup job finished at 22:00 as planned. The status lights are all green.",
     "Auditorium": "A forgotten programme from last week's concert lies on seat F12, folded into a paper boat.",
     "Main Deck": "The lost-and-found box holds two umbrellas, one glove and a forgotten student card.",
+    "Hovione Atrium": "A cleaning cart stands by the stairs, its bucket still half full. The floor is dry and spotless.",
+    "Beach": "A volleyball net sags in the wind. Somebody built a sandcastle that the tide has half eaten.",
 }
 
 NEUTRAL_PRIVATE_CLUES = [
@@ -202,6 +206,14 @@ TEMPLATES = {
                     "nobody was inside.",
     "alibi_broken_open_air": "The night camera at the {location} shows nobody between 23:15 and 23:45: "
                              "nobody came or went.",
+    # Two who spent the evening together: the log or the camera of their place clears them both
+    # (the rumor about one of them was only talk).
+    "present_pair": "The keycard log of the {location} shows {role} and {other} inside the whole time from 23:10 to 23:50.",
+    "present_pair_open_air": "The night camera at the {location} shows {role} and {other} there the whole time from 23:10 to 23:50.",
+    # The culprit's way to the crime scene, through a place where nobody was: no name, but the
+    # object they lose at the scene a few minutes later (compare with the dossiers and the scene).
+    "route": "Keycard log, {location}: one swipe at 23:24, no one else all night. Camera: a hand with {trace}.",
+    "route_open_air": "Night camera, {location}: one figure at 23:24, face turned away, holding {trace}.",
     # Somebody who was alone all evening: the log or the camera of their place vouches for them.
     "present": "The keycard log of the {location} shows {role} inside the whole time from 23:10 to 23:50.",
     "present_open_air": "The night camera at the {location} shows {role} there the whole time from 23:10 to 23:50.",

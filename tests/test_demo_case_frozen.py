@@ -10,6 +10,9 @@ Set again on purpose when the key evidence stopped naming the culprit: the objec
 owner (the dossiers say who carries what), the empty log names nobody (compare the alibis), and the
 culprit's walk before the keycard window has two times of its own instead of 23:05 on both cards.
 Only those texts and times changed; every fact, card and lock stayed the same.
+Set again on purpose when every case got seven places instead of five (the team agreed): case #001
+gained the Hovione Atrium and the Beach, and two new place clues (the culprit's way to the scene and
+the log that clears a pair). With seven places the dice fall differently, so the demo has new facts.
 The words of the mini-games (story["minigames"]) are not part of the story fingerprint: they
 decide nothing about the case and are checked in tests/test_case_minigames.py.
 """
@@ -23,20 +26,20 @@ import generator
 import logic
 
 FINGERPRINTS = {
-    "demo-4": "ea33d6b26eb41553",
-    "story001-4-1": "4008e92562c0fe0e",
-    "story001-4-7": "a2f1cf4a524900d2",
-    "story001-4-12345": "97612ba9778b011f",
-    "demo-5": "7ddd948788ecdb52",
-    "story001-5-1": "31db2721a303dd99",
-    "story001-5-7": "8e5236dfc94a0438",
-    "story001-5-12345": "b6499f1627968a88",
-    "demo-6": "24702e7872837fd1",
-    "story001-6-1": "c9fb786ddd73ebd2",
-    "story001-6-7": "8e707aaff0aeaab0",
-    "story001-6-12345": "1f4b565effff8a26",
+    "demo-4": "114c801b1aa70426",
+    "story001-4-1": "171c31c26140b5fb",
+    "story001-4-7": "a8b34c74a2da1348",
+    "story001-4-12345": "96b7450104dbd4f0",
+    "demo-5": "caf0cae2df2b4d6d",
+    "story001-5-1": "70ec9d41f3fdfd87",
+    "story001-5-7": "9e6e689d3386c3f1",
+    "story001-5-12345": "24137cffa910cb79",
+    "demo-6": "9c0f5512b1b8fa17",
+    "story001-6-1": "457cd98c5485ffa3",
+    "story001-6-7": "857c47abd8c142fa",
+    "story001-6-12345": "12f417df19ee5846",
 }
-STORY_FINGERPRINT = "7d4dc5ce8c5e370e"   # "Carcavelos" instead of "Lisbon" in the intro and an ending
+STORY_FINGERPRINT = "d19dea8790399080"   # seven places: Hovione Atrium and Beach added
 
 
 def fingerprint(data):
@@ -71,9 +74,9 @@ def test_the_demo_switch_starts_exactly_the_same_game_as_before(n):
     assert "solution" not in game["case"] and "balance" not in game["case"]
 
 
-# Who did it, where, and what they claim: the same as before the cards were repaired.
+# Who did it, where, and what they claim in the demo: set anew with the seven places.
 FACTS_BEFORE_THE_REPAIR = {
-    4: (4, "Main Deck", "Santander Hall"), 5: (5, "Main Deck", "Santander Hall"), 6: (5, "Auditorium", "Main Deck"),
+    4: (4, "Beach", "Santander Hall"), 5: (5, "Main Deck", "Library"), 6: (5, "Auditorium", "Horizon Hall"),
 }
 
 

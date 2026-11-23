@@ -870,8 +870,10 @@ def signature(public, me):
     players = tuple((p["pid"], p["online"], p["acted"], p["voted"], p.get("stand_in")) for p in public["players"])
     # The round and the state of every place: the map's markers depend on them.
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
+    # Places somebody is searching right now: the map shows them as "Being searched".
+    busy = tuple(public.get("busy", []))
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
-            evidence, me["host_note"], me.get("ai_status"), players, places, public.get("paused_since"),
+            evidence, me["host_note"], me.get("ai_status"), players, places, busy, public.get("paused_since"),
             hot_seat_signature(public, me), file_wait(public) > 0)
 
 
@@ -1208,8 +1210,9 @@ def search_step(code, token, public, me, move):
     places = {p["name"]: p for p in public["map"]["places"]}
     place = move.get("place") if move.get("place") in places else None
     links = {name: move_link(code, token, {"step": "search", "place": name}) for name in places}
+    busy = set(public.get("busy", [])) - {me.get("holding")}     # held by somebody else
     show(ui.campus_map(public["searched"], story=public["story"], view=public["map"],
-                       links=links, selected=place))
+                       links=links, selected=place, busy=busy))
     found = [e for e in public["log"] if e["kind"] == "search" and e.get("location") == place]
     show(ui.place_card(place, places.get(place), found, story=public["story"]))
     sealed = me["puzzles"].get(place)

@@ -189,9 +189,9 @@ def test_dw06_tick_does_not_mutate_input():
 
 # ================================================================ DW07
 def test_dw07_second_action_rejected():
-    g = logic.search(_inv(), "t1", LOC[0], 5)
+    g = logic.search(_inv(), "t1", open_places(_inv())[0], 5)
     assert g["acted"] == [1]
-    assert_rejected_unchanged(lambda x: logic.search(x, "t1", LOC[1], 6), g)
+    assert_rejected_unchanged(lambda x: logic.search(x, "t1", open_places(x)[0], 6), g)
     assert_rejected_unchanged(lambda x: logic.share(x, "t1", own_clue_ids(x, 1)[0], 6), g)
 
 
@@ -232,7 +232,7 @@ def test_dw07_search_appends_log_entry_and_marks_acted():
 
 
 def test_dw07_search_and_share_use_up_the_action():
-    g = logic.search(_inv(), "t1", LOC[0], 5)
+    g = logic.search(_inv(), "t1", open_places(_inv())[0], 5)
     assert g["acted"] == [1]
     g = logic.share(g, "t2", own_clue_ids(g, 2)[0], 6)
     assert sorted(g["acted"]) == [1, 2]
@@ -292,7 +292,7 @@ def test_dw09_successful_plant_does_not_use_up_murderers_action():
     e = g2["log"][-1]
     assert e["kind"] == "search" and e["planted"] is True
     assert e["implicates"] == inn[0] and e["clue_kind"] == "suspicious"
-    free = next(loc for loc in LOC if loc not in g2["searched"])
+    free = open_places(g2)[0]
     g3 = logic.search(g2, murderer_token(g2), free, 6)
     assert m in g3["acted"]
 
@@ -541,7 +541,7 @@ REJECTED_CALLS = {
     "start_non_host": (lambda: make_lobby(4), lambda g: logic.start(g, "t2", {1, 2, 3, 4}, 0, seed=1)),
     "start_unknown_token": (lambda: make_lobby(4), lambda g: logic.start(g, "zz", {1, 2, 3, 4}, 0, seed=1)),
     "end_phase_non_host": (lambda: make_started(5), lambda g: logic.end_phase(g, "t2", ON5, 1)),
-    "search_second_action": (_inv_searched, lambda g: logic.search(g, "t1", LOC[1], 6)),
+    "search_second_action": (_inv_searched, lambda g: logic.search(g, "t1", open_places(g)[0], 6)),
     "search_wrong_phase": (lambda: started_in("DISCUSSION"), lambda g: logic.search(g, "t1", LOC[0], 6)),
     "search_already_searched": (_inv_searched, lambda g: logic.search(g, "t2", g["searched"][0], 6)),
     "search_locked_place": (_inv, lambda g: logic.search(g, "t1", locked_places(g)[0], 5)),
@@ -565,7 +565,7 @@ def test_dw16_rejected_call_leaves_game_unchanged(name):
 def test_dw16_successful_calls_return_new_dict_and_do_not_mutate_input():
     g = _inv()
     before = json.dumps(g, sort_keys=True)
-    g2 = logic.search(g, "t1", LOC[0], 5)
+    g2 = logic.search(g, "t1", open_places(g)[0], 5)
     assert g2 is not g
     assert json.dumps(g, sort_keys=True) == before
     assert g2["acted"] == [1] and g["acted"] == []

@@ -57,7 +57,7 @@ def build_case(pids, seed, story=None):
     others = [loc for loc in locations if loc != murder_location]
     rng.shuffle(others)
     fake_alibi_location = others[0]            # where the murderer claims to have been
-    spots = others[1:]                         # where the innocents really were (3 places)
+    spots = others[1:]                         # where the innocents were, and places nobody was at
 
     # Groups: a pair, then a pair or a lone innocent, then whoever is left alone.
     order = list(innocents)
@@ -145,6 +145,27 @@ def build_case(pids, seed, story=None):
         place = true_location[pid]
         clue_at[place] = {"text": _place_text(templates, "present", place).format(location=place, role=role_of[pid]),
                           "implicates": None, "kind": "confirms", "seen": pid, "at": place}
+    # The culprit's way to the crime scene leads through a place where nobody spent the evening
+    # (a case has seven places, so there always is one): one swipe or one figure at 23:24, no
+    # name, but the object they lose at the scene minutes later.
+    empty = [loc for loc in spots if loc not in true_location.values()]
+    route_place = empty[0]
+    clue_at[route_place] = {
+        "text": _place_text(templates, "route", route_place).format(
+            location=route_place, trace=roles_text[role_of[murderer]]["trace"]),
+        "implicates": murderer, "kind": "route",
+    }
+    # The log of a pair's place clears both of them: the pair of an innocent a rumor points at
+    # (if that innocent spent the evening in a pair), otherwise the first pair.
+    pairs = [group for group in groups if len(group) > 1]
+    targets = [target for _, target in rumors if target != suspect]
+    pair = next((group for group in pairs if any(t in group for t in targets)), pairs[0])
+    pair_place = true_location[pair[0]]
+    clue_at[pair_place] = {
+        "text": _place_text(templates, "present_pair", pair_place).format(
+            location=pair_place, role=role_of[pair[0]], other=role_of[pair[1]]),
+        "implicates": None, "kind": "confirms", "seen": pair[0], "seen_also": pair[1], "at": pair_place,
+    }
     free = [loc for loc in spots if loc not in clue_at]
     if free and herring_target is not None:
         clue_at[free[0]] = {

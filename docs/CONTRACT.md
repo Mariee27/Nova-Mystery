@@ -28,7 +28,7 @@ MAX_TEXT = 140; MAX_NAME = 20; MAX_CLUE_TEXT = 200
 STRONG_KINDS = {"scene", "alibi_broken"}
 DEMO_SEED = 2026
 ```
-`content.LOCATIONS` is a list of exactly 5 location names. `content.ROLES` is a dict with exactly 6 role names as keys.
+`content.LOCATIONS` is a list of exactly 7 location names (`logic.NUMBER_OF_LOCATIONS`). `content.ROLES` is a dict with exactly 6 role names as keys.
 
 ## Game dict
 ```
@@ -73,7 +73,7 @@ with at least one vote; `votes` and `scene_votes` are every single ballot). AI c
  "characters": [{"pid": 1, "role": "The TA", "intro": str, "alibi_location": str, "alibi": str,
                  "true_location": str, "secret": str | None,      # None for the murderer
                  "clues": [clue, clue]}],                          # exactly 2 private clues
- "location_clues": [clue x 5]                                      # exactly one per location
+ "location_clues": [clue x 7]                                      # exactly one per location
 }
 ```
 Clue: `{"id": str, "text": str, "implicates": pid | None, "kind": "scene"|"alibi_broken"|"suspicious"|"confirms"|"neutral"}`.
@@ -89,7 +89,11 @@ scene" at 23:25, held by an innocent), plus an observation (`neutral`), a rumor 
 The rumor is held by the murderer or by an innocent; if the murderer holds it, an innocent holds one too and no note is
 found at a place. Place clues: the trace at the scene (`scene`, without its owner: the dossiers say who carries what), the log of the false alibi's place showing that nobody was there (no name: compare the alibis)
 (`alibi_broken`), the log of each lone innocent's place showing them there 23:10–23:50 (`confirms`), a note with a
-rumor (`suspicious`) and neutral observations. Open-air places (`content.OPEN_AIR`: Beach, Main Deck) have a night
+rumor (`suspicious`) and neutral observations. With seven places at least two are empty all evening. The
+culprit's way to the scene leads through one of them (`route`, implicates the culprit: one keycard swipe or one figure
+on camera at 23:24, no name, but holding the object that is later found at the scene). The log of one pair's place
+(the pair of an innocent a rumor points at, else the first pair) shows both of them there 23:10–23:50 (`confirms`
+with `"seen"` and `"seen_also"`, clears both). `balance` counts a `route` only once the crime scene is open. Open-air places (`content.OPEN_AIR`: Beach, Main Deck) have a night
 camera instead of a keycard log. Locked: the crime scene and the first lone innocent's place.
 
 `generator.build_case(pids: list[int], seed: int, story: dict | None = None) -> case` is deterministic for the same arguments. Without a story it uses case #001 (`content.DEFAULT_STORY`).
@@ -101,7 +105,7 @@ camera instead of a keycard log. Locked: the crime scene and the first lone inno
 3. No clue has an innocent as `implicates` with a strong kind. At most 1 clue with kind "suspicious" per innocent.
 4. Every clue's `implicates` is None or in `pids`; every location clue's `location` is one of the story's `locations`; every character role is one of the story's `roles` (without a story: case #001).
 5. No clue text contains "murderer" or "killer" (case-insensitive); every clue text has 1..200 characters.
-6. Exactly 5 location clues, one per location; exactly 2 private clues per character.
+6. Exactly one location clue per location (7); exactly 2 private clues per character.
 7. If the case has `"locked"`: exactly `LOCKED_PLACES` places, the crime scene among them, each opening in a round from 2 to `ROUNDS`; at least one strong place clue against the murderer is open in round 1.
 8. Clue ids are unique.
 
@@ -128,7 +132,8 @@ locked_until(game, location) -> int | None          # the round a locked place o
 search(game, token, location, now, proof=None) -> game
 open_place(game, token, location, now) -> game      # reserve a place while solving its mini-game
 place_holder(game, location, now) -> pid | None     # who holds the place right now
-busy_places(game, now) -> list[str]                 # places somebody holds (without saying who)
+busy_places(game, now) -> list[str]                 # places somebody holds (without saying who); the phone's
+                                                    # map shows the ones held by somebody else as "Being searched"
 my_hold(game, token, now) -> str | None             # the place this player holds
 share(game, token, clue_id, now) -> game
 has_move(game, pid) -> bool                         # an open unsearched place or an own unshared clue
@@ -341,7 +346,7 @@ gets a random theme and a random first letter for the victim, so rooms get diffe
   "location", "evidence_id" (the clue id), "evidence_no", "icon", "name", "exhibit", "verb", "story",
   "hints": [3 texts], ...kind-specific data}`. It never contains the answer: no code, no cipher key, no order.
   `private_view(...)["puzzles"]` maps every place to its spec during INVESTIGATION (else `{}`).
-  The five places of a case get the five kinds (`minigames.assignment`), so no kind comes twice.
+  The seven places of a case get the seven kinds (`minigames.assignment`), so no kind comes twice.
   Puzzle and scratch specs have `"image"` (SVG from `exhibits.camera_still` / `exhibits.document`); scratch
   has `"cover"`; order has `"items"`: `[{"letter", "when", "text"}]` in the shuffled order shown.
 - `story["minigames"]` (optional): `{kind: piece}` with `exhibit` and `story` (containing `{location}`; may use
