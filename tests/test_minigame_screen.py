@@ -10,12 +10,15 @@ from test_app_smoke import HOST_SKIP, Browser, game_db, host_room, tap  # noqa: 
 
 
 def first_round(game_db):
-    """A room (you + 4 other players) in round 1 of the investigation, case #001."""
+    """A room (you + 4 other players) in round 1 of the investigation: case #001, always with
+    the same seed, so the places and their mini-games are the same in every run."""
     phone = host_room()
-    code = phone.st.query_params["room"]
-    phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
-    phone.run(press=[HOST_SKIP])
+    code, token = phone.st.query_params["room"], phone.st.query_params["t"]
     conn = db.connect(game_db)
+    everybody = {1, 2, 3, 4, 5}
+    db.apply(conn, code, lambda g: logic.start(g, token, everybody, time.time(), seed=logic.DEMO_SEED,
+                                               fixed_case=True))
+    phone.run(press=[HOST_SKIP])
     assert db.load(conn, code)["phase"] == "INVESTIGATION"
     return phone, code, conn
 
