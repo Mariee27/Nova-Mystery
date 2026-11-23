@@ -762,6 +762,15 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 @keyframes roundIn { from { opacity: 0; transform: translateY(-6px) scale(.95); } }
 @media (prefers-reduced-motion: reduce) { .round-banner.new { animation: none; } }
 
+/* The case file on the phones (ui.case_file): the facts of the night, folded away like the card. */
+.casefile { background: linear-gradient(180deg, rgba(31,41,55,.95), rgba(17,24,39,.95)); border: 1px solid rgba(212,168,83,.35);
+  border-radius: 3px; padding: 1rem 1.1rem; }
+.casefile .role { font-family: var(--serif); font-weight: 800; font-size: 1.35rem; color: var(--ivory); margin: .15rem 0 .7rem; }
+.casefile .cf-row { display: flex; gap: .8rem; padding: .45rem 0; border-top: 1px dashed rgba(212,168,83,.25); line-height: 1.4; }
+.casefile .cf-row .lbl { flex: 0 0 6.8rem; margin: 0; padding-top: .15rem; }
+.casefile .cf-v { flex: 1; font-family: var(--serif); font-size: 1rem; color: var(--ivory); letter-spacing: normal; text-transform: none; }
+.casefile .cf-brief { margin-top: .7rem; padding-top: .7rem; border-top: 1px solid rgba(212,168,83,.35);
+  font-family: var(--serif); font-style: italic; line-height: 1.5; color: var(--ivory); }
 /* A tapped button looks pressed at once, before the server answers (WAKE_JS in app.py). */
 .nova-pressed { opacity: .6 !important; cursor: progress !important; }
 .stButton button.nova-pressed, [data-testid="stFormSubmitButton"] button.nova-pressed { position: relative; }
