@@ -923,6 +923,10 @@ def test_the_case_file_is_on_the_phone_from_the_reveal_to_the_vote(game_db):
         phone.run(press=[HOST_SKIP])
         assert db.load(conn, code)["phase"] == "RESULT"
         assert "Case file:" not in phone.run()                 # the result tells the whole story
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------------- double taps
 
 class Calls(list):

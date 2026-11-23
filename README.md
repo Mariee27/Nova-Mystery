@@ -341,16 +341,13 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
 | `tests/test_hot_seat.py` | 19 | The hot seat: allowed and refused picks and ratings, ties, the clock, the switch in `start`, only counts in the views, demo bots. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
-| `tests/test_app_smoke.py` | 33 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
-| `tests/test_app_smoke.py` | 37 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
+| `tests/test_app_smoke.py` | 39 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
 | `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
 | `tests/test_playtest_fixes.py` | 9 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 766 tests.
-All together: 777 tests.
-All together: 768 tests.
+All together: 785 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -480,9 +477,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (766 tests); tests/e2e/ the browser check
-tests/                  pytest suite (777 tests); tests/e2e/ the browser check
-tests/                  pytest suite (768 tests); tests/e2e/ the browser check
+tests/                  pytest suite (785 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)
