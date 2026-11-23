@@ -122,8 +122,12 @@ def views(game, online, token=None):
     public["board_intro"] = logic.board_intro_at(game)      # when the board started the case intro
     public["busy"] = logic.busy_places(game, time.time())   # held by somebody (who stays private)
     public["hot_seat"] = logic.hot_seat_view(game)          # None outside the discussion
+    public["threads"] = logic.thread_view(game)            # red threads: counts only, never who
+    public["cut"] = logic.cut_view(game)                   # the connection the murderer cut
+    public["awards"] = logic.hall_of_fame(game)            # None before the result
     me = logic.private_view(game, token)
     if me is not None:
+        me.update(logic.my_threads(game, token))           # my own threads, and may I cut one
         me["holding"] = logic.my_hold(game, token, time.time())
         me["hot_seat"] = logic.my_hot_seat(game, token)      # only my own pick and rating
         me["host_note"] = logic.host_note(game, token)
@@ -491,22 +495,60 @@ def show_rules(expanded=False):
         st.markdown(content.HOW_TO_PLAY)
 
 
-def show_players(public):
-    show(ui.suspects(public["players"], public["phase"], story=public["story"]))
+ARRIVE_SECONDS = 4   # how long a newly joined player's card keeps its fly-in animation on the board
 
 
-def show_wall(public):
+def show_players(public, board=False):
+    """The suspects' cards. board=True in the lobby: a player who joined since this board's
+    last look flies in (the board remembers whom it has seen in its session)."""
+    arrive = ()
+    if board and public["phase"] == "LOBBY":
+        # pid -> when this board first saw them. Players already there when the board opens
+        # count as seen long ago. A card keeps its "arrive" class for ARRIVE_SECONDS, so the
+        # next polls draw the same HTML and do not cut the animation short.
+        seen_key = f"board_seen_{public['code']}"
+        now = time.time()
+        first = seen_key not in st.session_state
+        seen = st.session_state.setdefault(seen_key, {})
+        for p in public["players"]:
+            seen.setdefault(p["pid"], 0 if first else now)
+        arrive = {pid for pid, since in seen.items() if now - since < ARRIVE_SECONDS}
+    show(ui.suspects(public["players"], public["phase"], story=public["story"], arrive=arrive))
+
+
+def show_wall(public, board=False):
     """The evidence wall: every exhibit and statement pinned to the cork board, newest first.
-    The same wall on the board and on every phone, from the first round to the result."""
-    show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid), story=public["story"]))
+    The same wall on the board and on every phone, from the first round to the result.
+    board=True: the newest note is typed onto the projector letter by letter."""
+    show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid), story=public["story"],
+                          typewriter=board, threads=public.get("threads", ())))
 
 
-def show_result(public):
+def show_threads(public, culprit=None):
+    """The red-thread board (projector): which notes the room connects to which suspect."""
+    show(ui.thread_board(public["log"], public["players"], public.get("threads", []), public.get("cut"),
+                         time.time(), lambda pid: name_of(public, pid), story=public["story"], culprit=culprit))
+
+
+FINALE_SECONDS = 30   # ui.finale fades itself out after about 16.4 s; the margin covers a slow page load
+
+
+def show_result(public, board=False):
     result = public["result"]
     characters = public["characters"]
     who = lambda pid: name_of(public, pid)   # noqa: E731
     story = public["story"]
+    if board:
+        # The big moment plays once on the board: countdown, the ballots race, the card turns.
+        # The board redraws every POLL_SECONDS: the same HTML is drawn again for FINALE_SECONDS,
+        # so the browser keeps the running animation; after that it is gone for good.
+        started = st.session_state.setdefault(f"finale_{public['code']}", time.time())
+        if time.time() - started < FINALE_SECONDS:
+            show(ui.finale(result, public["players"], who, story=story))
     show(ui.reveal(result, characters, who, story=story))
+    if public.get("awards"):
+        st.markdown("### Hall of fame")
+        show(ui.awards(public["awards"], who))
     # The ballots come right after the culprit, over the full width: the moment everybody reacts to.
     st.markdown("### How everyone voted")
     show(ui.vote_table(result, public["players"], who))
@@ -524,6 +566,10 @@ def show_result(public):
         st.markdown("### Where it happened")
         show(ui.campus_map(public["searched"], scene=result["murder_location"], story=story,
                            view=public["map"]))
+    if board and public.get("threads"):
+        st.markdown("### The red threads")
+        st.caption("Gold: the threads that pointed at the real culprit.")
+        show_threads(public, culprit=result["murderer"])
     st.markdown("### The evidence, re-examined")
     st.caption("Now that the case is closed, every exhibit shows how reliable it really was.")
     show_wall(public)
@@ -697,7 +743,7 @@ def board_live(code):
     if phase == "ABORTED":
         st.error(public["abort_reason"])
     if phase == "RESULT":
-        show_result(public)
+        show_result(public, board=True)
         return
     if phase == "LOBBY":
         left, right = st.columns([2, 3])
@@ -719,10 +765,18 @@ def board_live(code):
                 st.caption("Open this app on your phone and enter the room code.")
         with right:
             st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
-            show_players(public)
+            show_players(public, board=True)
             # The projector has room for the rules while everybody joins.
             st.markdown("**How to play**")
             st.markdown(content.HOW_TO_PLAY)
+        return
+    if phase in ("DISCUSSION", "VOTE"):
+        # The room argues: the red threads get the whole board, the wall follows below.
+        st.markdown('<div class="kicker">The red threads · connect a note to a suspect on your phone</div>',
+                    unsafe_allow_html=True)
+        show_threads(public)
+        st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
+        show_wall(public, board=True)
         return
     st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
     show_players(public)
@@ -734,7 +788,7 @@ def board_live(code):
         st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
     with right:
         st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
-        show_wall(public)
+        show_wall(public, board=True)
 
 
 def board_round(code, public):
@@ -757,7 +811,7 @@ def board_round(code, public):
         show(ui.detectives(public["players"]))
     # Under the map, over the full width: room for many notes, from every round so far.
     st.markdown('<div class="kicker">Evidence wall · all rounds</div>', unsafe_allow_html=True)
-    show_wall(public)
+    show_wall(public, board=True)
 
 
 def board_screen(code):
@@ -843,7 +897,10 @@ def signature(public, me):
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
             evidence, me["host_note"], me.get("ai_status"), players, places, public.get("paused_since"),
-            hot_seat_signature(public, me), file_wait(public) > 0)
+            hot_seat_signature(public, me), file_wait(public) > 0,
+            # The red threads: the counts on the wall's notes, and whether the murderer may cut.
+            tuple((t["entry"], t["pid"], t["count"]) for t in public.get("threads", [])),
+            me.get("can_cut"), (public.get("cut") or {}).get("entry"))
 
 
 def hot_seat_signature(public, me):
@@ -1058,9 +1115,9 @@ def skip_label(public):
 # parameters into session_state["move"] and removes them from the address at once.
 # Every link carries the whole selection, so nothing gets lost on the reload.
 
-MOVE_STEPS = ("search", "share", "plant", "vote")
-MOVE_KEYS = ("place", "clue", "blame", "accuse")
-NUMBER_KEYS = ("blame", "accuse")
+MOVE_STEPS = ("search", "share", "plant", "vote", "thread", "cut")
+MOVE_KEYS = ("place", "clue", "blame", "accuse", "note", "suspect")
+NUMBER_KEYS = ("blame", "accuse", "note", "suspect")
 
 
 def move_link(code, token, move):
@@ -1165,6 +1222,7 @@ def choose_action(code, token, public, me):
         cards.append(plant_card(code, token))
     show(ui.action_cards(cards))
     show('<div class="hint">Interrogations happen face to face: ask, accuse, defend your alibi.</div>')
+    thread_cards(code, token, public, me)
 
 
 def plant_card(code, token):
@@ -1398,6 +1456,86 @@ def move_made(code, token, public, me):
     show(ui.waiting_list(public["players"], me["pid"]))
     if me["can_plant"]:
         show(ui.action_cards([plant_card(code, token)]))
+    thread_cards(code, token, public, me)
+
+
+def thread_cards(code, token, public, me):
+    """The free extras next to the move: pin a red thread, and (the murderer, in the
+    discussion) cut one."""
+    notes = sum(1 for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS)
+    mine = len(me.get("threads", {}))
+    cards = [{"href": move_link(code, token, {"step": "thread"}) if notes else None, "icon": "thread",
+              "title": "Pin a red thread", "text": "Connect a note on the wall to a suspect. Free, any time.",
+              "info": (f"{mine} of your threads on the board" if mine else "Anonymous: only the count is shown")
+              if notes else "No notes on the wall yet"}]
+    if me.get("can_cut"):
+        cards.append({"href": move_link(code, token, {"step": "cut"}), "icon": "cut", "css": "dark",
+                      "title": "Cut a thread", "text": "Once per game, in secret: one connection disappears.",
+                      "info": "Only you see this"})
+    show(ui.action_cards(cards))
+
+
+def thread_step(code, token, public, me, move):
+    """Pick a note, then the suspect it points at, then pin the thread."""
+    show(ui.back_link(move_link(code, token, {})))
+    show(ui.step_head("Pin a red thread", "Which note points at whom? The board shows how many agree, never who."))
+    notes = {e["id"]: e for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS}
+    note = move.get("note") if move.get("note") in notes else None
+    show(ui.label("The note"))
+    show(ui.chips([(move_link(code, token, dict(move, note=None if e_id == note else e_id)),
+                    f'#{e_id} · {notes[e_id]["text"]}', e_id == note) for e_id in sorted(notes, reverse=True)]))
+    if note is None:
+        return
+    others = [p for p in public["players"] if p["pid"] != me["pid"]]
+    current = me.get("threads", {}).get(note)
+    cut = public.get("cut") or {}
+    suspect = move.get("suspect") if any(p["pid"] == move.get("suspect") for p in others) else None
+    show(ui.label("points at"))
+    show(ui.pick_rows([(move_link(code, token, dict(move, suspect=p["pid"])), p["name"],
+                        p.get("role") if not (cut.get("entry") == note and cut.get("pid") == p["pid"])
+                        else "✂️ cut – cannot be pinned again", p["pid"] == suspect)
+                       for p in others]))
+    if suspect is not None and suspect != current:
+        action_button("🧵 Pin the thread", code,
+                      lambda g, on, now: logic.pin_thread(g, token, note, suspect, now),
+                      then=lambda saved: saved and st.session_state.update(move={}),
+                      type="primary", use_container_width=True)
+    if current is not None:
+        st.caption(f"Your thread on this note runs to {name_of(public, current)}.")
+        action_button("Take my thread down", code, lambda g, on, now: logic.unpin_thread(g, token, note, now),
+                      then=lambda saved: saved and st.session_state.update(move={}),
+                      use_container_width=True)
+
+
+def cut_step(code, token, public, me, move):
+    """The murderer picks one connection on the board and cuts it."""
+    show(ui.back_link(move_link(code, token, {})))
+    show(ui.step_head("Cut a thread", "Once per game. Every thread on that connection disappears, "
+                                      "and nobody can pin it again. Nobody learns who did it."))
+    notes = {e["id"]: e for e in public["log"]}
+    options = sorted(public.get("threads", []), key=lambda t: (-t["count"], t["entry"]))
+    chosen = (move.get("note"), move.get("suspect"))
+    show(ui.chips([(move_link(code, token, dict(move, note=t["entry"], suspect=t["pid"])),
+                    f'#{t["entry"]} → {name_of(public, t["pid"])} ({t["count"]}) · '
+                    f'{notes.get(t["entry"], {}).get("text", "")}',
+                    (t["entry"], t["pid"]) == chosen) for t in options]))
+    if any((t["entry"], t["pid"]) == chosen for t in options):
+        note, suspect = chosen
+        action_button("✂️ Cut it", code, lambda g, on, now: logic.cut_thread(g, token, note, suspect, now),
+                      then=lambda saved: saved and st.session_state.update(move={}),
+                      type="primary", use_container_width=True)
+
+
+def thread_steps(code, token, public, me):
+    """Shows the thread or cut step if one is open. Returns True when it did."""
+    move = st.session_state.get("move") or {}
+    if move.get("step") == "thread":
+        thread_step(code, token, public, me, move)
+        return True
+    if move.get("step") == "cut" and me.get("can_cut"):
+        cut_step(code, token, public, me, move)
+        return True
+    return False
 
 
 def investigation_actions(code, token, public, me):
@@ -1407,6 +1545,9 @@ def investigation_actions(code, token, public, me):
     if move and move.setdefault("round", public["map"]["round"]) != public["map"]["round"]:
         move = st.session_state["move"] = {}     # a new round starts with "Your move."
     step = move.get("step")
+    if step in ("thread", "cut"):
+        thread_steps(code, token, public, me)
+        return
     if step == "plant" and me["can_plant"]:
         plant_step(code, token, public, me, move)
     elif me["acted"]:
@@ -1510,8 +1651,10 @@ def player_screen(code, token):
     elif phase == "INVESTIGATION":
         investigation_actions(code, token, public, me)
     elif phase == "DISCUSSION":
-        pending_reward(code, public, token)      # an exhibit solved in the very last second
-        st.info("Talk to each other. Compare the alibis. Who is lying?")
+        if not pending_reward(code, public, token) and not thread_steps(code, token, public, me):
+            st.info("Talk to each other. Compare the alibis. Who is lying? "
+                    "Pin red threads: the board shows where the room points.")
+            thread_cards(code, token, public, me)
     elif phase == "VOTE":
         vote_form(code, token, public, me)
 

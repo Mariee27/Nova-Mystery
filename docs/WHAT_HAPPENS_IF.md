@@ -160,3 +160,6 @@ The screen says "Choose a clue to share." and your move is not used up. (`test_t
 
 **Can the map give the solution away?**
 No. It shows which places are open, searched or locked – public facts. The crime scene is always one of the two locked places at the start, so that the hunt has a middle; which of the two it is, the map does not say. (`test_the_map_never_gives_the_solution_away`)
+
+**Can anybody see who pinned a red thread, or who cut one?**
+No. The board and the phones only show how many threads run between a note and a suspect, and which connection was cut. Who pinned a thread is never sent to any screen; the cut is the murderer's secret. (`tests/test_threads.py`)

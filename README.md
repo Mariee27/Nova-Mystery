@@ -191,7 +191,17 @@ Phases end early when everybody is done, and the host can skip ahead.
   ("👍 Believe" / "👎 Lying"; the chosen button shows a tick and can be changed until the time is up). If a
   player is still reading newly unlocked evidence, the picking clock waits for their *Continue* (at most 45 s).
 - **The evidence wall** on the board and on every phone, the whole game: every exhibit and witness statement
-  pinned to a cork board, the newest note at the top, so nobody has to scroll to it.
+  pinned to a cork board, the newest note at the top, so nobody has to scroll to it. On the projector the newest
+  note is typed letter by letter like a terminal, and exhibit photos look like security-camera stills.
+- **Red threads.** On their phone, a player connects a note on the wall to the suspect it points at (free, any
+  time in the rounds and the discussion, anonymous, movable). In the discussion and the vote the projector shows
+  the red-thread board: the suspects on top, the notes below, a sagging string per connection, thicker the more
+  players agree; the most-suspected photo pulses. Once per game the murderer can secretly cut one connection in
+  the discussion: it snaps apart on the board and cannot be pinned again. Demo suspects pin threads too.
+- **A show on the projector.** In the lobby every player who joins flies in as a card; at the start the suspect
+  cards are dealt face down and turned over. When the vote is over the board plays a 16-second finale: countdown,
+  the ballots race as bars, a drum roll, the culprit's card turns over, the stamp lands. Then a **hall of fame**
+  on the board and every phone: sharpest detective, evidence hunter, star witness, red-thread oracle, master liar.
 - **Host tools:** choose the case, switch the hot seat on or off, start the game, skip ahead (the button says
   what it ends: "End round 1 now", "End the hot seat – next round", "Start the vote now", …), start the
   hot seat early, open the projector board with one button in the lobby, add demo suspects (computer players for presentations), remove strangers from the lobby.
@@ -382,7 +392,7 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_minigames.py` | 125 | The puzzles: solvable from the story (the lock from its note alone, with a new code every game), the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
 | `tests/test_case_minigames.py` | 72 | Mini-games that fit the case: five different games for the five places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
 | `tests/test_rounds_and_map.py` | 52 | Rounds, locked places and the campus map: every pin in its building, pins far enough apart to tap, no car park. |
-| `tests/test_nova.py` | 47 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file, the evidence wall newest first). |
+| `tests/test_nova.py` | 52 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file, the evidence wall newest first, the typed note, the lobby fly-in, the dealt cards, the finale, the hall of fame). |
 | `tests/test_balanced_ai_cases.py` | 38 | AI cases: medium difficulty, the solution file, the test reading, the host's choice, the AI's status. |
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
 | `tests/test_views.py` | 23 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card; the case file shows only public facts. |
@@ -390,13 +400,14 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_hot_seat.py` | 21 | The hot seat: allowed and refused picks and ratings, ties, the clock (and that it waits for a player reading new evidence), the switch in `start`, only counts in the views, demo bots. |
 | `tests/test_extra_minigames.py` | 29 | Spot the difference and Find the object: every variant solvable, wrong or forged taps refused, rubbish never crashes, a place shows its own picture, the Canteen and the Garage. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
-| `tests/test_app_smoke.py` | 42 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
+| `tests/test_app_smoke.py` | 46 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case, a broken database, red threads pinned and cut from a phone, the lobby fly-in and the finale. |
+| `tests/test_threads.py` | 11 | Red threads: anonymous counts, moving and taking down, refused cases, the murderer's one cut, threads do not use the move, demo suspects pin one at a time, the hall of fame. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
 | `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
-| `tests/test_playtest_fixes.py` | 13 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
+| `tests/test_playtest_fixes.py` | 14 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 830 tests.
+All together: 851 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -420,9 +431,9 @@ app.py         screens (Streamlit): board, phone, join form; only shows data and
 
 | File | Lines | Responsibility |
 |---|---|---|
-| `logic.py` | ~1620 | Rules, phases, timers, the pause, the hot seat, demo bots and stand-ins, results, the public and private views, case and story validator |
-| `app.py` | ~1530 | All screens and the polling loop |
-| `ui.py` | ~960 | HTML building blocks: map, cards, board, hot seat, result |
+| `logic.py` | ~1820 | Rules, phases, timers, the pause, the hot seat, red threads, demo bots and stand-ins, results and awards, the public and private views, case and story validator |
+| `app.py` | ~1690 | All screens and the polling loop |
+| `ui.py` | ~1100 | HTML building blocks: map, cards, board, hot seat, red threads, finale, result |
 | `ai.py` | ~730 | The AI request, reading and repairing the answer, the test reading |
 | `minigames.py` | ~570 | The first five mini-games: what the phone gets, the checks, hints, the case's words |
 | `minigames_extra.py` | ~370 | Spot the difference and Find the object: pictures, checks, hints |
@@ -566,7 +577,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (830 tests); tests/e2e/ the browser check
+tests/                  pytest suite (851 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)

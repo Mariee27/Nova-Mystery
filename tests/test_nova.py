@@ -439,3 +439,43 @@ def test_round_banner_says_when_a_new_round_has_begun():
     second = ui.round_banner(2, 3)
     assert "Round 2 of 3" in second and "everybody gets a new move" in second and "round-banner new" in second
     assert ui.round_banner(0, 3) == ""
+
+
+def test_the_board_types_only_the_newest_note_letter_by_letter():
+    log = [{"id": 1, "kind": "search", "by": None, "text": "Old <b>note</b>", "location": content.LOCATIONS[0]},
+           {"id": 2, "kind": "share", "by": 1, "text": "New & <i>shiny</i>"}]
+    board = ui.evidence_wall(log, str, typewriter=True)
+    assert board.count('class="typing"') == 1 and "<i>" not in board and "<b>" not in board
+    assert board.index('class="typing"') < board.index("Old &lt;b&gt;note")      # the newest, first
+    assert 'class="typing"' not in ui.evidence_wall(log, str)                      # phones: plain text
+    assert "CAM 01" in board and 'class="rec"' in board                            # a camera still
+
+
+def test_a_player_who_just_joined_flies_in_on_the_board():
+    players = [{"pid": 1, "name": "Ana", "online": True}, {"pid": 2, "name": "Ben", "online": True}]
+    html = ui.suspects(players, "LOBBY", arrive={2})
+    assert html.count("suspect arrive") == 1 and html.index("Ana") < html.index("suspect arrive")
+    assert "arrive" not in ui.suspects(players, "LOBBY")
+
+
+def test_the_suspects_are_dealt_from_one_deck():
+    players = [{"pid": i, "name": f"P{i}", "role": None} for i in (1, 2, 3)]
+    html = ui.lineup(players)
+    assert html.count("--dx:") == 3 and "--dx:15.0vw" in html and "--dx:-15.0vw" in html
+
+
+def test_the_finale_races_the_ballots_and_turns_the_culprits_card():
+    players = [{"pid": 1, "name": EVIL, "role": "The Dean"}, {"pid": 2, "name": "Ben", "role": "The Chef"}]
+    result = {"tally": {"2": 3, "1": 1}, "murderer": 2, "winner": "detectives", "ending": "truth"}
+    html = ui.finale(result, players, str)
+    assert "<script>" not in html and "Case closed" in html and "The Chef" in html
+    assert html.index("Ben") < html.index("&lt;script") and "--w:100%" in html and "--w:33%" in html
+    assert "Escaped" in ui.finale(dict(result, winner="murderer", ending="escaped"), players, str)
+
+
+def test_the_hall_of_fame_escapes_names_and_marks_the_villain():
+    items = [{"key": "hunter", "title": "🔍 Evidence hunter", "pids": [1, 2], "detail": "2 exhibits found."},
+             {"key": "liar", "title": "🎭 Master liar", "pids": [3], "detail": "Got away with it."}]
+    html = ui.awards(items, lambda pid: EVIL if pid == 1 else f"P{pid}")
+    assert "<script>" not in html and "P2" in html and html.count("award villain") == 1
+    assert ui.awards([], str) == ""
