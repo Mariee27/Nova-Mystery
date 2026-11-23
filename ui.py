@@ -581,17 +581,19 @@ def pinned_note(entry, name_of, newest=False, story=None):
     kind = entry["kind"]
     text = h(entry["text"])
     number = h(entry["id"])
+    # In which round it was found (log entries of the investigation carry their round).
+    when = f' · Round {h(entry["round"])}' if entry.get("round") else ""
     if kind == "search":       # an exhibit: a polaroid photo of the place
         icon = h(_story(story)["location_icons"].get(entry.get("location"), ""))
         css = "photo"
         body = (f'<div class="shot">{icon}</div>'
-                f'<div class="cap">Exhibit {number} · {h(entry.get("location", ""))}</div>'
+                f'<div class="cap">Exhibit {number} · {h(entry.get("location", ""))}{when}</div>'
                 f'<div class="b">{text}</div>')
         if entry.get("planted"):    # only known once the case is closed (see logic.public_view)
             body += '<div class="forged">Forged evidence: planted by the murderer</div>'
     elif kind == "share":      # a witness statement: typed paper
         css = "typed"
-        body = (f'<div class="cap">Exhibit {number} · Witness statement</div>'
+        body = (f'<div class="cap">Exhibit {number} · Witness statement{when}</div>'
                 f'<div class="b">{text}</div><div class="sig">– {h(name_of(entry["by"]))}</div>')
     else:                      # a message from the game itself
         css = "slip"

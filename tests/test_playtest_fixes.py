@@ -164,3 +164,17 @@ def test_the_board_marks_the_start_of_its_intro_once_and_only_early():
     assert logic.mark_board_intro(game, logic.BOARD_INTRO_LATE + 1) is game   # a late board: no wait
     later = logic.end_phase(marked, "t1", ON5, 30)
     assert logic.board_intro_at(later) is None                   # only in the reveal
+
+
+# ------------------------------------------------------------------ the evidence wall on the board
+
+def test_every_note_on_the_wall_says_in_which_round_it_was_found():
+    import ui
+    log = [{"id": 1, "kind": "search", "by": None, "text": "A note", "location": "Library", "round": 1},
+           {"id": 2, "kind": "share", "by": 2, "text": "I saw <b>it</b>", "round": 2},
+           {"id": 3, "kind": "system", "by": None, "text": "Investigation is over."}]
+    html = ui.evidence_wall(log, lambda pid: "Ben")
+    assert "Exhibit 1 · Library · Round 1" in html
+    assert "Exhibit 2 · Witness statement · Round 2" in html
+    assert "<b>it</b>" not in html                                 # still escaped
+    assert html.index("Exhibit 2") < html.index("Exhibit 1")       # newest first, across the rounds

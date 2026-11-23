@@ -739,7 +739,8 @@ def board_live(code):
 
 def board_round(code, public):
     """The board during the rounds: header with room, round and timer; the campus plan on
-    the left; on the right who has moved and the evidence wall."""
+    the left and who has moved on the right; below, over the full width, the evidence wall
+    with everything found in all rounds so far."""
     story = public["story"]
     if public["hot_seat"] is not None:
         # The break between two rounds: the hot seat gets the whole board (with its own clock).
@@ -754,8 +755,9 @@ def board_round(code, public):
         show(ui.campus_map(public["searched"], story=story, view=public["map"], board=True))
     with right:
         show(ui.detectives(public["players"]))
-        st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
-        show_wall(public)
+    # Under the map, over the full width: room for many notes, from every round so far.
+    st.markdown('<div class="kicker">Evidence wall · all rounds</div>', unsafe_allow_html=True)
+    show_wall(public)
 
 
 def board_screen(code):
