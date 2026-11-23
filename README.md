@@ -49,7 +49,7 @@ they never came.
 
 | Phase | Time | What happens |
 |---|---|---|
-| Reveal | 30 s | Everybody reads their card. |
+| Reveal | 40 s | The case intro plays, then everybody reads their card. |
 | Investigation | 3 rounds, each up to 5 min | Each round every player has exactly **one** action in the app: search a place on the **campus map** or share one of their clues. Interrogations happen **out loud**: the players question each other face to face. A round ends early when everybody has moved or has nothing left to search or share. The murderer may additionally plant one fake clue. |
 | Hot seat | after rounds 1 and 2, about 1 min | Everybody picks a suspect (20 s); the one with the most picks is grilled out loud for 45 s while the others tap *believe* or *lie*. Then the next round starts. |
 | Discussion | 3 min | Players question each other in person and argue (lying is allowed). |
@@ -119,10 +119,10 @@ Phases end early when everybody is done, and the host can skip ahead.
   fails (no key, limit, busy, timeout), only the host sees why and can try again or play case #001.
   See section 4 for the setup.
 - **Every case has its own opening.** The home page plays a short intro about the game. When the host starts,
-  every phone plays the intro of *this* case (six lines written with the story, then the case title) before the
-  private files open. The board plays a longer scene that everybody watches together: police tape and blue
+  every phone plays the intro of *this* case (six lines written with the story, one every 1.1 s, then the case
+  title; about 14 s, slow enough to read) before the private files open. The board plays a longer scene that everybody watches together: police tape and blue
   lights, the victim and where the body was found ("But this is not where Vale died."), then the suspects as
-  file cards (name, role, public dossier line) landing one by one, all within the 30 seconds of "Read your
+  file cards (name, role, public dossier line) landing one by one, all within the 40 seconds of "Read your
   file". Only public facts; who did it stays secret. While the AI is still writing, the lobby says so instead
   of showing an old case file.
 - **Every case is checked for fairness** before the game starts (exactly one murderer, at least two strong

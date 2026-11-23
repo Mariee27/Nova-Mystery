@@ -18,7 +18,7 @@ import generator
 import minigames
 
 PHASES = ["LOBBY", "REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE", "RESULT", "ABORTED"]
-DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
+DURATIONS = {"REVEAL": 40, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
 # The investigation has ROUNDS rounds. Each round lasts at most DURATIONS["INVESTIGATION"]
 # seconds and ends early when every online player has made their one move or has no move
 # left (nothing to search, nothing to share). Interrogations happen out loud, not in the app.

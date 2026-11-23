@@ -78,7 +78,8 @@ SUSPECT_RANGE = re.compile(r"4 to 6 suspects", re.IGNORECASE)
 
 
 def case_intro(story=None, suspects=None, scene=False, players=None):
-    """The shorter intro of one case (about 8 seconds), on the board and every phone at the start.
+    """The intro of one case, on the board and every phone at the start. Slow enough to read
+    aloud: a line every INTRO_LINE_STEP seconds, then the case title (phones: about 14 seconds).
 
     suspects: how many play in this room. Then "4 to 6 suspects." becomes e.g. "Five suspects."
     scene: the board adds a crime-scene moment (who died, where the body was found) and then
@@ -95,9 +96,16 @@ def case_intro(story=None, suspects=None, scene=False, players=None):
              f'<div class="title case">{h(story["case_title"])}</div>'
              '<div class="tag">Your file is waiting.</div>')
     if scene:
-        return _intro(story["intro_lines"], " case short long", 0.3, 0.65, final,
+        return _intro(story["intro_lines"], " case short long", INTRO_LINE_START, INTRO_LINE_STEP, final,
                       middle=crime_scene(story) + lineup(players or [], story))
-    return _intro(story["intro_lines"], " case short", 0.3, 0.65, final)
+    return _intro(story["intro_lines"], " case short", INTRO_LINE_START, INTRO_LINE_STEP, final)
+
+
+# The case intro (style.css: .intro.short / .intro.long use the same times): the six lines from
+# 0.4 s, one every 1.1 s (the last at 5.9 s), they fade at 7.8 s; phones then show the case
+# title from 8.4 s until 13.5 s, the board the crime scene from 8.4 s until 16 s.
+INTRO_LINE_START = 0.4
+INTRO_LINE_STEP = 1.1
 
 
 def crime_scene(story):
@@ -114,13 +122,13 @@ def crime_scene(story):
             f'{tape.format(" b")}</div>')
 
 
-# The board intro must be over before the reveal phase ends (logic.DURATIONS["REVEAL"] = 30 s):
+# The board intro must be over before the reveal phase ends (logic.DURATIONS["REVEAL"] = 40 s):
 # at the next phase the board redraws and the intro would be cut off.
-SUSPECTS_FROM = 10.8      # seconds: the first suspect card flies in after the crime scene
-SUSPECTS_LAST_IN = 21.0   # the last card has landed by then; all stay up to be read
+SUSPECTS_FROM = 16.4      # seconds: the first suspect card flies in after the crime scene
+SUSPECTS_LAST_IN = 28.0   # the last card has landed by then; all stay up to be read
 SUSPECTS_STEP = 3.0       # at most this many seconds between two cards (few players)
-SUSPECTS_UNTIL = 27.6     # the lineup fades out
-BOARD_INTRO_END = 28.0    # the whole intro fades out (style.css: .intro.long)
+SUSPECTS_UNTIL = 34.6     # the lineup fades out
+BOARD_INTRO_END = 35.0    # the whole intro fades out (style.css: .intro.long)
 
 def lineup(players, story=None):
     """The players as file cards that fly in one after another and stay, so the room can read
