@@ -762,3 +762,16 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
   animation: roundIn .5s cubic-bezier(.3,1.4,.5,1) both; }
 @keyframes roundIn { from { opacity: 0; transform: translateY(-6px) scale(.95); } }
 @media (prefers-reduced-motion: reduce) { .round-banner.new { animation: none; } }
+
+/* A tapped button looks pressed at once, before the server answers (WAKE_JS in app.py). */
+.nova-pressed { opacity: .6 !important; cursor: progress !important; }
+.stButton button.nova-pressed, [data-testid="stFormSubmitButton"] button.nova-pressed { position: relative; }
+.stButton button.nova-pressed::after, [data-testid="stFormSubmitButton"] button.nova-pressed::after {
+  content: ""; position: absolute; right: 12px; top: 50%; width: 14px; height: 14px; margin-top: -7px;
+  border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%;
+  animation: nova-spin .7s linear infinite;
+}
+@keyframes nova-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .stButton button.nova-pressed::after, [data-testid="stFormSubmitButton"] button.nova-pressed::after { animation: none; }
+}

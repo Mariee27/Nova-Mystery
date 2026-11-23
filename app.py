@@ -130,10 +130,58 @@ def views(game, online, token=None):
     return public, me
 
 
-def act(code, action):
-    """Run one action. action(game, online, now) -> game. Rejections are shown to the player."""
-    attempt(code, action)
-    st.rerun()
+def action_button(label, code, action, repeatable=False, then=None, **button_args):
+    """A button that saves action(game, online, now) -> game when it is tapped.
+
+    The action runs in the button's callback, before the page is drawn: one trip from the phone
+    to the server per tap. (Saving it while the page is drawn needs a second run, st.rerun(),
+    to show the result: a second trip, which a far-away server makes slow.) The values an
+    action uses (the chosen clue, suspect, place) are the ones on the screen that was tapped.
+
+    A double tap (or an impatient second tap while the first one is still on its way) sends
+    the same action twice. The second one is ignored (see once). repeatable=True: tapping
+    again is meant (add another demo suspect). then(saved): runs after the action, with
+    True if it was saved. Rejections are shown to the player (see attempt)."""
+    return st.button(label, on_click=run_action, args=(code, action, repeatable, then), **button_args)
+
+
+def run_action(code, action, repeatable=False, then=None):
+    saved = attempt(code, action if repeatable else once(code, action))
+    if then is not None:
+        then(saved)
+
+
+DOUBLE_TAP_SECONDS = 2.0
+
+
+def action_key(code, action):
+    """What makes two actions the same: the same line of code with the same values (the
+    player's token, the chosen place, suspect, clue or vote: the lambda's defaults and the
+    variables it uses)."""
+    values = list(action.__defaults__ or ()) + [cell.cell_contents for cell in action.__closure__ or ()]
+    return repr((code, action.__code__.co_filename, action.__code__.co_firstlineno, values))
+
+
+def game_moment(game):
+    """The phase and its timer: every new phase, round and hot seat has its own deadline."""
+    return game["phase"], game.get("deadline")
+
+
+def once(code, action):
+    """The action, unless this browser already sent the very same action in the same moment
+    of the game (same phase, same timer) less than DOUBLE_TAP_SECONDS ago: then the game stays
+    as it is. So "End round now" tapped twice ends one round, but the host can still end the
+    next round right away."""
+    key = action_key(code, action)
+
+    def guarded(game, online, now):
+        last = st.session_state.get("last_action")
+        if (last is not None and last[0] == key and last[1] == game_moment(game)
+                and 0 <= now - last[2] < DOUBLE_TAP_SECONDS):
+            return game
+        st.session_state["last_action"] = (key, game_moment(game), now)
+        return action(game, online, now)
+    return guarded
 
 
 def attempt(code, action):
@@ -262,7 +310,7 @@ def write_ai_case(code, settings):
     "The first AI case did not pass the checks …" meanwhile. A failing service (no key,
     limit, busy, timeout) is not asked again at once. After the last try the host can still
     press Try again or play case #001."""
-    reason = "the AI case did not pass the checks"
+    reason, problems = "the AI case did not pass the checks", []
     for attempt in range(1, AI_ATTEMPTS + 1):
         if attempt > 1:
             now = time.time()
@@ -273,15 +321,19 @@ def write_ai_case(code, settings):
         try:
             story = ai.write_story(settings["key"], settings["model"])
         except ai.AIError as problem:
-            reason = str(problem)
+            reason, problems = str(problem), []
             if not problem.retry:
                 break
             continue
-        if not logic.story_problems(story):
+        problems = logic.story_problems(story)
+        if not problems:
             save_ai_change(code, lambda g: logic.ai_case_ready(g, story, time.time()))
             return
         reason = "the AI case did not pass the checks"
-    save_ai_change(code, lambda g: logic.ai_case_failed(g, reason, time.time()))
+        # Which rule the case broke: in the server log, and (the first few) for the host.
+        logging.getLogger("nova.ai").warning("AI case for room %s, try %d, failed the checks: %s",
+                                             code, attempt, "; ".join(problems))
+    save_ai_change(code, lambda g: logic.ai_case_failed(g, reason, time.time(), problems))
 
 
 def save_ai_change(code, change, claim=False):
@@ -347,12 +399,16 @@ def keep_screen_on():
     key = (id(v2), "nova_wake")
     if key not in minigame_ui.RENDERERS:
         minigame_ui.RENDERERS[key] = v2.component("nova_wake", js=WAKE_JS)
-    minigame_ui.RENDERERS[key](key="nova-wake", data={"on": True})
+    # "run" changes with every full redraw, so the script below runs again and releases the
+    # buttons it marked as pressed (the answer to the tap has arrived).
+    st.session_state["redraws"] = st.session_state.get("redraws", 0) + 1
+    minigame_ui.RENDERERS[key](key="nova-wake", data={"on": True, "run": st.session_state["redraws"]})
 
 
 WAKE_JS = r"""
 export default function () {
   const w = window;
+  pressFeedback(w);
   if (w.__novaWake || !('wakeLock' in navigator)) return;   // once per page, where supported
   w.__novaWake = true;
   const grab = async () => {
@@ -362,6 +418,31 @@ export default function () {
   document.addEventListener('visibilitychange', grab);       // the lock ends when the tab is hidden
   document.addEventListener('pointerdown', grab, { passive: true });   // some browsers want a tap first
   grab();
+}
+
+// A tapped button (or action card, map pin, clue card) looks pressed at once, before the
+// server has answered, and a second tap on it is swallowed until the answer has arrived (the
+// next full redraw, which runs this script again) or PRESS_MS have passed. Without this a
+// tap shows nothing for a moment, and people tap again: the same action twice.
+const PRESS_MS = 3000;
+const PRESSABLE = '.stButton button, [data-testid="stFormSubmitButton"] button, a[href*="step="]';
+
+function pressFeedback(w) {
+  for (const el of document.querySelectorAll('.nova-pressed')) el.classList.remove('nova-pressed');
+  if (w.__novaPress) return;                                  // one listener per page
+  w.__novaPress = true;
+  // On window, in the capture phase: before the link listener (TAPS_JS) and before Streamlit.
+  w.addEventListener('click', (ev) => {
+    const el = ev.target.closest ? ev.target.closest(PRESSABLE) : null;
+    if (!el || el.disabled) return;
+    if (el.classList.contains('nova-pressed')) {              // the second tap: ignore it
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      return;
+    }
+    el.classList.add('nova-pressed');
+    setTimeout(() => el.classList.remove('nova-pressed'), PRESS_MS);
+  }, true);
 }
 """
 
@@ -685,9 +766,8 @@ def hot_seat_phone(code, token, public, me):
         rating = mine.get("rating")
         for column, verdict, label in ((left, "believe", "👍 Believe"), (right, "lie", "👎 Lying")):
             with column:
-                if st.button(label, type="primary" if rating == verdict else "secondary",
-                             use_container_width=True):
-                    act(code, lambda g, on, now, v=verdict: logic.rate_hot_seat(g, token, v, now))
+                action_button(label, code, lambda g, on, now, v=verdict: logic.rate_hot_seat(g, token, v, now),
+                              type="primary" if rating == verdict else "secondary", use_container_width=True)
         return
     options = [pid for pid in hot["candidates"] if pid != me["pid"]]
     if not options:
@@ -699,21 +779,20 @@ def hot_seat_phone(code, token, public, me):
         st.caption(f"{hot['picked']} picked so far. The hot seat starts when everybody has picked, "
                    f"or after {logic.HOT_SEAT_PICK_SECONDS} seconds.")
         if me["is_host"]:
-            if st.button("Start the hot seat now (host)"):
-                act(code, lambda g, on, now: logic.start_hot_seat(g, token, now))
+            action_button("Start the hot seat now (host)", code,
+                          lambda g, on, now: logic.start_hot_seat(g, token, now))
         return
     st.markdown('<div class="kicker">🔥 Hot seat – who should be grilled?</div>', unsafe_allow_html=True)
     for pid in options:
         label = f"{name_of(public, pid)} – {role_of(public, pid)}" if role_of(public, pid) else name_of(public, pid)
         chosen = mine.get("pick") == pid
-        if st.button(("✓ " if chosen else "") + label, key=f"hot_{pid}",
-                     type="primary" if chosen else "secondary", use_container_width=True):
-            act(code, lambda g, on, now, pid=pid: logic.pick_hot_seat(g, token, pid, now))
+        action_button(("✓ " if chosen else "") + label, code,
+                      lambda g, on, now, pid=pid: logic.pick_hot_seat(g, token, pid, now),
+                      key=f"hot_{pid}", type="primary" if chosen else "secondary", use_container_width=True)
     st.caption(f"{hot['picked']} picked so far. It starts when everybody has picked, "
                f"or after {logic.HOT_SEAT_PICK_SECONDS} seconds.")
     if me["is_host"] and hot["picked"]:
-        if st.button("Start the hot seat now (host)"):
-            act(code, lambda g, on, now: logic.start_hot_seat(g, token, now))
+        action_button("Start the hot seat now (host)", code, lambda g, on, now: logic.start_hot_seat(g, token, now))
 
 
 def role_of(public, pid):
@@ -822,10 +901,9 @@ CASE_HELP = ("Case #001 gets a new culprit, new roles and new clues every game. 
 
 
 def add_demo_suspect_button(code, token, full):
-    if st.button("Add demo suspect", disabled=full,
-                 help="A computer player for presentations. It plays by the same rules "
-                      "and only knows its own card and the public evidence."):
-        act(code, lambda g, on, now: logic.add_bot(g, token, now))
+    action_button("Add demo suspect", code, lambda g, on, now: logic.add_bot(g, token, now), repeatable=True,
+                  disabled=full, help="A computer player for presentations. It plays by the same rules "
+                                      "and only knows its own card and the public evidence.")
 
 
 def case_choice(code, me, demo):
@@ -885,11 +963,11 @@ def host_controls(code, token, public, me):
                            "Remove a player below.")
         hot_seat = st.checkbox("🔥 Hot seat between rounds", value=True,
                                help="After rounds 1 and 2 the room grills one suspect out loud.")
-        if st.button("Start game", type="primary", disabled=not ready or waiting):
-            demo = choice == "demo"
-            seed = logic.DEMO_SEED if demo else None
-            act(code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=demo,
-                                                     use_ai=choice == "ai", hot_seat=hot_seat))
+        demo = choice == "demo"
+        seed = logic.DEMO_SEED if demo else None
+        action_button("Start game", code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=demo,
+                                                                         use_ai=choice == "ai", hot_seat=hot_seat),
+                      type="primary", disabled=not ready or waiting)
         # "Add demo suspect" is rendered exactly once per run: in plain sight while players
         # are missing, otherwise folded into the expander (and not at all once the room is full).
         if missing > 0:
@@ -904,11 +982,10 @@ def host_controls(code, token, public, me):
                 if others:
                     victim = st.selectbox("Player", others, key="kick_target",
                                           format_func=lambda pid: name_of(public, pid))
-                    if st.button("Remove from room"):
-                        act(code, lambda g, on, now: logic.kick(g, token, victim, now))
+                    action_button("Remove from room", code, lambda g, on, now: logic.kick(g, token, victim, now))
     elif public["phase"] in logic.DURATIONS:
-        if st.button(f"{skip_label(public)} (host)", key="host-skip", use_container_width=True):
-            act(code, lambda g, on, now: logic.end_phase(g, token, on, now))
+        action_button(f"{skip_label(public)} (host)", code, lambda g, on, now: logic.end_phase(g, token, on, now),
+                      key="host-skip", use_container_width=True)
 
 
 def skip_label(public):
@@ -1066,13 +1143,17 @@ def search_step(code, token, public, me, move):
         return
     if sealed and places[place]["state"] == "open":
         show(minigame_ui.sealed_line(sealed))
-    if (place and places[place]["state"] == "open"
-            and st.button(f"Search {ui.md(place)}", type="primary", use_container_width=True)):
+    if place and places[place]["state"] == "open":
+        label = f"Search {ui.md(place)}"
         if sealed:      # the clue is sealed: hold the place, then open its mini-game
-            if attempt(code, lambda g, on, now: logic.open_place(g, token, place, now)):
-                st.session_state["move"] = dict(move, play=place)
-            st.rerun()
-        act(code, lambda g, on, now: logic.search(g, token, place, now))
+            def play(saved):
+                if saved:
+                    st.session_state["move"] = dict(move, play=place)
+            action_button(label, code, lambda g, on, now: logic.open_place(g, token, place, now), then=play,
+                          type="primary", use_container_width=True)
+        else:
+            action_button(label, code, lambda g, on, now: logic.search(g, token, place, now),
+                          type="primary", use_container_width=True)
 
 
 # ---------------------------------------------------------------- evidence mini-games
@@ -1221,11 +1302,12 @@ def share_step(code, token, public, me, move):
                          number, c["text"], c["id"] == clue)
                         for number, c in enumerate(me["clues"], start=1)]))
     show('<div class="hint">Sharing builds trust. It can also point at someone else.</div>')
-    if st.button("Share with everyone", type="primary", use_container_width=True):
-        if clue is None:
+    if clue is None:
+        if st.button("Share with everyone", type="primary", use_container_width=True):
             st.error("Choose a clue to share.")
-        else:
-            act(code, lambda g, on, now: logic.share(g, token, clue, now))
+    else:
+        action_button("Share with everyone", code, lambda g, on, now: logic.share(g, token, clue, now),
+                      type="primary", use_container_width=True)
 
 
 def plant_step(code, token, public, me, move):
@@ -1241,14 +1323,14 @@ def plant_step(code, token, public, me, move):
     show(ui.label("Where"))
     show(ui.chips([(move_link(code, token, dict(move, place=name)), name, name == place)
                    for name in me["plant_locations"]]))
-    if st.button("Plant it", type="primary", use_container_width=True):
-        if blame is None:
-            st.error("Choose who you want to blame.")
-        elif place is None:
-            st.error("Choose where to plant it.")
-        else:
+    if blame is None or place is None:
+        if st.button("Plant it", type="primary", use_container_width=True):
+            st.error("Choose who you want to blame." if blame is None else "Choose where to plant it.")
+    else:
+        def back_to_your_move(saved):
             st.session_state["move"] = {}
-            act(code, lambda g, on, now: logic.plant(g, token, blame, place, now))
+        action_button("Plant it", code, lambda g, on, now: logic.plant(g, token, blame, place, now),
+                      then=back_to_your_move, type="primary", use_container_width=True)
 
 
 def move_made(code, token, public, me):
@@ -1310,11 +1392,12 @@ def vote_form(code, token, public, me):
     show(ui.label(f"Where did {story['victim_short']} really die? · optional"))
     show(ui.chips([(move_link(code, token, dict(move, place=None if loc == scene else loc)), loc, loc == scene)
                    for loc in story["locations"]]))
-    if st.button("Vote", type="primary", use_container_width=True):
-        if accused is None:
+    if accused is None:
+        if st.button("Vote", type="primary", use_container_width=True):
             st.error("Choose who did it.")
-        else:
-            act(code, lambda g, on, now: logic.vote(g, token, accused, now, scene=scene))
+    else:
+        action_button("Vote", code, lambda g, on, now: logic.vote(g, token, accused, now, scene=scene),
+                      type="primary", use_container_width=True)
 
 
 def player_screen(code, token):
