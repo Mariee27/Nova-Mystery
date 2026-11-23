@@ -1,12 +1,13 @@
-"""Features of NOVA MYSTERY: the scene accusation and its endings, and the HTML
-building blocks."""
+"""Features of NOVA MYSTERY: the scene accusation and its endings, the demo
+suspects (bots), and the HTML building blocks."""
 import re
 
 import content
 import logic
 import ui
 from conftest import (
-    assert_rejected_unchanged, innocent_pids, murderer_pid, started_in, token_of,
+    assert_rejected_unchanged, innocent_pids, make_lobby, make_started,
+    murderer_pid, started_in, token_of,
 )
 
 
@@ -85,6 +86,111 @@ def test_old_games_without_scene_votes_still_finish():
     g = started_in("VOTE")
     del g["scene_votes"]
     assert finish(g)["result"]["scene_tally"] == {}
+
+
+# ---------------------------------------------------------------- demo suspects
+
+def demo_lobby(humans=1, bots=4):
+    g = make_lobby(humans)
+    for _ in range(bots):
+        g = logic.add_bot(g, "t1", 0)
+    return g
+
+
+def test_host_adds_demo_suspects_with_unique_names():
+    g = demo_lobby(1, 5)
+    bots = [p for p in g["players"] if p.get("bot")]
+    assert len(bots) == 5 and len(g["players"]) == logic.MAX_PLAYERS
+    assert len({p["name"] for p in bots}) == 5
+    assert all(p["name"].endswith("(demo)") for p in bots)
+    assert g["host"] == 1
+
+
+def test_only_the_host_adds_demo_suspects():
+    assert_rejected_unchanged(lambda x: logic.add_bot(x, "t2", 0), make_lobby(2))
+
+
+def test_no_demo_suspects_in_a_full_room_or_after_the_start():
+    assert_rejected_unchanged(lambda x: logic.add_bot(x, "t1", 0), demo_lobby(1, 5))
+    assert_rejected_unchanged(lambda x: logic.add_bot(x, "t1", 0), make_started(4))
+
+
+def test_bots_count_as_online_and_never_become_host():
+    g = demo_lobby(1, 3)
+    assert logic.with_bots(g, set()) == {2, 3, 4}
+    g = logic.start(g, "t1", logic.with_bots(g, {1}), 0, seed=1)
+    # The only human leaves: the game goes on, but no bot takes the host role.
+    later = logic.tick(g, logic.with_bots(g, set()), 1)
+    assert later["host"] == 1 and later["phase"] == "REVEAL"
+
+
+def test_bots_wait_before_they_move():
+    g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=1)
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+    assert logic.bot_moves(g, logic.BOT_FIRST_MOVE - 1) is g        # nothing due yet
+    g = logic.bot_moves(g, logic.BOT_FIRST_MOVE)
+    assert len(g["acted"]) == 1                                       # one bot at a time
+    g = logic.bot_moves(g, logic.BOT_FIRST_MOVE + 3 * logic.BOT_STEP)
+    assert sorted(g["acted"]) == [2, 3, 4, 5]
+
+
+def test_bot_moves_do_nothing_without_bots_or_outside_play():
+    g = started_in("INVESTIGATION")
+    assert logic.bot_moves(g, 1000) is g
+    lobby = demo_lobby(1, 4)
+    assert logic.bot_moves(lobby, 1000) is lobby
+
+
+def test_a_guilty_bot_does_not_search_its_own_traces():
+    for seed in range(40):
+        g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=seed)
+        m = g["case"]["murderer"]
+        if m == 1:
+            continue
+        g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+        g = logic.bot_moves(g, 1000)
+        searched_by_m = [e for e in g["log"] if e["kind"] == "search" and e["by"] == m]
+        for entry in searched_by_m:
+            assert not (entry["implicates"] == m and entry["clue_kind"] in logic.STRONG_KINDS)
+
+
+def test_bots_vote_by_the_evidence_they_can_read():
+    g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=1)
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+    # The crime scene is locked at first: the host ends rounds until it opens.
+    while g["round"] < g["case"]["locked"][g["case"]["murder_location"]]:
+        g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+    # The human searches the crime scene: the trace there names the culprit's role.
+    g = logic.search(g, "t1", g["case"]["murder_location"], 0)
+    while g["phase"] != "VOTE":
+        g = logic.end_phase(g, "t1", {1, 2, 3, 4, 5}, 0)
+    g = logic.bot_moves(g, g["phase_started"] + 1000)
+    m = g["case"]["murderer"]
+    for voter, target in g["votes"].items():
+        if int(voter) != m:
+            assert target == m
+            assert g["scene_votes"][voter] == g["case"]["murder_location"]
+
+
+def test_a_demo_game_with_one_human_plays_to_the_end_by_itself():
+    g = demo_lobby(1, 3)
+    g = logic.start(g, "t1", logic.with_bots(g, {1}), 0, seed=logic.DEMO_SEED)
+    now = 0
+    for _ in range(1200):           # only timers and bots, the human does nothing (all rounds)
+        if g["phase"] == "RESULT":
+            break
+        now += 2
+        g = logic.bot_moves(logic.tick(g, logic.with_bots(g, {1}), now), now)
+    assert g["phase"] == "RESULT"
+    assert len(g["votes"]) == 3     # every bot voted
+    assert g["result"]["ending"] in content.ENDINGS
+
+
+def test_bots_do_not_show_up_in_the_public_view_as_special():
+    g = logic.start(demo_lobby(1, 4), "t1", {1, 2, 3, 4, 5}, 0, seed=1)
+    view = logic.public_view(g, logic.with_bots(g, {1}))
+    assert all("bot" not in p for p in view["players"])
+    assert all(p["online"] for p in view["players"])
 
 
 # ---------------------------------------------------------------- HTML building blocks
@@ -199,8 +305,7 @@ def test_phone_suspect_list_is_compact_and_escapes_names():
     assert "<script>" not in html and "\n\n" not in html
     assert html.count('role="listitem"') == 2              # one short row per player
     assert "you · host · voted" in html                     # my own row is marked
-    assert 'aria-label="online"' in html and 'aria-label="away"' in html
-    assert 'srow away' in html and "away" in html.split("Ben")[1]   # the away seat floats, dimmed
+    assert 'aria-label="online"' in html and 'aria-label="offline"' in html
     assert "awaiting file" in html                          # no role before the reveal
     assert ui.h(content.ROLES[role]["dossier"]) not in html   # no long dossier text on the phone
     assert ui.suspect_list([], "LOBBY") == '<div class="muted">Nobody has joined yet.</div>'

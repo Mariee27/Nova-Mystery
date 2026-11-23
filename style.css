@@ -175,11 +175,6 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .suspect .tags { position: absolute; top: .6rem; right: .6rem; font-family: var(--mono); font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); text-align: right; }
 .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 8px #22c55e; margin-left: .3rem; }
 .dot.off { background: #4b5563; box-shadow: none; }
-/* Away (no sign from their phone): the seat floats, dimmed, until the player is back. */
-.suspect.away, .srow.away, .dt-row.away { opacity: .5; }
-.suspect.away .face, .srow.away .face, .dt-row.away .face { animation: awayFloat 3.2s ease-in-out infinite; filter: grayscale(1); }
-@keyframes awayFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-@media (prefers-reduced-motion: reduce) { .suspect.away .face, .srow.away .face, .dt-row.away .face { animation: none; } }
 .suspect.guilty { border-color: var(--blood); box-shadow: 0 0 40px rgba(185,28,28,.35); }
 .suspect.guilty .face { background: linear-gradient(145deg, #ef4444, var(--blood)); color: var(--ivory); }
 

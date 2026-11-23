@@ -247,6 +247,25 @@ def test_after_the_last_round_comes_a_3_minute_discussion_and_a_1_minute_vote():
     assert g["phase"] == "VOTE" and g["deadline"] - g["phase_started"] == 60
 
 
+def test_demo_suspects_still_end_every_round_when_nothing_is_left_to_search():
+    g = make_lobby(1)
+    for _ in range(5):
+        g = logic.add_bot(g, "t1", 0)
+    g = logic.start(g, "t1", logic.with_bots(g, {1}), 0, seed=2)
+    g = logic.end_phase(g, "t1", logic.with_bots(g, {1}), 0)
+    now = 0
+    while g["phase"] == "INVESTIGATION":
+        if 1 not in g["acted"] and open_places(g):
+            g = logic.search(g, "t1", open_places(g)[0], now)
+        elif 1 not in g["acted"] and unshared(g, "t1"):
+            g = logic.share(g, "t1", unshared(g, "t1")[0], now)
+        now += 30
+        g = logic.bot_moves(logic.tick(g, logic.with_bots(g, {1}), now), now)
+        g = logic.tick(g, logic.with_bots(g, {1}), now)
+        assert now < 6 * 60 * 5, "a round waited for a bot that could not move"
+    assert g["phase"] == "DISCUSSION"
+
+
 # ---------------------------------------------------------------- the map shows only public facts
 
 def test_the_map_shows_every_state_of_a_place():
@@ -478,3 +497,15 @@ def test_the_evidence_wall_is_newest_first_and_never_names_who_searched():
     html = ui.evidence_wall(log, lambda pid: f"Name{pid}")
     assert html.index("– Name2") < html.index("Exhibit 1")
     assert "Name1" not in html
+
+
+def test_demo_suspects_leave_the_last_open_place_to_a_human_who_has_not_moved():
+    g = make_lobby(1)
+    for _ in range(4):
+        g = logic.add_bot(g, "t1", 0)
+    g = logic.start(g, "t1", logic.with_bots(g, {1}), 0, seed=2)
+    g = logic.end_phase(g, "t1", logic.with_bots(g, {1}), 0)
+    g = logic.bot_moves(g, 10_000)                     # every bot moves at once
+    assert len(open_places(g)) == 1 and 1 not in g["acted"]
+    g = logic.search(g, "t1", open_places(g)[0], 10_001)
+    assert 1 in g["acted"]

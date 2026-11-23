@@ -17,14 +17,16 @@ PHASES = ["LOBBY","REVEAL","INVESTIGATION","DISCUSSION","VOTE","RESULT","ABORTED
 DURATIONS = {"REVEAL": 60, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
 ROUNDS = 3            # INVESTIGATION has 3 rounds; DURATIONS["INVESTIGATION"] is the length of one round
 LOCKED_PLACES = 2     # locked at the start: the crime scene and one other place
-OFFLINE_AFTER = 15     # seconds; online means now - last_seen <= 15, otherwise the player is away
-MIN_PLAYERS = 4; MAX_PLAYERS = 6
+OFFLINE_AFTER = 45     # seconds; online means now - last_seen <= 45
+MIN_PLAYERS = 4; MAX_PLAYERS = 6; MIN_ONLINE = 3
+PAUSE_LIMIT = 180      # seconds a paused game waits for players before it ends
+STAND_IN_AFTER = 15    # seconds without a sign of life: the computer plays that seat
 HOLD_SECONDS = 120     # a place stays reserved this long while somebody solves its mini-game
 HOT_SEAT_PICK_SECONDS = 20; HOT_SEAT_SECONDS = 45; HOT_SEAT_VERDICTS = ("believe", "lie")
 MAX_WRONG_TRIES = 6    # wrong puzzle answers per player, place and round
 MAX_TEXT = 140; MAX_NAME = 20; MAX_CLUE_TEXT = 200
 STRONG_KINDS = {"scene", "alibi_broken"}
-DEMO_SEED = 2026       # start(..., seed=DEMO_SEED, fixed_case=True) always builds the same case #001
+DEMO_SEED = 2026
 ```
 `content.LOCATIONS` is a list of exactly 5 location names. `content.ROLES` is a dict with exactly 6 role names as keys.
 
@@ -45,14 +47,16 @@ DEMO_SEED = 2026       # start(..., seed=DEMO_SEED, fixed_case=True) always buil
  "result": None | result, "abort_reason": None | str,
  "minigames": bool,            # see "Evidence mini-games"
  # only when needed:
+ "demo": True,                 # a "Play a demo" room (logic.as_demo)
+ "stand_ins": [pid, ...],      # human seats the computer plays right now (update_stand_ins)
+ "paused": {"since": now, "left": seconds},   # while fewer than MIN_ONLINE players are online
  "holds": {location: {"pid": pid, "until": now + HOLD_SECONDS}},   # places reserved for a mini-game
  "hot_seat": {"open": bool, "picks": {"1": pid}, "seat": pid | None,
               "ratings": {"1": "believe"|"lie"}, "history": [{"pid", "after_round", "believe", "lie"}]},
  "wrong_tries": {"pid|location|round": int}
 }
 ```
-There are no computer players: every seat is a person. A seat whose phone is away is simply not waited for
-(see `tick`).
+A player dict may also carry `"bot": True` (a demo suspect, see *Demo suspects* below).
 
 Log entry: `{"id": int, "kind": "search"|"share"|"system", "by": pid|None, "text": str, ...}`
 plus, depending on kind: `location`, `clue_id`, `implicates`, `clue_kind`, `planted` (bool, on search/share entries).
@@ -105,6 +109,7 @@ camera instead of a keycard log. Locked: the crime scene and the first lone inno
 ```
 new_token() -> str                                  # secrets.token_urlsafe(16), 22 characters
 new_game(code, now, minigames=False) -> game
+as_demo(game) -> game                               # marks a "Play a demo" room (game["demo"] = True)
 online_ids(presence: dict[int, float], now) -> set[int]
 clean_name(name) -> str; name_key(name) -> str      # see join
 join(game, name, token, now) -> game                # new pid = game["next_pid"]; first player becomes host
@@ -117,7 +122,7 @@ wrong_tries(game, pid, location) -> int            # wrong puzzle answers of thi
 note_wrong_try(game, token, location, now) -> game # counts one; app refuses answers after MAX_WRONG_TRIES (6)
 max_minutes() -> int                               # the longest a started game can take (20)
 end_phase(game, token, online, now) -> game         # host only, only in REVEAL/INVESTIGATION/DISCUSSION/VOTE
-tick(game, online, now) -> game                     # host handover, timers, early end
+tick(game, online, now) -> game                     # host handover, pause/abort, timers, early end
 current_round(game) -> int                          # 0 before, 1..ROUNDS during, ROUNDS+1 after the investigation
 locked_until(game, location) -> int | None          # the round a locked place opens in, None if open
 search(game, token, location, now, proof=None) -> game
@@ -138,6 +143,12 @@ rate_hot_seat(game, token, verdict, now) -> game    # verdict in HOT_SEAT_VERDIC
 hot_seat_tie(game, tied: list[int]) -> pid          # seeded chance, the same for the same game
 hot_seat_view(game) -> dict | None                  # public part, None outside the break
 my_hot_seat(game, token) -> {"pick", "rating"} | None
+bot_ids(game) -> list[int]                          # pids of the demo suspects
+with_bots(game, online) -> set[int]                 # online plus all bots and stand-ins
+stand_in_ids(game) -> list[int]; robot_ids(game) -> list[int]   # stand-ins; bots + stand-ins
+update_stand_ins(game, presence, now) -> game       # stand-ins for seats without a sign of life
+add_bot(game, token, now) -> game                   # host only, only in LOBBY
+bot_moves(game, now) -> game                        # the moves of all bots that are due now
 public_view(game, online) -> dict
 private_view(game, token) -> dict | None
 last_move(game, pid) -> dict | None                 # the player's own move in the current round
@@ -156,15 +167,15 @@ Locations are always the locations of the game's story (`story_of(game)["locatio
 - **end_phase**: moves to the next step immediately (same as a timer running out): the next round, the hot seat break, or the next phase.
 - **tick** (in this order):
   0. In LOBBY: an AI case that has been writing for more than `AI_WRITING_TIMEOUT` fails ("the AI took too long").
-  1. Host handover (any phase except RESULT/ABORTED): if the host is not in `online` and another player is, the first online player in join order becomes host. The old host does not get the role back.
-  2. Timer: if `now >= deadline` → next step. The new step starts at `now` (deadline = now + its duration). One step per call. During the hot seat break only the hot seat clock counts.
-  3. Early end: INVESTIGATION ends as soon as every online player is in `acted` or has no move left (`has_move`); VOTE ends as soon as every online player has voted. Players who are away are not waited for; with nobody online there is no early end (the clock runs).
-  - The game never pauses and never ends because players are away. ABORTED stays in `PHASES` for rooms saved by older versions.
+  1. Host handover (any phase except RESULT/ABORTED): if the host is not in `online` or is played by a stand-in, and another human who is there is online, the first of them in join order becomes host (never a bot or stand-in). The old host does not get the role back.
+  2. Pause: in REVEAL, INVESTIGATION, DISCUSSION, VOTE, if fewer than 3 players are online, the game pauses: `paused = {"since": now, "left": seconds left}`, `deadline = None`, no timer and no early end. When enough players are back, `deadline = now + left` and the pause ends. Only after `PAUSE_LIMIT` seconds of pause → phase ABORTED, `abort_reason` set.
+  3. Timer: if `now >= deadline` → next step. The new step starts at `now` (deadline = now + its duration). One step per call. During the hot seat break only the hot seat clock counts.
+  4. Early end: INVESTIGATION ends as soon as every online player is in `acted` or has no move left (`has_move`); VOTE ends as soon as every online player has voted.
   - Order of phases: REVEAL → INVESTIGATION → DISCUSSION → VOTE → RESULT.
   - When VOTE ends, `result` is computed.
 - **Interrogations happen out loud.** The players question each other face to face; there is no question or answer action and no question/answer log entry. The hot seat (below) only organises who is questioned and collects ratings.
 - **Actions** `search`, `share`: only in INVESTIGATION and not during the hot seat break, only by a player of the game, once per player and round (the pid is then in `acted`).
-  - `search`: location must be one of the story's locations, open (`locked_until` is None) and not in `searched`, else Rejected and the action is **not** used up. A place another player holds is refused ("Somebody else is searching this place right now."). With mini-games, a valid `proof` is needed (see *Evidence mini-games*). Otherwise the location clue is appended to the log (kind "search"), the location to `searched`, and the place's hold is removed.
+  - `search`: location must be one of the story's locations, open (`locked_until` is None) and not in `searched`, else Rejected and the action is **not** used up. A place another human holds is refused for humans ("Somebody else is searching this place right now."). With mini-games, a human needs a valid `proof` (see *Evidence mini-games*). Otherwise the location clue is appended to the log (kind "search"), the location to `searched`, and the place's hold is removed.
   - `open_place`: same checks as `search` for phase, move, place and holder. Holds the place for this player for `HOLD_SECONDS`; a player holds at most one place (an older hold of theirs is dropped). A hold ends when the place is searched, its time runs out, or the round ends. Who holds a place is never public (`busy_places` lists only places).
   - `share`: `clue_id` must be one of the player's own private clues and not shared before.
 - **plant**: only in INVESTIGATION; only the murderer; only once per game (`planted`); target must be another player (an innocent); location must be in `plant_locations(game)`: not yet in `searched`, and not a location whose real clue implicates the murderer with a strong kind. Does **not** use up the normal action. The location is appended to `searched` (its real clue is covered up). Appends a log entry kind "search" with `planted: True`, `implicates: target`, `clue_kind: "suspicious"`; its text uses `content.TEMPLATES["herring"]` with the target's rumor, exactly like a real red herring.
@@ -179,7 +190,7 @@ Locations are always the locations of the game's story (`story_of(game)["locatio
 ### Hot seat (between rounds)
 Only with `start(..., hot_seat=True)`. After every investigation round except the last one, and only while
 `hot_seat_candidates` is not empty, comes a break: the phase stays INVESTIGATION, `round` stays the finished
-round, nobody can search, share or plant. The break uses `deadline` as its clock.
+round, nobody can search, share or plant. The break uses `deadline` as its clock, so a pause stops it too.
 1. **Picking** (`HOT_SEAT_PICK_SECONDS`): `pick_hot_seat` names a candidate other than oneself; one pick per
    player, locked in. The seat starts when every online player who can pick has picked, when the time is up, or
    when the host calls `start_hot_seat` (needs at least one pick). Most picks win; a tie is decided by
@@ -192,17 +203,37 @@ round, nobody can search, share or plant. The break uses `deadline` as its clock
 - `hot_seat_view(game)` → `{"after_round", "seat", "until", "picked", "believe", "lie", "candidates", "history"}`
   or None outside the break. Only counts: never who picked or rated whom. `my_hot_seat` gives one player their own pick and rating.
 
-### Away players
-- A player is away when their last sign of life is more than `OFFLINE_AFTER` seconds ago (`online_ids`). Nobody plays
-  for them: rounds, the hot seat and the vote are not held up by them (see `tick`), and whatever they miss meanwhile
-  is gone. As soon as their phone is back, they play on in their seat. `public_view` shows them with `online: False`;
-  the screens mark the seat "away" and show it dimmed and floating.
+### Demo suspects (bots)
+For presentations with fewer than 4 people. A bot is an ordinary player with `"bot": True` that plays
+through the same functions as everybody else and only uses its own card and the public log.
+- **add_bot**: only in LOBBY; only the host. Joins `"<first name> (demo)"` with the first unused name from
+  `content.DEMO_NAMES` and a fresh token. A full room → Rejected.
+- **with_bots**: bots send no heartbeats, so the app adds them to `online` before `tick` and `public_view`.
+- **bot_moves**: does nothing without bots or outside INVESTIGATION and VOTE. Bot number *i* (in join order)
+  moves once `now - phase_started >= 6 + 4·i` seconds.
+  - INVESTIGATION: with mini-games, bots wait until every human has moved. A bot searches an open, free place
+    it does not hold against anybody (a guilty bot skips places with its own strong traces) and leaves the last
+    open place to a waiting human; otherwise it shares a clue. Bots search without a proof.
+  - Hot seat break: a bot picks the candidate it suspects most and rates them "lie", everybody else "believe".
+  - VOTE: a bot votes for the player the readable evidence points at most and names a scene if the evidence gives one.
+- Bots are never host (see `tick`) and look like everybody else in `public_view`.
+
+### Stand-ins (players who dropped out)
+- `update_stand_ins(game, presence, now)`: in REVEAL, INVESTIGATION, DISCUSSION and VOTE every human seat whose last
+  sign of life is more than `STAND_IN_AFTER` seconds ago (or missing) is in `game["stand_ins"]`; everybody else is
+  not. Outside these phases the list is empty. Returns the same game if nothing changes. The app calls it before
+  `tick` on every poll, with the heartbeat times.
+- A stand-in counts as online (`with_bots`) and is moved by `bot_moves` exactly like a demo suspect, with the same
+  knowledge (own card, public log). Like bots it searches without a proof. "Waiting for humans" (mini-games,
+  the last open place) only counts players who are there, not stand-ins.
+- `public_view` players and `private_view` carry `"stand_in": bool`. As soon as the player's phone is back, the
+  stand-in ends and the player plays again (with mini-games, puzzles again).
 
 ### Views
-- `public_view(game, online)` → `{"code","phase","deadline","players":[{"pid","name","role","online","is_host","acted","voted"}],"log":[...],"searched":[...],"result":None|result,"abort_reason", "characters": None | [...]}`.
+- `public_view(game, online)` → `{"code","phase","deadline","demo","paused_since","players":[{"pid","name","role","online","stand_in","is_host","acted","voted"}],"log":[...],"searched":[...],"result":None|result,"abort_reason", "characters": None | [...]}`. `paused_since` is None unless the game is paused.
   `role` is None in LOBBY and the player's role name from REVEAL on. **Roles are public** (clues talk about roles, so everybody must know who plays whom); who the murderer is stays secret.
   Before RESULT: log entries contain **no** `implicates`, `clue_kind`, `planted` keys; `result` is None; `characters` is None; and nowhere in the view is there a token, the murderer, a secret, an intro, an alibi or a private clue. In RESULT: full log, result, and `characters` (the case's characters with names).
-- `private_view(game, token)` → None for an unknown token. Otherwise `{"pid","name","is_host","phase","acted","voted","role","intro","alibi","secret","is_murderer","clues":[{"id","text","shared"}],"can_plant","plant_locations","last_move","puzzles"}`. Before the game starts, the case fields are None / empty. `plant_locations` is empty unless `can_plant`; `can_plant` is False when there is no location left to plant at. It never contains another player's card or token.
+- `private_view(game, token)` → None for an unknown token. Otherwise `{"pid","name","is_host","phase","acted","voted","stand_in","role","intro","alibi","secret","is_murderer","clues":[{"id","text","shared"}],"can_plant","plant_locations","last_move","puzzles"}`. Before the game starts, the case fields are None / empty. `plant_locations` is empty unless `can_plant`; `can_plant` is False when there is no location left to plant at. It never contains another player's card or token.
 
 ## `db` functions (SQLite or PostgreSQL)
 ```
@@ -271,8 +302,8 @@ balance.analyze(case) -> dict                    # the numbers behind the checks
   explains why, and only the host sees it via `host_note`. Without `game["ai_case"]` nothing changes.
 - `validate_story` checks: 5 unique locations and 6 unique roles, no name inside another name, every text
   present and within its length limit, no "murderer"/"killer" in texts that become clues (traces, rumors, neutral clues), intro lines that name no suspect and no location, every rumor starts with "<role> was seen " and names
-  nobody else, traces and neutral clues name nobody and use none of the phrases clue texts use to point at somebody
-  (`EVIDENCE_PHRASES`). `ai_case_ready` also builds a valid case with the story for 4, 5 and 6 players.
+  nobody else, traces and neutral clues name nobody and use none of the phrases the demo suspects read as
+  evidence. `ai_case_ready` also builds a valid case with the story for 4, 5 and 6 players.
 - `public_view` and `private_view` are unchanged. The screens get the story from `story_view`.
 
 `ai.parse_story` tidies an AI answer before the checks: it keeps the first 6 suspects and 5 locations with
@@ -304,7 +335,7 @@ gets a random theme and a random first letter for the victim, so rooms get diffe
   the app pass `minigames=True`; the game stores it as `game["minigames"]`.
 - With mini-games on, every place's clue is sealed: `search(game, token, location, now, proof)` is refused
   ("The evidence is still sealed. Solve the puzzle first.") unless `minigames.verify(game, location, proof)`
-  is True. Every other rule of `search` is unchanged, so each place's
+  is True. Demo bots search without a proof. Every other rule of `search` is unchanged, so each place's
   evidence is still awarded exactly once.
 - `minigames.spec(game, location)` -> `{"id": "MG-0N-kind", "kind": code|scratch|puzzle|cipher|order, "variant",
   "location", "evidence_id" (the clue id), "evidence_no", "icon", "name", "exhibit", "verb", "story",

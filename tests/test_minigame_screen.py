@@ -1,24 +1,20 @@
 """The evidence mini-games on the phone, through app.py with the Streamlit stand-in."""
 
-import time
-
 import db
 import logic
 import minigames
 import ui
-from test_app_smoke import HOST_SKIP, Browser, game_db, host_room, tap  # noqa: F401  (game_db is a fixture)
+from test_app_smoke import HOST_SKIP, Browser, game_db, tap  # noqa: F401  (game_db is a fixture)
 
 
-def first_round(game_db):
-    """A room (you + 4 other players) in round 1 of the investigation: case #001, always with
-    the same seed, so the places and their mini-games are the same in every run."""
-    phone = host_room()
-    code, token = phone.st.query_params["room"], phone.st.query_params["t"]
-    conn = db.connect(game_db)
-    everybody = {1, 2, 3, 4, 5}
-    db.apply(conn, code, lambda g: logic.start(g, token, everybody, time.time(), seed=logic.DEMO_SEED,
-                                               fixed_case=True))
+def demo_round(game_db):
+    """A demo room (you + 4 bots) in round 1 of the investigation, case #001."""
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     phone.run(press=[HOST_SKIP])
+    conn = db.connect(game_db)
     assert db.load(conn, code)["phase"] == "INVESTIGATION"
     return phone, code, conn
 
@@ -49,7 +45,7 @@ def last_data(phone):
 
 
 def test_the_place_card_shows_the_seal(game_db):
-    phone, code, conn = first_round(game_db)
+    phone, code, conn = demo_round(game_db)
     game = db.load(conn, code)
     place = next(s["location"] for s in minigames.specs(game) if logic.locked_until(game, s["location"]) is None)
     page = tap(phone, step="search", place=place)
@@ -58,7 +54,7 @@ def test_the_place_card_shows_the_seal(game_db):
 
 
 def test_wrong_answer_unlocks_nothing_and_hints_come_one_by_one(game_db):
-    phone, code, conn = first_round(game_db)
+    phone, code, conn = demo_round(game_db)
     place, page = open_puzzle(phone, conn, code, "code")
     assert "Crack the code" in page and "Evidence unlocked" in page
     data = last_data(phone)
@@ -81,7 +77,7 @@ def test_wrong_answer_unlocks_nothing_and_hints_come_one_by_one(game_db):
 
 
 def test_solving_unlocks_the_evidence_with_a_reward_and_continue(game_db):
-    phone, code, conn = first_round(game_db)
+    phone, code, conn = demo_round(game_db)
     place, _ = open_puzzle(phone, conn, code, "cipher")
     proof = minigames.solve(db.load(conn, code), place)
     page = phone.run(component={"submit": proof})
@@ -101,7 +97,7 @@ def test_solving_unlocks_the_evidence_with_a_reward_and_continue(game_db):
 
 
 def test_the_reward_survives_the_end_of_the_round(game_db):
-    phone, code, conn = first_round(game_db)
+    phone, code, conn = demo_round(game_db)
     place, _ = open_puzzle(phone, conn, code)
     phone.run(component={"submit": minigames.solve(db.load(conn, code), place)})
     phone.run(press=[HOST_SKIP])                                    # round 2 starts
@@ -115,7 +111,7 @@ def test_the_reward_survives_the_end_of_the_round(game_db):
 
 
 def test_puzzle_progress_survives_reruns(game_db):
-    phone, code, conn = first_round(game_db)
+    phone, code, conn = demo_round(game_db)
     place, _ = open_puzzle(phone, conn, code, "puzzle")
     phone.run(component={"progress": [[0, 1], [2, 3]]})
     phone.run()
@@ -128,12 +124,11 @@ def test_puzzle_progress_survives_reruns(game_db):
 
 
 def test_too_late_when_someone_else_searched_first(game_db):
-    phone, code, conn = first_round(game_db)
+    phone, code, conn = demo_round(game_db)
     place, _ = open_puzzle(phone, conn, code)
     game = db.load(conn, code)
-    later = time.time() + logic.HOLD_SECONDS + 1          # the reservation ran out meanwhile ...
-    db.apply(conn, code, lambda g: logic.search(g, "other-2", place, later,  # ... and Sofia was faster
-                                                 proof=minigames.solve(g, place)))
+    bot = next(p for p in game["players"] if p.get("bot"))
+    db.apply(conn, code, lambda g: logic.search(g, bot["token"], place, 1))
     page = phone.run()
     assert "Too late." in page
     page = phone.run(component={"submit": minigames.solve(game, place)})
@@ -141,7 +136,7 @@ def test_too_late_when_someone_else_searched_first(game_db):
 
 
 def test_a_forged_proof_from_the_phone_is_rejected(game_db):
-    phone, code, conn = first_round(game_db)
+    phone, code, conn = demo_round(game_db)
     place, _ = open_puzzle(phone, conn, code, "puzzle")
     phone.run(component={"submit": {"swaps": [], "solved": True, "order": list(range(9))}})
     assert place not in db.load(conn, code)["searched"]
@@ -151,7 +146,7 @@ def test_a_forged_proof_from_the_phone_is_rejected(game_db):
 def test_wrong_answers_are_limited_per_round_also_in_a_new_browser_tab(game_db):
     """No trying all 10 000 codes: after MAX_WRONG_TRIES wrong answers the seal holds until the
     next round, and the count lives in the game, so a fresh tab does not reset it."""
-    phone, code, conn = first_round(game_db)
+    phone, code, conn = demo_round(game_db)
     place, _ = open_puzzle(phone, conn, code, "code")
     right = minigames.solve(db.load(conn, code), place)
     wrong = {"code": "0000" if right["code"] != "0000" else "1111"}
@@ -171,7 +166,7 @@ def test_wrong_answers_are_limited_per_round_also_in_a_new_browser_tab(game_db):
 
 
 def test_an_answer_faster_than_a_person_could_solve_it_is_ignored(game_db, monkeypatch):
-    phone, code, conn = first_round(game_db)
+    phone, code, conn = demo_round(game_db)
     place, _ = open_puzzle(phone, conn, code)
     kind = minigames.spec(db.load(conn, code), place)["kind"]
     monkeypatch.setattr(minigames, "MIN_SECONDS", {kind: 60})
