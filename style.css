@@ -835,46 +835,6 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 .watch .wt { font-family: var(--serif); font-size: 1.35rem; line-height: 1.25; color: var(--ivory); margin: .4rem 0; }
 .watch .wc { font-family: var(--serif); font-style: italic; color: #B9BFCC; }
 
-/* ---------- red threads (board): ui.thread_board ---------- */
-.threadboard { position: relative; width: 100%; aspect-ratio: 16 / 9; border-radius: 6px; border: 10px solid #4a3220;
-  background: radial-gradient(circle at 20% 30%, rgba(0,0,0,.18) 1px, transparent 2px) 0 0 / 14px 14px,
-              radial-gradient(circle at 70% 60%, rgba(255,230,180,.12) 1px, transparent 2px) 0 0 / 11px 11px, #9b6b43;
-  box-shadow: inset 0 0 50px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.5); overflow: hidden;
-  font-size: clamp(.5rem, .78vw, 1.05rem); }
-.tb-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.tb-lines .thread { fill: none; stroke: #c81e1e; stroke-linecap: round; opacity: .9;
-  filter: drop-shadow(0 .15px .3px rgba(0,0,0,.6)); }
-.tb-lines .thread.new { stroke-dasharray: 1; stroke-dashoffset: 1; animation: threadDraw 1.4s ease-out forwards; }
-.tb-lines .thread.right { stroke: #f5c542; opacity: 1; }
-.tb-lines .thread.snapped { stroke: #f87171; stroke-dasharray: .46 .08; animation: threadSnap 2.6s ease-in forwards; }
-@keyframes threadDraw { to { stroke-dashoffset: 0; } }
-@keyframes threadSnap { 0%, 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(4px); } }
-.tb-note { position: absolute; padding: .45em .55em; background: #fbfaf6; color: #1b1b1b; transform: rotate(var(--tilt));
-  box-shadow: 0 6px 12px rgba(0,0,0,.4); overflow: hidden; }
-.tb-note.share { background: repeating-linear-gradient(#f3ecdc 0 1.25em, #d9cfb8 1.25em calc(1.25em + 1px)); }
-.tb-note::before { content: ""; position: absolute; top: .25em; left: 50%; width: .8em; height: .8em; margin-left: -.4em;
-  border-radius: 50%; background: radial-gradient(circle at 35% 35%, #f87171, var(--blood) 60%, #5b0f0f); }
-.tb-note .cap { margin-top: .8em; font: 700 .72em var(--mono); letter-spacing: .08em; text-transform: uppercase; color: #6b5a3e;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tb-note .b { font-size: .9em; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.tb-empty { position: absolute; left: 0; right: 0; top: 55%; text-align: center; color: #f5e6cf; font: 1.2em var(--mono); }
-.tb-face { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; z-index: 2; }
-.tb-face .ph { display: grid; place-items: center; width: 3.4em; height: 3.4em; border-radius: 4px; background: #e9e1cf;
-  color: #1b1b1b; font: 800 1.6em var(--serif); border: .25em solid #fbfaf6; box-shadow: 0 6px 12px rgba(0,0,0,.5); }
-.tb-face .nm { margin-top: .25em; padding: .05em .5em; background: #1b1b1b; color: #f5e6cf; font: 700 .9em var(--sans); white-space: nowrap; }
-.tb-face .ct { min-height: 1.2em; font: 700 .8em var(--mono); color: #fee2e2; text-shadow: 0 1px 2px #000; }
-.tb-face.hot .ph { border-color: #c81e1e; animation: hotPulse 1.6s ease-in-out infinite; }
-.tb-face.culprit .ph { border-color: #f5c542; box-shadow: 0 0 0 .3em rgba(245,197,66,.45), 0 0 2em rgba(245,197,66,.6); }
-@keyframes hotPulse { 50% { box-shadow: 0 0 0 .35em rgba(200,30,30,.45), 0 6px 12px rgba(0,0,0,.5); } }
-.snip { position: absolute; transform: translate(-50%, -50%); font-size: 2.6em; z-index: 3; animation: snip 2.6s ease forwards; }
-@keyframes snip { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.5) rotate(-40deg); }
-  20% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); } 80% { opacity: 1; } 100% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) {
-  .tb-lines .thread.new { animation: none; stroke-dashoffset: 0; } .tb-face.hot .ph, .snip { animation: none; } }
-
-/* the thread count on a note of the evidence wall */
-.pin .tcount { margin-top: .35rem; font: 700 .62rem var(--mono); letter-spacing: .06em; color: #b91c1c; }
-
 /* ---------- the finale (board): ui.finale, about 16 s ---------- */
 .finale { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; text-align: center;
   background: radial-gradient(ellipse at center, #1a0b0b, #050608 70%); color: var(--ivory);
@@ -925,19 +885,6 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 @keyframes fStamp { to { opacity: .95; transform: translate(-50%, -50%) rotate(-14deg) scale(1); } }
 @keyframes finaleOut { to { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .finale { display: none; } }
-
-/* the hall of fame after the game */
-.awards { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .9rem; margin: .4rem 0 1.4rem; }
-.award { padding: 1rem 1.1rem; background: linear-gradient(160deg, rgba(212,168,83,.18), rgba(17,24,39,.9));
-  border: 1px solid rgba(212,168,83,.55); border-radius: 6px; opacity: 0;
-  animation: awardIn .6s cubic-bezier(.25,1.4,.5,1) calc(.3s + var(--i) * .35s) forwards; }
-.award.villain { background: linear-gradient(160deg, rgba(185,28,28,.25), rgba(17,24,39,.9)); border-color: rgba(239,68,68,.6); }
-.award .at { font: 700 .78rem var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--gold); }
-.award.villain .at { color: #fca5a5; }
-.award .an { margin-top: .35rem; font: 800 1.4rem var(--serif); color: var(--ivory); }
-.award .ad { margin-top: .25rem; font-size: .85rem; color: var(--muted); }
-@keyframes awardIn { from { opacity: 0; transform: translateY(18px) scale(.9); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .award { animation: none; opacity: 1; } }
 
 /* A place somebody else is searching right now (solving its mini-game): amber, not tappable. */
 .pin2.busy .pc { background: #3A2E10; border: 2px solid #E0A93B; color: #F3C969; box-shadow: 0 0 0 4px rgba(224,169,59,.25);
