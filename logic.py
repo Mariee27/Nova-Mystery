@@ -672,6 +672,13 @@ def _clear_winner(tally):
     return leaders[0] if len(leaders) == 1 else None
 
 
+def hall_of_fame(game):
+    """The awards after the game (see _awards), or None before the result."""
+    if game["phase"] != "RESULT" or game["result"] is None:
+        return None
+    return _awards(game, game["result"]["murderer"], game["result"]["winner"])
+
+
 def _best(counts):
     """The pids with the highest count (at least 1), and that count."""
     top = max(counts.values(), default=0)
@@ -751,7 +758,6 @@ def _compute_result(game):
         "votes": dict(game["votes"]),                     # str(voter pid) -> accused pid
         "scene_votes": dict(game.get("scene_votes", {})),  # str(voter pid) -> location
         "secrets_kept": secrets_kept,
-        "awards": _awards(game, murderer, winner),
     }
     if "solution" in game["case"]:
         # AI cases only: why the red herrings pointed where they did, and what cleared them.
@@ -1282,6 +1288,22 @@ def thread_view(game):
             for (entry, pid), (count, at) in sorted(pairs.items())]
 
 
+def cut_view(game):
+    """The one connection the murderer cut ({"entry", "pid", "at"}), or None. Never by whom."""
+    return copy.deepcopy(game.get("cut"))
+
+
+def my_threads(game, token):
+    """One player's own threads ({entry id: suspect}) and whether they may cut one right now,
+    or None for an unknown token. Next to private_view, like my_hot_seat."""
+    player = next((p for p in game["players"] if token and p["token"] == token), None)
+    if player is None:
+        return None
+    mine = game.get("threads", {}).get(str(player["pid"]), {})
+    return {"threads": {int(entry): thread["pid"] for entry, thread in mine.items()},
+            "can_cut": can_cut(game, player["pid"])}
+
+
 def _bot_threads(game, bots, now):
     """Demo suspects and stand-ins pin threads too, one at a time, from the notes that point at
     somebody the way they read them. A guilty one cuts the thread against itself in the
@@ -1362,8 +1384,6 @@ def public_view(game, online):
             for p in game["players"]
         ],
         "log": log,
-        "threads": thread_view(game),          # how many threads run between a note and a suspect
-        "cut": copy.deepcopy(game.get("cut")),  # the one connection the murderer cut (never by whom)
         "searched": list(game["searched"]),
         "result": copy.deepcopy(game["result"]) if finished else None,
         "abort_reason": game["abort_reason"],
@@ -1395,9 +1415,6 @@ def private_view(game, token):
         "plant_locations": [],
         "last_move": None,
         "puzzles": {},
-        "threads": {int(entry): thread["pid"]       # this player's own threads: note -> suspect
-                    for entry, thread in game.get("threads", {}).get(str(pid), {}).items()},
-        "can_cut": False,
     }
     if game["case"] is None:
         return view
@@ -1417,7 +1434,6 @@ def private_view(game, token):
             for c in character["clues"]
         ],
         "can_plant": can_plant,
-        "can_cut": can_cut(game, pid),
         "plant_locations": plant_locations(game) if can_plant else [],
         "last_move": last_move(game, pid),
         # The sealed exhibits of this case (mini-games). Never contains an answer.

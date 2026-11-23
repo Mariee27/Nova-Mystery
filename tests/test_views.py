@@ -12,12 +12,12 @@ from conftest import (
     online_all, own_clue_ids, pids_of, plant_spot, started_in, token_of, cast_votes,
 )
 
-PUBLIC_KEYS = {"code", "phase", "deadline", "demo", "paused_since", "players", "log", "threads", "cut", "searched",
+PUBLIC_KEYS = {"code", "phase", "deadline", "demo", "paused_since", "players", "log", "searched",
                "result", "abort_reason", "characters"}
 PUBLIC_PLAYER_KEYS = {"pid", "name", "role", "online", "stand_in", "is_host", "acted", "voted"}
 PRIVATE_KEYS = {"pid", "name", "is_host", "phase", "acted", "voted", "stand_in", "role", "intro",
                 "alibi", "secret", "is_murderer", "clues", "can_plant", "plant_locations",
-                "last_move", "puzzles", "threads", "can_cut"}
+                "last_move", "puzzles"}
 # "role" is intentionally NOT forbidden: roles are public from REVEAL on.
 FORBIDDEN_KEYS = {"token", "murderer", "is_murderer", "secret", "intro", "alibi",
                   "clues", "implicates", "clue_kind", "planted", "case",

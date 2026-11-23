@@ -37,9 +37,10 @@ def test_a_thread_is_counted_anonymously_and_can_be_moved_or_taken_down():
     assert {(t["pid"], t["count"]) for t in logic.thread_view(game)} == {(3, 1), (4, 1)}
     game = logic.unpin_thread(game, "t1", note, 13)
     assert [t["pid"] for t in logic.thread_view(game)] == [4]
-    public = logic.public_view(game, {1, 2, 3, 4, 5})
-    assert public["threads"] == logic.thread_view(game) and "t2" not in repr(public["threads"])
-    assert logic.private_view(game, "t2")["threads"] == {note: 4}
+    assert "t2" not in repr(logic.thread_view(game))                      # never who pinned it
+    assert "threads" not in logic.public_view(game, {1, 2, 3, 4, 5})       # the views keep their fields
+    assert logic.my_threads(game, "t2") == {"threads": {note: 4}, "can_cut": False}
+    assert logic.my_threads(game, "nope") is None
 
 
 def test_threads_need_a_note_another_player_and_the_right_phase():
@@ -63,16 +64,16 @@ def test_the_murderer_cuts_one_connection_once_in_the_discussion():
     note = notes(game)[0]
     game = logic.pin_thread(game, token_of(game, a), note, killer, 10)
     game = logic.pin_thread(game, token_of(game, b), note, killer, 11)
-    assert logic.private_view(game, murderer_token(game))["can_cut"] is True
-    assert logic.private_view(game, token_of(game, a))["can_cut"] is False
+    assert logic.my_threads(game, murderer_token(game))["can_cut"] is True
+    assert logic.my_threads(game, token_of(game, a))["can_cut"] is False
     assert_rejected_unchanged(lambda g: logic.cut_thread(g, token_of(g, a), note, killer, 12), game)
     game = logic.cut_thread(game, murderer_token(game), note, killer, 12)
     assert logic.thread_view(game) == [] and game["cut"] == {"entry": note, "pid": killer, "at": 12}
-    assert logic.public_view(game, set())["cut"] == game["cut"]               # what, never by whom
+    assert logic.cut_view(game) == game["cut"]               # what, never by whom
     assert_rejected_unchanged(lambda g: logic.pin_thread(g, token_of(g, a), note, killer, 13), game)
     game = logic.pin_thread(game, token_of(game, a), notes(game)[1], killer, 14)
     assert_rejected_unchanged(lambda g: logic.cut_thread(g, murderer_token(g), notes(g)[1], killer, 15), game)
-    assert logic.private_view(game, murderer_token(game))["can_cut"] is False
+    assert logic.my_threads(game, murderer_token(game))["can_cut"] is False
 
 
 def test_the_murderer_cannot_cut_during_the_rounds_or_a_thread_that_does_not_exist():
@@ -148,7 +149,8 @@ def test_the_hall_of_fame_names_hunters_witnesses_oracles_and_the_liar():
     scene = game["case"]["murder_location"]
     game = logic.vote(game, token_of(game, oracle), killer, 12, scene=scene)
     game = logic.end_phase(game, "t1", {1, 2, 3, 4, 5}, 13)                 # → RESULT
-    awards = {a["key"]: a for a in game["result"]["awards"]}
+    assert "awards" not in game["result"]                                  # the result keeps its fields
+    awards = {a["key"]: a for a in logic.hall_of_fame(game)}
     assert awards["detective"]["pids"] == [oracle] and awards["detective"]["title"].endswith("Sharpest detective")
     assert awards["hunter"]["pids"] == [1] and awards["witness"]["pids"] == [2]
     assert awards["oracle"]["pids"] == [oracle] and awards["oracle"]["detail"] == "1 thread to the culprit."
@@ -164,4 +166,8 @@ def test_a_title_shared_by_more_than_two_players_is_left_out():
         game = dict(game, phase="DISCUSSION")
     game = logic.end_phase(game, "t1", {1, 2, 3, 4, 5}, 11)
     game = logic.end_phase(game, "t1", {1, 2, 3, 4, 5}, 12)
-    assert "witness" not in {a["key"] for a in game["result"]["awards"]}
+    assert "witness" not in {a["key"] for a in logic.hall_of_fame(game)}
+
+
+def test_there_is_no_hall_of_fame_before_the_result():
+    assert logic.hall_of_fame(with_evidence("DISCUSSION")) is None

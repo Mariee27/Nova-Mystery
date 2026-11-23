@@ -122,8 +122,12 @@ def views(game, online, token=None):
     public["board_intro"] = logic.board_intro_at(game)      # when the board started the case intro
     public["busy"] = logic.busy_places(game, time.time())   # held by somebody (who stays private)
     public["hot_seat"] = logic.hot_seat_view(game)          # None outside the discussion
+    public["threads"] = logic.thread_view(game)            # red threads: counts only, never who
+    public["cut"] = logic.cut_view(game)                   # the connection the murderer cut
+    public["awards"] = logic.hall_of_fame(game)            # None before the result
     me = logic.private_view(game, token)
     if me is not None:
+        me.update(logic.my_threads(game, token))           # my own threads, and may I cut one
         me["holding"] = logic.my_hold(game, token, time.time())
         me["hot_seat"] = logic.my_hot_seat(game, token)      # only my own pick and rating
         me["host_note"] = logic.host_note(game, token)
@@ -542,9 +546,9 @@ def show_result(public, board=False):
         if time.time() - started < FINALE_SECONDS:
             show(ui.finale(result, public["players"], who, story=story))
     show(ui.reveal(result, characters, who, story=story))
-    if result.get("awards"):
+    if public.get("awards"):
         st.markdown("### Hall of fame")
-        show(ui.awards(result["awards"], who))
+        show(ui.awards(public["awards"], who))
     # The ballots come right after the culprit, over the full width: the moment everybody reacts to.
     st.markdown("### How everyone voted")
     show(ui.vote_table(result, public["players"], who))
@@ -789,7 +793,8 @@ def board_live(code):
 
 def board_round(code, public):
     """The board during the rounds: header with room, round and timer; the campus plan on
-    the left; on the right who has moved and the evidence wall."""
+    the left and who has moved on the right; below, over the full width, the evidence wall
+    with everything found in all rounds so far."""
     story = public["story"]
     if public["hot_seat"] is not None:
         # The break between two rounds: the hot seat gets the whole board (with its own clock).
@@ -804,8 +809,9 @@ def board_round(code, public):
         show(ui.campus_map(public["searched"], story=story, view=public["map"], board=True))
     with right:
         show(ui.detectives(public["players"]))
-        st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
-        show_wall(public, board=True)
+    # Under the map, over the full width: room for many notes, from every round so far.
+    st.markdown('<div class="kicker">Evidence wall · all rounds</div>', unsafe_allow_html=True)
+    show_wall(public, board=True)
 
 
 def board_screen(code):

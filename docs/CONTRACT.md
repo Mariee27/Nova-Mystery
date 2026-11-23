@@ -63,9 +63,9 @@ plus, depending on kind: `location`, `clue_id`, `implicates`, `clue_kind`, `plan
 
 Result: `{"winner": "detectives"|"murderer", "ending": "truth"|"incomplete"|"wrong"|"escaped",
 "murderer": pid, "murder_location": str, "tally": {"3": 2, ...}, "scene_tally": {"Library": 2, ...},
-"votes": {...}, "scene_votes": {...}, "secrets_kept": [pid, ...], "awards": [award, ...]}` (`tally` and `scene_tally` only list entries
+"votes": {...}, "scene_votes": {...}, "secrets_kept": [pid, ...]}` (`tally` and `scene_tally` only list entries
 with at least one vote; `votes` and `scene_votes` are every single ballot). AI cases add `"red_herrings"` (see *Stories*).
-An award is `{"key", "title", "pids": [pid, ...], "detail"}` (ties share it); keys: `detective` (named the culprit and
+`hall_of_fame(game)` (None before RESULT) gives the awards: each `{"key", "title", "pids": [pid, ...], "detail"}` (ties share it); keys: `detective` (named the culprit and
 the scene, else just the culprit), `hunter` (most exhibits found), `witness` (most clues shared), `oracle` (most threads
 to the culprit), `liar` (the murderer: master liar if they got away, caught red-handed if not). A title nobody earned
 is left out, and so are hunter, witness and oracle when more than two players tie for them.
@@ -157,7 +157,10 @@ pin_thread(game, token, entry_id, target_pid, now) -> game   # INVESTIGATION/DIS
 unpin_thread(game, token, entry_id, now) -> game
 cut_thread(game, token, entry_id, target_pid, now) -> game   # the murderer, DISCUSSION, once
 can_cut(game, pid) -> bool
-thread_view(game) -> [{"entry", "pid", "count", "at"}]
+thread_view(game) -> [{"entry", "pid", "count", "at"}]     # public: counts per connection, never who
+cut_view(game) -> None | {"entry", "pid", "at"}            # public: what the murderer cut, never by whom
+my_threads(game, token) -> None | {"threads": {entry id: pid}, "can_cut": bool}   # one player's own
+hall_of_fame(game) -> None | [award, ...]                  # after the game
 public_view(game, online) -> dict
 private_view(game, token) -> dict | None
 last_move(game, pid) -> dict | None                 # the player's own move in the current round
@@ -245,16 +248,17 @@ through the same functions as everybody else and only uses its own card and the 
   oneself, an unknown suspect, a connection that was cut, another phase.
 - `cut_thread`: only the murderer, only in DISCUSSION, once per game (`game["cut"] = {"entry", "pid", "at"}`), only a
   connection that has a thread. Removes every thread on it; that connection cannot be pinned again.
-- Public: `thread_view` (counts per connection, never who) and `cut` (what was cut, never by whom). Private: the
-  player's own `threads` ({entry id: suspect}) and `can_cut`.
+- Like the hot seat, the threads live next to the views, not in them (the views keep their fields): public
+  `thread_view` (counts per connection, never who) and `cut_view` (what was cut, never by whom); private
+  `my_threads` (the player's own threads and `can_cut`). The app adds them to its screens' data.
 - Demo suspects and stand-ins pin one thread at a time (`BOT_THREAD_DELAY`, `BOT_THREAD_GAP`) from the notes that point
   at somebody the way they read them; a guilty one cuts the thickest thread against itself in the discussion.
 
 ### Views
-- `public_view(game, online)` → `{"code","phase","deadline","demo","paused_since","players":[{"pid","name","role","online","stand_in","is_host","acted","voted"}],"log":[...],"threads":[...],"cut":None|{...},"searched":[...],"result":None|result,"abort_reason", "characters": None | [...]}`. `paused_since` is None unless the game is paused.
+- `public_view(game, online)` → `{"code","phase","deadline","demo","paused_since","players":[{"pid","name","role","online","stand_in","is_host","acted","voted"}],"log":[...],"searched":[...],"result":None|result,"abort_reason", "characters": None | [...]}`. `paused_since` is None unless the game is paused.
   `role` is None in LOBBY and the player's role name from REVEAL on. **Roles are public** (clues talk about roles, so everybody must know who plays whom); who the murderer is stays secret.
   Before RESULT: log entries contain **no** `implicates`, `clue_kind`, `planted` keys; `result` is None; `characters` is None; and nowhere in the view is there a token, the murderer, a secret, an intro, an alibi or a private clue. In RESULT: full log, result, and `characters` (the case's characters with names).
-- `private_view(game, token)` → None for an unknown token. Otherwise `{"pid","name","is_host","phase","acted","voted","stand_in","role","intro","alibi","secret","is_murderer","clues":[{"id","text","shared"}],"can_plant","plant_locations","last_move","puzzles","threads","can_cut"}`. Before the game starts, the case fields are None / empty. `plant_locations` is empty unless `can_plant`; `can_plant` is False when there is no location left to plant at. It never contains another player's card or token.
+- `private_view(game, token)` → None for an unknown token. Otherwise `{"pid","name","is_host","phase","acted","voted","stand_in","role","intro","alibi","secret","is_murderer","clues":[{"id","text","shared"}],"can_plant","plant_locations","last_move","puzzles"}`. Before the game starts, the case fields are None / empty. `plant_locations` is empty unless `can_plant`; `can_plant` is False when there is no location left to plant at. It never contains another player's card or token.
 
 ## `db` functions (SQLite or PostgreSQL)
 ```

@@ -28,6 +28,25 @@ The app sleeps when nobody used it for a while: the first visit then wakes it up
 | Tassilo Stewanowitsch | 78127 |
 | Emilia Vetter | 81228 |
 
+### How we worked as a team
+
+- **Split by feature.** Each of us owned complete features, from the rules to the screen, so that one
+  person could brief a coding agent on a whole workflow. Tassilo started the project (the first version,
+  later the stand-ins for players who drop out and the evidence wall for the whole game). Marie set up the repository, the README, the CI with pinned
+  dependencies and the security review, and reviewed and merged most pull requests. Laura built the
+  AI-written cases and the investigation rounds with the campus plan. Emilia built the game's screens and
+  moments: the evidence wall, the sealed envelope and the murderer stamp, the ballot cards at the end,
+  the case intro on the board, the hot seat, the waiting room and the fixes from our playtests.
+- **Shared parts have rules, not just owners.** `logic.py` and the views change only together with tests,
+  and the interface between rules and screens is written down in `docs/CONTRACT.md`. Existing tests are
+  only changed when the team agreed (for example the reveal going from 40 to 60 seconds).
+- **Every change reaches `main` through a pull request** that a second member reads; the tests run on
+  GitHub for every pull request. Branches are small and short-lived.
+- **Keeping track:** our group chat and the pull request descriptions (what changed, why, what to check by
+  hand). After every playtest we wrote a list of problems and turned each into a fix pull request.
+- **When `main` breaks:** nothing else is merged until a small fix pull request makes it green again.
+- **Rules for our coding agents:** the rules every member's agent follows are in [AGENTS.md](AGENTS.md).
+
 ---
 
 ## 1. The problem and the idea
@@ -382,13 +401,13 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_extra_minigames.py` | 29 | Spot the difference and Find the object: every variant solvable, wrong or forged taps refused, rubbish never crashes, a place shows its own picture, the Canteen and the Garage. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
 | `tests/test_app_smoke.py` | 46 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case, a broken database, red threads pinned and cut from a phone, the lobby fly-in and the finale. |
-| `tests/test_threads.py` | 9 | Red threads: anonymous counts, moving and taking down, refused cases, the murderer's one cut, threads do not use the move, demo suspects pin one at a time, the hall of fame. |
+| `tests/test_threads.py` | 11 | Red threads: anonymous counts, moving and taking down, refused cases, the murderer's one cut, threads do not use the move, demo suspects pin one at a time, the hall of fame. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
 | `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
-| `tests/test_playtest_fixes.py` | 13 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
+| `tests/test_playtest_fixes.py` | 14 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 848 tests.
+All together: 851 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -506,7 +525,41 @@ More scenarios, each with the test that proves it, are in [`docs/WHAT_HAPPENS_IF
 - **More players or game modes,** for example an accomplice or adjustable timers.
 - **Other languages** by adding translated versions of `content.py` and the screen texts.
 
-## 11. Repository structure
+## 11. Questions for the walkthrough
+
+**Where is the data stored?**
+In a database, one row per room with the whole game as JSON, plus a table with the players' signs of life
+(`rooms`, `presence`, and `ai_requests` for the AI limit). The deployed app uses PostgreSQL (a free database
+on Neon; its address is the secret `DATABASE_URL`), so rooms survive a restart. Locally and in most tests the
+same code uses an SQLite file (`data/murder.db`). All database code is in `db.py`; every action is one
+read-modify-write inside one transaction, so two phones acting at the same moment cannot overwrite each other.
+There are no accounts, passwords or email addresses.
+
+**What do the tests cover, and what do they not cover?**
+They cover every rule with its allowed and its refused case (wrong phase, wrong player, acting twice, invalid
+input), who may see what (no secret before the result), storage on SQLite *and* PostgreSQL, the AI stories
+with fixed answers, every mini-game, and whole games through every screen with a stand-in for Streamlit
+(table in section 5). A browser check in the CI plays a game in a real browser.
+They do **not** cover: the real AI service (the tests never go online), real phones (iOS Safari, a locked
+screen, a browser that slows down a background tab), the real delay of a far-away database, how the pages
+really look beyond the browser check, and many rooms at the same time. We covered these by playtesting with
+our own phones, and the problems we found became pull requests (for example *Taps no longer reload the page*).
+
+**What happens if the external API (the AI) is unavailable?**
+Nothing breaks. Without a key, at the daily limit, when the model is busy, or after a timeout (6 minutes),
+only the host sees why, and the game plays the handcrafted case #001. The AI writes in the background, so the
+lobby never freezes. Details: section 3 and `docs/WHAT_HAPPENS_IF.md`.
+
+**What happens if the database is unavailable?**
+Players see a short message ("The game cannot reach its database right now …") instead of an error; the
+details, which name the server, go only to the server log. The next request opens a fresh connection.
+
+**What if a player's phone drops out?**
+After 15 seconds without a sign of life the computer plays that seat as a *stand-in* (board and phones show it),
+so the game never waits for a phone that went dark. When the phone is back, the player takes the seat over
+again (see *Limits*).
+
+## 12. Repository structure
 
 ```
 app.py                  Streamlit screens
@@ -524,7 +577,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (848 tests); tests/e2e/ the browser check
+tests/                  pytest suite (851 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)
