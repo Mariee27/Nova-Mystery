@@ -32,7 +32,7 @@ The app sleeps when nobody used it for a while: the first visit then wakes it up
 
 - **Split by feature.** Each of us owned complete features, from the rules to the screen, so that one
   person could brief a coding agent on a whole workflow. Tassilo started the project (the first version,
-  later the away seats for players who drop out). Marie set up the repository, the README, the CI with pinned
+  later the stand-ins for players who drop out and the evidence wall for the whole game). Marie set up the repository, the README, the CI with pinned
   dependencies and the security review, and reviewed and merged most pull requests. Laura built the
   AI-written cases and the investigation rounds with the campus plan. Emilia built the game's screens and
   moments: the evidence wall, the sealed envelope and the murderer stamp, the ballot cards at the end,
@@ -45,7 +45,9 @@ The app sleeps when nobody used it for a while: the first visit then wakes it up
 - **Keeping track:** our group chat and the pull request descriptions (what changed, why, what to check by
   hand). After every playtest we wrote a list of problems and turned each into a fix pull request.
 - **When `main` breaks:** nothing else is merged until a small fix pull request makes it green again.
-- **Agents follow the same rules:** [AGENTS.md](AGENTS.md) is in the repository and changes through pull requests.
+- **Rules for our coding agents:** we worked by these rules from the start, but each of us kept them in our own
+  setup. At the end we wrote them down together in [AGENTS.md](AGENTS.md), as the course guides recommend.
+  Next time we would put that file into the repository on the first day.
 
 ---
 
@@ -544,9 +546,9 @@ Players see a short message ("The game cannot reach its database right now …")
 details, which name the server, go only to the server log. The next request opens a fresh connection.
 
 **What if a player's phone drops out?**
-After 15 seconds without a sign of life the seat is shown as *away* on the board and the phones. Nobody plays
-for that player, the game goes on without waiting for them (rounds, hot seat and vote), and the player plays on
-in their own seat when the phone is back.
+After 15 seconds without a sign of life the computer plays that seat as a *stand-in* (board and phones show it),
+so the game never waits for a phone that went dark. When the phone is back, the player takes the seat over
+again (see *Limits*).
 
 ## 12. Repository structure
 
