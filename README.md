@@ -511,7 +511,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (822 tests); tests/e2e/ the browser check
+tests/                  pytest suite (798 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)

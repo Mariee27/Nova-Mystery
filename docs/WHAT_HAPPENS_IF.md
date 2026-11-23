@@ -27,7 +27,7 @@ The game page asks the phone to keep its screen on (Screen Wake Lock: Chrome, An
 The game continues normally. They can be voted for and are revealed at the end.
 
 **… the app restarts?**
-Locally everything is kept, because the game state is stored in an SQLite file (DW 21). On free hosting the file can be lost on a restart. Then you need a new room. We decided this on purpose: a game lasts 15 to 30 minutes.
+Nothing is lost when `DATABASE_URL` points to a PostgreSQL database (the deployed app uses a free one on Neon): the rooms live there, not on the app's server. Without it the game state is stored in an SQLite file (DW 21): locally that is kept, but on free hosting the file is lost on a restart, and then you need a new room. (`tests/test_db.py` runs on both databases.)
 
 **… someone reloads the page?**
 Nothing is lost. The game state lives on the server, not in the browser.
@@ -107,7 +107,7 @@ Yes. A checker validates every case before the start: exactly one murderer, at l
 No. Murderer, crime scene, roles and clues are drawn anew for every game. (DW 2)
 
 **Where is the data stored?**
-In an SQLite file on the server: one row per room with the game state, plus a table with the players' heartbeats. There are no accounts, no passwords and no email addresses.
+In a database, one row per room with the game state, plus a table with the players' heartbeats. The deployed app uses PostgreSQL (a free database on Neon, its address is the secret `DATABASE_URL`), so rooms survive a restart of the app. Without `DATABASE_URL`, for example locally and in most tests, the same code uses an SQLite file (`data/murder.db`). All database code is in `db.py`. There are no accounts, no passwords and no email addresses.
 
 **What do the tests cover?**
 All rules and rejections, the timers, the failure rules, the case checker, visibility (who sees what) and storage. The interface is played through with a mock. We check the look in the browser by hand.
@@ -115,7 +115,7 @@ All rules and rejections, the timers, the failure rules, the case checker, visib
 ## AI-written cases
 
 **Where do the AI cases come from?**
-When a room is created, an AI model (a free model via OpenRouter) writes a new story in the background while the players join. The AI only writes words; the generator still decides who did it, where, and which clue points to whom. (`tests/test_ai_cases.py`)
+Only when the host picks "A new case written by the AI" in the lobby: then an AI model (a free model via OpenRouter) writes a new story in the background while the players join. Creating a room never asks the AI. The AI only writes words; the generator still decides who did it, where, and which clue points to whom. (`tests/test_ai_cases.py`)
 
 **What if there is no key, the AI is slow, or the daily limit is reached?**
 The game plays case #001 "The Last Lecture". Nobody has to wait. Only the host sees a short note with the reason. (`test_when_the_ai_case_is_missing_case_001_is_played_and_only_the_host_is_told`)
@@ -124,7 +124,7 @@ The game plays case #001 "The Last Lecture". Nobody has to wait. Only the host s
 Every AI story is checked before it can be played: right number of locations and roles, length limits, no "murderer"/"killer", no names hidden in neutral clues, rumors that point at exactly one suspect, and a fair case for 4, 5 and 6 players. A story that fails is not used. (`test_a_broken_story_is_rejected`, `test_an_ai_story_gives_fair_cases_for_many_seeds`)
 
 **Can the AI story leak secrets to the board?**
-No. The screens only get the public part of the story (titles, places, public dossiers, endings). Private intros, secrets, traces and rumors only reach a phone through that player's own card or through evidence found in the game. (`test_the_public_story_holds_no_secrets`)
+No. The screens only get the public part of the story (titles, places, public dossiers with what each suspect always carries, endings). The traces are public on purpose: the object found at the crime scene names no owner, so the room has to match it with the dossiers. Private intros, secrets and rumors only reach a phone through that player's own card or through evidence found in the game. (`test_the_public_story_holds_no_secrets`)
 
 **Is there still a demo with computer players?**
 No. The demo suspects were removed: a game needs 4 to 6 people. To try it alone, join a room from four private browser windows.
