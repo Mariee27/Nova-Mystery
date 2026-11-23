@@ -471,11 +471,3 @@ def test_the_finale_races_the_ballots_and_turns_the_culprits_card():
     assert "<script>" not in html and "Case closed" in html and "The Chef" in html
     assert html.index("Ben") < html.index("&lt;script") and "--w:100%" in html and "--w:33%" in html
     assert "Escaped" in ui.finale(dict(result, winner="murderer", ending="escaped"), players, str)
-
-
-def test_the_hall_of_fame_escapes_names_and_marks_the_villain():
-    items = [{"key": "hunter", "title": "🔍 Evidence hunter", "pids": [1, 2], "detail": "2 exhibits found."},
-             {"key": "liar", "title": "🎭 Master liar", "pids": [3], "detail": "Got away with it."}]
-    html = ui.awards(items, lambda pid: EVIL if pid == 1 else f"P{pid}")
-    assert "<script>" not in html and "P2" in html and html.count("award villain") == 1
-    assert ui.awards([], str) == ""

@@ -308,9 +308,6 @@ ICONS = {
     "share": ('<rect x="6" y="3" width="12" height="18" rx="1.5"/><path d="M9 8h6M9 12h6M9 16h4"/>'),
     "plant": '<path d="M5 19l6-6M14 4l6 6-8 8H6v-6z"/>',
     "back": '<path d="M14 6l-6 6 6 6"/>',
-    "thread": '<circle cx="6" cy="6" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M7.5 7.5C12 9 9 15 16.5 16.5"/>',
-    "cut": ('<circle cx="6" cy="17" r="2.6"/><circle cx="17" cy="17" r="2.6"/>'
-            '<path d="M8 15L18 4M15 15L5 4"/>'),
 }
 
 
@@ -596,16 +593,7 @@ def typed(text):
     return f'<span class="typing" aria-label="{h(text)}">{letters}<span class="caret"></span></span>'
 
 
-def thread_label(threads, entry_id, name_of):
-    """'🧵 2 → Rui · 1 → Ana' for one note: how many threads run to whom (never who pinned them)."""
-    mine = sorted((t for t in threads if t["entry"] == entry_id), key=lambda t: (-t["count"], t["pid"]))
-    if not mine:
-        return ""
-    parts = " · ".join(f'{t["count"]} → {h(name_of(t["pid"]))}' for t in mine)
-    return f'<div class="tcount">🧵 {parts}</div>'
-
-
-def pinned_note(entry, name_of, newest=False, story=None, typewriter=False, threads=()):
+def pinned_note(entry, name_of, newest=False, story=None, typewriter=False):
     """One log entry as a note pinned to the cork board. name_of(pid) -> display name.
     typewriter=True (the board): the newest note's text is typed letter by letter."""
     kind = entry["kind"]
@@ -629,119 +617,21 @@ def pinned_note(entry, name_of, newest=False, story=None, typewriter=False, thre
     else:                      # a message from the game itself
         css = "slip"
         body = f'<div class="b">{text}</div>'
-    if kind in ("search", "share"):
-        body += thread_label(threads, entry["id"], name_of)
     new = " new" if newest else ""
     return (f'<div class="pin {css}{new}" role="listitem" style="--tilt:{tilt(entry["id"])}deg">'
             f'{_stamp(entry)}{body}</div>')
 
 
-def evidence_wall(log, name_of, story=None, typewriter=False, threads=()):
+def evidence_wall(log, name_of, story=None, typewriter=False):
     """The whole public log as a cork board, on the board and on every phone the whole game.
     Newest first: the latest note is pinned at the top left, so nobody has to scroll to it,
     and only that one gets the class 'new' and drops in. typewriter=True (the board): its text
     is also typed letter by letter, like a terminal."""
     if not log:
         return '<div class="cork empty">Nothing has been pinned up yet.</div>'
-    notes = [pinned_note(entry, name_of, newest=(i == 0), story=story, typewriter=typewriter, threads=threads)
+    notes = [pinned_note(entry, name_of, newest=(i == 0), story=story, typewriter=typewriter)
              for i, entry in enumerate(reversed(log))]
     return f'<div class="cork" role="list" aria-label="Evidence wall">{"".join(notes)}</div>'
-
-
-# ---------------------------------------------------------------- red threads (board)
-#
-# A 16:9 board in its own coordinates: x from 0 to 100, y from 0 to THREAD_H. The suspects hang
-# along the top, the notes below in rows; a thread runs from a note's pin to a suspect's photo
-# and sags a little like a real string. The SVG and the HTML use the same coordinates (the
-# container keeps its 16:9 shape), so the lines meet the pins exactly. Pure HTML and CSS.
-
-THREAD_H = 56.25            # 100 × 9/16
-THREAD_COLS = 6
-THREAD_ROWS = 3             # at most 18 notes fit; the newest ones are shown
-NOTE_W, NOTE_H = 14.6, 10.6
-NOTES_TOP = 17.0
-THREAD_NEW = 6              # seconds: a thread this new is drawn in, a cut this new snaps apart
-
-
-def _thread_layout(players, notes):
-    """Where everybody sits: {pid: (x, y)} for the photos, {entry id: (x, y)} for the pins."""
-    n = max(len(players), 1)
-    photos = {p["pid"]: ((i + 0.5) * 100 / n, 6.5) for i, p in enumerate(players)}
-    pins = {}
-    gap_x = (100 - THREAD_COLS * NOTE_W) / (THREAD_COLS + 1)
-    gap_y = (THREAD_H - NOTES_TOP - THREAD_ROWS * NOTE_H) / THREAD_ROWS
-    for i, entry in enumerate(notes):
-        col, row = i % THREAD_COLS, i // THREAD_COLS
-        x = gap_x + col * (NOTE_W + gap_x)
-        y = NOTES_TOP + row * (NOTE_H + gap_y)
-        pins[entry["id"]] = (x, y)
-    return photos, pins
-
-
-def _thread_path(start, end):
-    """A string from a pin to a photo that sags a little."""
-    (x1, y1), (x2, y2) = start, end
-    sag = 2.5 + abs(x2 - x1) * 0.06
-    return f"M{x1:.2f},{y1:.2f} Q{(x1 + x2) / 2:.2f},{max(y1, y2) + sag:.2f} {x2:.2f},{y2:.2f}"
-
-
-def thread_board(log, players, threads, cut, now, name_of, story=None, culprit=None):
-    """The red-thread board: suspects on top, the newest notes below, and a red thread for every
-    connection somebody pinned (thicker the more players agree). Threads pinned in the last
-    seconds are drawn in; a fresh cut snaps apart. culprit (after the game): that photo and the
-    threads to it light up. Only public facts: never who pinned a thread."""
-    notes = [e for e in log if e["kind"] in ("search", "share")][-THREAD_COLS * THREAD_ROWS:]
-    photos, pins = _thread_layout(players, notes)
-    icons = _story(story)["location_icons"]
-    weight = {}
-    for t in threads:
-        weight[t["pid"]] = weight.get(t["pid"], 0) + t["count"]
-    top = max(weight.values(), default=0)
-    lines = []
-    for t in threads:
-        if t["entry"] not in pins or t["pid"] not in photos:
-            continue
-        x, y = pins[t["entry"]]
-        css = "thread"
-        css += " new" if now - t["at"] < THREAD_NEW else ""
-        css += " right" if culprit is not None and t["pid"] == culprit else ""
-        width = 0.22 + 0.16 * min(t["count"], 6)
-        lines.append(f'<path class="{css}" pathLength="1" stroke-width="{width:.2f}" '
-                     f'd="{_thread_path((x + NOTE_W / 2, y + 0.6), photos[t["pid"]])}"/>')
-    snip = ""
-    if cut and now - cut["at"] < THREAD_NEW and cut["entry"] in pins and cut["pid"] in photos:
-        x, y = pins[cut["entry"]]
-        (x2, y2) = photos[cut["pid"]]
-        mid_x, mid_y = (x + NOTE_W / 2 + x2) / 2, (y + y2) / 2
-        lines.append(f'<path class="thread snapped" pathLength="1" stroke-width="0.4" '
-                     f'd="{_thread_path((x + NOTE_W / 2, y + 0.6), (x2, y2))}"/>')
-        snip = (f'<div class="snip" style="left:{mid_x:.2f}%;top:{mid_y / THREAD_H * 100:.2f}%">✂️</div>')
-    faces = []
-    for p in players:
-        x, y = photos[p["pid"]]
-        css = "tb-face"
-        css += " hot" if top and weight.get(p["pid"], 0) == top else ""
-        css += " culprit" if culprit is not None and p["pid"] == culprit else ""
-        count = weight.get(p["pid"], 0)
-        faces.append(f'<div class="{css}" style="left:{x:.2f}%;top:{y / THREAD_H * 100:.2f}%">'
-                     f'<span class="ph">{initial(p["name"])}</span><span class="nm">{h(p["name"])}</span>'
-                     f'<span class="ct">{"🧵 " + str(count) if count else ""}</span></div>')
-    cards = []
-    for entry in notes:
-        x, y = pins[entry["id"]]
-        if entry["kind"] == "search":
-            head = f'{h(icons.get(entry.get("location"), ""))} {h(entry.get("location", ""))}'
-        else:
-            head = f'Statement · {h(name_of(entry["by"]))}'
-        cards.append(f'<div class="tb-note {entry["kind"]}" style="left:{x:.2f}%;top:{y / THREAD_H * 100:.2f}%;'
-                     f'width:{NOTE_W}%;height:{NOTE_H / THREAD_H * 100:.2f}%;--tilt:{tilt(entry["id"])}deg">'
-                     f'<div class="cap">#{h(entry["id"])} · {head}</div><div class="b">{h(entry["text"])}</div></div>')
-    if not notes:
-        cards.append('<div class="tb-empty">No notes on the wall yet.</div>')
-    svg = (f'<svg class="tb-lines" viewBox="0 0 100 {THREAD_H}" preserveAspectRatio="none" aria-hidden="true">'
-           f'{"".join(lines)}</svg>')
-    return (f'<div class="threadboard" role="img" aria-label="Red threads between the notes and the suspects">'
-            f'{"".join(cards)}{svg}{"".join(faces)}{snip}</div>')
 
 
 # ---------------------------------------------------------------- private card (phone)
@@ -861,19 +751,6 @@ def finale(result, players, name_of, story=None):
             f'<div class="face">{initial(culprit["name"])}</div><div class="n">{h(culprit["name"])}</div>'
             f'<div class="r">{h(culprit.get("role") or "")}</div></div></div>'
             f'<div class="fstamp">{h(stamp)}</div><div class="fend">{h(ending["title"])}</div></div></div>')
-
-
-def awards(items, name_of):
-    """The hall of fame: one card per title, popping in one after another."""
-    if not items:
-        return ""
-    cards = []
-    for i, award in enumerate(items):
-        names = " & ".join(h(name_of(pid)) for pid in award["pids"])
-        bad = " villain" if award["key"] == "liar" else ""
-        cards.append(f'<div class="award{bad}" style="--i:{i}"><div class="at">{h(award["title"])}</div>'
-                     f'<div class="an">{names}</div><div class="ad">{h(award["detail"])}</div></div>')
-    return f'<div class="awards">{"".join(cards)}</div>'
 
 
 def reconstruction(result, characters, name_of, story=None):

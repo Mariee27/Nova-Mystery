@@ -1080,65 +1080,7 @@ def test_the_board_lobby_flies_in_only_players_who_join_while_it_is_open(game_db
     assert page.count("suspect arrive") == 1 and page.index("Ben") > page.index("suspect arrive")
 
 
-def test_a_phone_pins_a_red_thread_and_the_board_shows_it_in_the_discussion(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
-    code = phone.st.query_params["room"]
-    phone.run(press=["Start game"])
-    phone.run(press=[HOST_SKIP])                                     # round 1
-    conn = db.connect(game_db)
-    try:
-        tap_on_map(phone, conn, code)
-        phone.run(press=["Continue ▸"])
-        note = next(e["id"] for e in db.load(conn, code)["log"] if e["kind"] == "search")
-        assert "Pin a red thread" in phone.run()
-        page = tap(phone, step="thread", note=note)
-        assert "points at" in page
-        tap(phone, step="thread", note=note, suspect=2)
-        phone.run(press=["🧵 Pin the thread"])
-        assert logic.thread_view(db.load(conn, code)) == [
-            {"entry": note, "pid": 2, "count": 1, "at": pytest.approx(time.time(), abs=60)}]
-        assert "🧵 1 →" in phone.run()                                # the count on the wall's note
-        while db.load(conn, code)["phase"] != "DISCUSSION":
-            phone.run(press=[HOST_SKIP])
-        board = Browser(room=code, view="board").run()
-        assert 'class="threadboard"' in board and 'class="thread' in board
-        assert "Pin a red thread" in phone.run()                      # still possible in the discussion
-    finally:
-        conn.close()
-
-
-def test_the_murderer_cuts_a_thread_from_the_phone(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
-    code, token = phone.st.query_params["room"], phone.st.query_params["t"]
-    conn = db.connect(game_db)
-    try:
-        everybody = {1, 2, 3, 4, 5}
-        game = db.apply(conn, code, lambda g: logic.start(g, token, everybody, time.time(), seed=logic.DEMO_SEED))
-        # Make this phone's player the murderer, and give the room one thread against them.
-        def setup(g):
-            g = dict(g, case=dict(g["case"], murderer=1))
-            g = logic.end_phase(g, token, everybody, time.time())
-            bot = g["players"][1]
-            g = logic.share(g, bot["token"], logic._character(g, 2)["clues"][0]["id"], time.time())
-            g = logic.pin_thread(g, bot["token"], g["log"][-1]["id"], 1, time.time())
-            while g["phase"] != "DISCUSSION":
-                g = logic.end_phase(g, token, everybody, time.time())
-            return g
-        game = db.apply(conn, code, setup)
-        note = game["log"][-1]["id"]
-        assert "Cut a thread" in phone.run()
-        tap(phone, step="cut", note=note, suspect=1)
-        phone.run(press=["✂️ Cut it"])
-        game = db.load(conn, code)
-        assert game["cut"]["entry"] == note and game["cut"]["pid"] == 1
-        assert "Cut a thread" not in phone.run()                      # once per game
-    finally:
-        conn.close()
-
-
-def test_the_board_plays_the_finale_once_and_everybody_sees_the_hall_of_fame(game_db):
+def test_the_board_plays_the_finale_once_and_the_phones_never(game_db):
     phone = Browser()
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
@@ -1151,9 +1093,9 @@ def test_the_board_plays_the_finale_once_and_everybody_sees_the_hall_of_fame(gam
         conn.close()
     board = Browser(room=code, view="board")
     page = board.run()
-    assert 'class="finale' in page and "Hall of fame" in page
+    assert 'class="finale' in page
     assert 'class="finale' in board.run()                           # the same overlay while it runs
     board.st.session_state[f"finale_{code}"] -= 60                    # a minute later
     assert 'class="finale' not in board.run()
     phone_page = phone.run()
-    assert "Hall of fame" in phone_page and 'class="finale' not in phone_page
+    assert 'class="finale' not in phone_page
