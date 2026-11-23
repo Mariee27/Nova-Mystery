@@ -64,6 +64,8 @@ Afterwards "Move made." shows your move with a LOGGED stamp and who is still cho
 A solved exhibit first shows "Access granted" until the player taps *Continue*.
 While a player solves a place's mini-game, the place is held for them for up to 2 minutes, so nobody
 else can open or search it meanwhile (the others only see that it is busy, not by whom).
+Taps on cards, pins and chips are handled without reloading the page, so the phone never goes blank between
+two steps; "Your move." shows the round, and from round 2 on says that a new round has begun.
 The app has no question-and-answer screen: the players sit in one room and question, accuse and
 defend their alibis out loud. A player with nothing left to search or share is told so and is
 not waited for.
@@ -117,9 +119,12 @@ Phases end early when everybody is done, and the host can skip ahead.
   fails (no key, limit, busy, timeout), only the host sees why and can try again or play case #001.
   See section 4 for the setup.
 - **Every case has its own opening.** The home page plays a short intro about the game. When the host starts,
-  the board and every phone play the intro of *this* case (six lines written with the story, then the case
-  title) before the private files open. While the AI is still writing, the lobby says so instead of showing an
-  old case file.
+  every phone plays the intro of *this* case (six lines written with the story, then the case title) before the
+  private files open. The board plays a longer scene that everybody watches together: police tape and blue
+  lights, the victim and where the body was found ("But this is not where Vale died."), then the suspects as
+  file cards (name, role, public dossier line) landing one by one, all within the 30 seconds of "Read your
+  file". Only public facts; who did it stays secret. While the AI is still writing, the lobby says so instead
+  of showing an old case file.
 - **Every case is checked for fairness** before the game starts (exactly one murderer, at least two strong
   clues against them, no strong clue against innocents, …). See `logic.validate_case`.
 - **Hidden information:** each phone only ever receives its own card. The board shows no secrets until the result.
@@ -265,6 +270,9 @@ without buying credit, and both speak the same OpenAI format, so only the addres
    why and can *Try again* or switch to case #001. *Write a different AI case* asks for another one. At most
    5 AI cases per hour and 10 per day are written for the whole app (a case takes up to 5 requests, the free
    plan allows 50 a day); raise `MAX_AI_CASES_PER_HOUR` / `_PER_DAY` in `db.py` if you buy credit.
+   These limits are rolling windows, not a reset at a fixed time: a new case is allowed if fewer than 5 were
+   started in the last 60 minutes and fewer than 10 in the last 24 hours. An automatic second try counts as a
+   case of its own. OpenRouter's own limit for free models resets once a day.
 
 If a key ever leaks: revoke it on openrouter.ai immediately, create a new one, and update it locally and on
 Streamlit Cloud. Deleting the commit does not remove it from the history.
@@ -310,23 +318,23 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 |---|---|---|
 | `tests/test_rules.py` | 141 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, the pause when players drop out, planting rules, removing players, names that only look like another one. Rejected calls must leave the game unchanged. |
 | `tests/test_ai_cases.py` | 118 | AI stories: reading the answer, the checks, the repair round, busy models, the story on every screen. |
-| `tests/test_minigames.py` | 84 | The puzzles: solvable from the story, the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
+| `tests/test_minigames.py` | 125 | The puzzles: solvable from the story (the lock from its note alone, with a new code every game), the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
 | `tests/test_case_minigames.py` | 70 | Mini-games that fit the case: five different games for the five places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
 | `tests/test_rounds_and_map.py` | 52 | Rounds, locked places and the campus map: every pin in its building, pins far enough apart to tap, no car park. |
-| `tests/test_nova.py` | 44 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file). |
+| `tests/test_nova.py` | 46 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file). |
 | `tests/test_balanced_ai_cases.py` | 38 | AI cases: medium difficulty, the solution file, the test reading, the host's choice, the AI's status. |
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
 | `tests/test_views.py` | 20 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card. |
 | `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
 | `tests/test_hot_seat.py` | 19 | The hot seat: allowed and refused picks and ratings, ties, the clock, the switch in `start`, only counts in the views, demo bots. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
-| `tests/test_app_smoke.py` | 31 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
+| `tests/test_app_smoke.py` | 32 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
 | `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
 | `tests/test_playtest_fixes.py` | 9 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 719 tests.
+All together: 763 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -456,7 +464,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (719 tests); tests/e2e/ the browser check
+tests/                  pytest suite (763 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)
