@@ -764,10 +764,15 @@ def hot_seat_phone(code, token, public, me):
         st.caption("Ask out loud. Do you believe the answers?")
         left, right = st.columns(2)
         rating = mine.get("rating")
-        for column, verdict, label in ((left, "believe", "👍 Believe"), (right, "lie", "👎 Lying")):
+        # Your vote is marked with a tick, so it is clear that it counted (and which one it was).
+        labels = {"believe": ("👍 Believe", "✓ You believe them"), "lie": ("👎 Lying", "✓ You say: lying")}
+        for column, verdict in ((left, "believe"), (right, "lie")):
             with column:
-                action_button(label, code, lambda g, on, now, v=verdict: logic.rate_hot_seat(g, token, v, now),
+                action_button(labels[verdict][rating == verdict], code,
+                              lambda g, on, now, v=verdict: logic.rate_hot_seat(g, token, v, now),
                               type="primary" if rating == verdict else "secondary", use_container_width=True)
+        if rating:
+            st.caption("Your vote counts. You can still change it until the time is up.")
         return
     options = [pid for pid in hot["candidates"] if pid != me["pid"]]
     if not options:

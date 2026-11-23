@@ -58,6 +58,7 @@ class FakeStreamlit(types.ModuleType):
         self.press = set()     # labels of buttons that are clicked in the next run
         self.values = {}       # label -> value for inputs
         self.shown = []        # everything that was written to the page
+        self.labels = []       # the labels of the buttons on the page
         self.mounted = []      # (name, key, data) of every custom component
         # One fixed st.components object per stand-in, like the real module. app.mg_renderer
         # caches components by id(st.components.v2); a new object on every access would be
@@ -75,6 +76,7 @@ class FakeStreamlit(types.ModuleType):
         return False
 
     def button(self, label, on_click=None, args=(), **kwargs):
+        self.labels.append(label)                  # the buttons on the page, in order
         pressed = (not kwargs.get("disabled")) and self._pressed(label)
         if pressed and on_click is not None:
             # Like Streamlit: the callback runs first, then the whole page is drawn again.
@@ -192,6 +194,7 @@ class Browser:
         self.st.press = set(press)
         self.st.values = values
         self.st.shown = []
+        self.st.labels = []
         sys.modules["streamlit"] = self.st
         try:
             for _ in range(5):     # follow st.rerun() like the real thing
@@ -679,6 +682,10 @@ def test_hot_seat_between_rounds_on_the_board_and_the_phones(game_db):
         assert "You are in the hot seat!" in phones[2].run()     # Caro's phone: answer out loud
         phones[0].run(press=["👎 Lying"])                        # Ana rates
         assert db.load(conn, code)["hot_seat"]["ratings"] == {"1": "lie"}
+        page = phones[0].run()
+        labels = phones[0].st.labels
+        assert "✓ You say: lying" in labels and "👍 Believe" in labels and "👎 Lying" not in labels   # ticked
+        assert "Your vote counts" in page
         assert "👎 1" in board_tab.run()                         # the board shows the count only
         phones[0].run(press=[HOST_SKIP])               # the host ends the break
         game = db.load(conn, code)
