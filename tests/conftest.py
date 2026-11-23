@@ -5,6 +5,7 @@ All tests are written against docs/CONTRACT.md only.
 import json
 import os
 import sys
+import threading
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if ROOT not in sys.path:
@@ -14,6 +15,16 @@ import pytest  # noqa: E402
 
 import content  # noqa: E402
 import logic  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def no_thread_outlives_its_test():
+    """The app writes AI cases in a background thread. Wait for every thread a test started,
+    so it cannot run on into the next test (and call that test's stand-in for the AI)."""
+    before = set(threading.enumerate())
+    yield
+    for thread in set(threading.enumerate()) - before:
+        thread.join(timeout=10)
 
 LOC = content.LOCATIONS
 
