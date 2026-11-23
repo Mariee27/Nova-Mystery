@@ -329,7 +329,7 @@ def test_old_games_without_a_story_keep_case_001():
 
 # ---------------------------------------------------------------- nothing secret leaks
 
-SECRET_FIELDS = ("intro", "secret", "trace", "rumor")
+SECRET_FIELDS = ("intro", "secret", "rumor")   # the trace is public ("carries"): it is matched with the scene
 
 
 @pytest.mark.parametrize("phase", ["LOBBY", "REVEAL"])
