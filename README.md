@@ -10,6 +10,15 @@ The host plays the handcrafted case #001 "The Last Lecture" or asks an AI for a 
 **Live app:** <https://nova-mystery.streamlit.app> (Streamlit Community Cloud; see [Deployment](#deployment)).
 The app sleeps when nobody used it for a while: the first visit then wakes it up, which takes about a minute.
 
+**What you need to play**
+- **A smartphone for every player** (4 to 6 players), with a browser and internet. Each phone holds that
+  player's secret file, their moves and the mini-games, so nobody else should see it.
+- **One big shared screen for the board:** a laptop connected to a projector, or a large TV or monitor that
+  the whole room can see. It shows the campus map, the clock and the evidence found so far, never anybody's
+  secrets.
+- **Everybody in the same room:** the questioning happens face to face, out loud.
+- Nothing else: no app to install, no accounts, nothing to print.
+
 ## Team
 
 | Name | Student number |
