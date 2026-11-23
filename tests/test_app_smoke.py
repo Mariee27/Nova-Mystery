@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 import ai      # noqa: E402
 import db      # noqa: E402
 import logic   # noqa: E402
+import content   # noqa: E402
 import minigames  # noqa: E402
 
 HOST_SKIP = "<the host's skip button>"   # pressed whatever it is called right now
@@ -872,3 +873,33 @@ def test_the_board_shows_a_stand_in(game_db):
     page = Browser(room=code, view="board").run()
     assert "Stand-in plays" in page                 # the board's detectives list
     assert 99 in logic.stand_in_ids(db.load(conn, code))
+
+
+# ---------------------------------------------------------------- the case file on the phones
+
+def test_the_case_file_is_on_the_phone_from_the_reveal_to_the_vote(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    lobby = phone.run()
+    assert "Case file:" not in lobby                           # the case is still sealed
+    conn = db.connect(game_db)
+    try:
+        phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
+        title = content.DEFAULT_STORY["case_title"]
+        for phase in ("REVEAL", "INVESTIGATION"):
+            assert db.load(conn, code)["phase"] == phase
+            page = phone.run()
+            assert f"Case file: {title}" in page and content.VICTIM in page and content.FOUND_TIME in page
+            phone.run(press=[HOST_SKIP])
+        end_investigation(phone, conn, code)
+        while db.load(conn, code)["phase"] != "VOTE":
+            phone.run(press=[HOST_SKIP])
+        page = phone.run()
+        assert f"Case file: {title}" in page
+        assert page.index("Your card") < page.index("Case file:") < page.index('class="slist"')
+        phone.run(press=[HOST_SKIP])
+        assert db.load(conn, code)["phase"] == "RESULT"
+        assert "Case file:" not in phone.run()                 # the result tells the whole story
+    finally:
+        conn.close()

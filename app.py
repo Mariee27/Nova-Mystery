@@ -782,6 +782,13 @@ def show_card(me, expanded):
         show(ui.dossier(me))
 
 
+def show_case_file(story):
+    """The case facts (victim, when and where the body was found ...), folded away like the
+    card, so they can be looked up at any time from "Read your file" to the vote."""
+    with st.expander(f"Case file: {ui.md(story['case_title'])}", expanded=False):
+        show(ui.case_file(story))
+
+
 def sealed_card(code, me, story):
     """REVEAL: first a sealed envelope, the file only after "Open your file".
     session_state remembers the envelope per room and player within one browser session.
@@ -1367,6 +1374,7 @@ def player_screen(code, token):
     elif phase == "REVEAL":
         sealed_card(code, me, public["story"])
         st.info("Read your file. The investigation starts in a moment.")
+        show_case_file(public["story"])
     elif phase == "INVESTIGATION" and public["hot_seat"] is not None:
         hot_seat_phone(code, token, public, me)  # the break between two rounds
     elif phase == "INVESTIGATION":
@@ -1383,6 +1391,7 @@ def player_screen(code, token):
         host_controls(code, token, public, me)
         if phase != "REVEAL":
             show_card(me, expanded=False)
+            show_case_file(public["story"])
         player_suspects(code, me["pid"])
     if phase != "RESULT":
         st.divider()
