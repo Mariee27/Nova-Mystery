@@ -77,10 +77,13 @@ NUMBER_WORDS = {4: "Four", 5: "Five", 6: "Six"}
 SUSPECT_RANGE = re.compile(r"4 to 6 suspects", re.IGNORECASE)
 
 
-def case_intro(story=None, suspects=None):
+def case_intro(story=None, suspects=None, scene=False, players=None):
     """The shorter intro of one case (about 8 seconds), on the board and every phone at the start.
 
     suspects: how many play in this room. Then "4 to 6 suspects." becomes e.g. "Five suspects."
+    scene: the board adds a crime-scene moment (who died, where the body was found) and then
+    introduces every player one by one, so everybody looks up at the projector together.
+    It ends before the reveal phase does (see BOARD_INTRO_END).
     """
     story = _story(story)
     if suspects in NUMBER_WORDS:
@@ -91,17 +94,62 @@ def case_intro(story=None, suspects=None):
     final = (f'<div class="no">CASE #{h(story["case_number"])}</div>'
              f'<div class="title case">{h(story["case_title"])}</div>'
              '<div class="tag">Your file is waiting.</div>')
+    if scene:
+        return _intro(story["intro_lines"], " case short long", 0.3, 0.65, final,
+                      middle=crime_scene(story) + lineup(players or [], story))
     return _intro(story["intro_lines"], " case short", 0.3, 0.65, final)
 
 
-def _intro(lines, css, start, step, final, red=3):
+def crime_scene(story):
+    """The crime-scene moment of the board's intro: police tape, the victim and where the
+    body was found. Only public story facts: the real crime scene stays secret."""
+    tape = '<div class="tape{}">' + " · ".join(["CRIME SCENE – DO NOT CROSS"] * 4) + "</div>"
+    place = story["found_place"]
+    place = place[:1].upper() + place[1:]     # AI cases write it in lowercase ("the boathouse")
+    return (f'<div class="scene">{tape.format("")}'
+            '<div class="sk">Body found</div>'
+            f'<div class="victim">{h(story["victim"])}</div>'
+            f'<div class="where">📍 {h(place)}</div>'
+            f'<div class="twist">But this is not where {h(story["victim_short"])} died.</div>'
+            f'{tape.format(" b")}</div>')
+
+
+# The board intro must be over before the reveal phase ends (logic.DURATIONS["REVEAL"] = 30 s):
+# at the next phase the board redraws and the intro would be cut off.
+SUSPECTS_FROM = 10.8      # seconds: the first suspect card flies in after the crime scene
+SUSPECTS_LAST_IN = 21.0   # the last card has landed by then; all stay up to be read
+SUSPECTS_STEP = 3.0       # at most this many seconds between two cards (few players)
+SUSPECTS_UNTIL = 27.6     # the lineup fades out
+BOARD_INTRO_END = 28.0    # the whole intro fades out (style.css: .intro.long)
+
+def lineup(players, story=None):
+    """The players as file cards that fly in one after another and stay, so the room can read
+    them all: number, name, role and the public dossier line. Only public facts (roles are
+    public once the game runs); who did it stays secret."""
+    if not players:
+        return ""
+    dossiers = _story(story).get("dossiers", {})
+    step = min(SUSPECTS_STEP, (SUSPECTS_LAST_IN - SUSPECTS_FROM) / max(len(players) - 1, 1))
+    cards = []
+    for i, player in enumerate(players):
+        role = player.get("role") or ""
+        cards.append(
+            f'<div class="lu" style="--in:{SUSPECTS_FROM + i * step:.2f}s">'
+            f'<div class="top"><span class="no">Suspect #{i + 1}</span>'
+            f'<span class="face">{initial(player["name"])}</span></div>'
+            f'<div class="n">{h(player["name"])}</div><div class="r">{h(role)}</div>'
+            f'<div class="bio">{h(dossiers.get(role, ""))}</div></div>')
+    return f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{"".join(cards)}</div></div>'
+
+
+def _intro(lines, css, start, step, final, red=3, middle=""):
     """Lines appear one by one (line number `red`, counted from 0, in red), then the final title."""
     parts = []
     for number, line in enumerate(lines):
         colour = " red" if number == red else ""
         parts.append(f'<div class="line{colour}" style="animation-delay:{start + number * step:.2f}s">{h(line)}</div>')
     return (f'<div class="intro{css}" aria-hidden="true"><div class="glitch"></div>'
-            f'<div class="lines">{"".join(parts)}</div><div class="final">{final}</div></div>')
+            f'<div class="lines">{"".join(parts)}</div>{middle}<div class="final">{final}</div></div>')
 
 
 def teaser():
@@ -172,6 +220,8 @@ def suspects(players, phase, guilty_pid=None, story=None):
             tags.append("host")
         if phase == "VOTE" and player.get("voted"):
             tags.append("voted")
+        if player.get("stand_in"):
+            tags.append(STAND_IN_TAG)
         dot = '<span class="dot"></span>' if player.get("online") else '<span class="dot off"></span>'
         guilty = " guilty" if guilty_pid is not None and player["pid"] == guilty_pid else ""
         role_html = f'<div class="r">{h(role)}</div>' if role else '<div class="r">awaiting file</div>'
@@ -183,6 +233,9 @@ def suspects(players, phase, guilty_pid=None, story=None):
     if not cards:
         return '<div class="muted">Nobody has joined yet.</div>'
     return f'<div class="suspects">{"".join(cards)}</div>'
+
+
+STAND_IN_TAG = "stand-in"   # dropped out: the computer plays this seat until they are back
 
 
 def suspect_list(players, phase, me_pid=None):
@@ -197,6 +250,8 @@ def suspect_list(players, phase, me_pid=None):
             tags.append("host")
         if phase == "VOTE" and player.get("voted"):
             tags.append("voted")
+        if player.get("stand_in"):
+            tags.append(STAND_IN_TAG)
         online = "online" if player.get("online") else "offline"
         dot_css = "dot" if player.get("online") else "dot off"
         mine = " me" if player["pid"] == me_pid else ""
@@ -423,6 +478,8 @@ def waiting_list(players, me_pid):
             state, css = "offline", "off"
         elif player.get("acted"):
             state, css = "done", "done"
+        elif player.get("stand_in"):
+            state, css = "stand-in plays", "wait"
         else:
             state, css = "choosing…", "wait"
         you = " (you)" if player["pid"] == me_pid else ""
@@ -459,6 +516,8 @@ def detectives(players):
             state, css = "Offline", "off"
         elif player.get("acted"):
             state, css = "Moved", "done"
+        elif player.get("stand_in"):
+            state, css = "Stand-in plays", "wait"
         else:
             state, css = "Choosing…", "wait"
         rows.append(f'<div class="dt-row"><span class="face">{initial(player["name"])}</span>'
@@ -905,3 +964,47 @@ def hot_seat_you(alibi):
     return (f'<div class="hs-you"><div class="hs-k">🔥 You are in the hot seat!</div>'
             f'<div>Everybody is grilling you. Answer out loud and stay calm.</div>'
             f'<div class="hs-alibi">Your story: “{h(alibi or "")}”</div></div>')
+
+
+# ---------------------------------------------------------------- phone: waiting room (lobby)
+
+WAITING_TIPS = (
+    "Everybody may lie. Only one of you knows the truth.",
+    "Keep your file to yourself: the person next to you may be the murderer.",
+    "Listen for alibis that do not fit the evidence.",
+)
+
+
+def waiting_room(me, code, players, is_host, tip=0):
+    """The phone right after joining: you are checked in, who else is here, and what happens
+    next. me: the private view (pid, name); players: public players (pid, name, online).
+    Only names: in the lobby nothing secret exists yet. tip: which tip to show."""
+    here = [p for p in players if p.get("online", True)]
+    need = max(0, logic.MIN_PLAYERS - len(here))
+    if need:
+        count = f"{len(here)} of {logic.MIN_PLAYERS}–{logic.MAX_PLAYERS} here · {need} more needed"
+    else:
+        count = f"{len(here)} suspects here · ready to start"
+    if is_host:
+        wait = "You are the host. Start when everybody is in."
+    else:
+        wait = 'Waiting for the host to start<span class="dots"><i>.</i><i>.</i><i>.</i></span>'
+    faces = "".join(
+        f'<div class="wr-p{" me" if p["pid"] == me["pid"] else ""}" style="--i:{i}">'
+        f'<span class="face">{initial(p["name"])}</span><span class="n">{h(p["name"])}</span></div>'
+        for i, p in enumerate(here))
+    return (f'<div class="wr"><div class="wr-stamp">Checked in</div>'
+            f'<div class="wr-k">Room {h(code)}</div>'
+            f'<div class="wr-hi">You’re in, {h(me["name"])}.</div>'
+            f'<div class="wr-wait">{wait}</div>'
+            f'<div class="wr-count">{h(count)}</div><div class="wr-faces">{faces}</div>'
+            f'<div class="wr-tip">While you wait: {h(WAITING_TIPS[tip % len(WAITING_TIPS)])}</div></div>')
+def round_banner(round_no, rounds):
+    """Above "Your move.": which round it is. From round 2 on it says clearly that a new round
+    has begun, so a new move does not look like a second move in the same round (playtest)."""
+    if not round_no:
+        return ""
+    if round_no == 1:
+        return f'<div class="round-banner">Round 1 of {h(rounds)}</div>'
+    return (f'<div class="round-banner new">Round {h(round_no)} of {h(rounds)} · '
+            f'a new round: everybody gets a new move</div>')

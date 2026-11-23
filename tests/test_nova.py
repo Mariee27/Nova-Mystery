@@ -358,6 +358,50 @@ def test_notebook_summary_lists_the_marks_escaped_and_is_empty_without_marks():
     assert 'Cleared:</span> Ben' in html and "Caro" not in html
     assert 'Possible scene:</span> Library' in html
     assert ui.notebook_summary(players, {2: "?", 3: None}, []) == ""
+def test_board_intro_shows_where_the_body_was_found_and_escapes_it():
+    story = dict(ui._story(None), victim=EVIL, found_place=EVIL)
+    html = ui.case_intro(story, scene=True)
+    assert 'class="intro case short long"' in html and 'class="scene"' in html
+    assert "<script>" not in html and "&lt;script&gt;" in html
+    assert "CRIME SCENE – DO NOT CROSS" in html
+    assert "\n\n" not in html
+    # Without scene (the phones) the intro stays the short one.
+    plain = ui.case_intro(story)
+    assert 'class="scene"' not in plain and 'class="intro case short"' in plain
+
+
+def test_board_intro_never_names_the_real_crime_scene():
+    html = ui.crime_scene(ui._story(None))
+    # Only where the body was FOUND (public); where the victim died is decided per game
+    # and lives in game["case"], which the story never sees.
+    assert content.FOUND_PLACE.replace("'", "&#x27;") in html
+
+
+def test_board_intro_cards_show_every_player_with_role_and_dossier():
+    players = [{"pid": 1, "name": EVIL, "role": "The IT Technician"},
+               {"pid": 2, "name": "Ana", "role": "The Security Guard"}]
+    html = ui.case_intro(ui._story(None), suspects=2, scene=True, players=players)
+    assert 'class="lineup"' in html and html.count('class="lu"') == 2
+    assert "<script>" not in html and "&lt;script&gt;" in html
+    assert "#2" in html and "The Security Guard" in html
+    assert "Runs the campus servers" in html            # the public dossier line of the IT Technician
+    assert ui.lineup([]) == ""                          # no players known: no empty lineup
+
+
+def test_board_intro_is_over_before_the_reveal_phase_ends():
+    """At the next phase the board redraws: the intro must be finished by then, even with 6 players."""
+    players = [{"pid": i, "name": f"P{i}", "role": ""} for i in range(1, 7)]
+    html = ui.lineup(players)
+    landed = [float(x) for x in re.findall(r"--in:([0-9.]+)s", html)]
+    assert len(landed) == 6 and landed == sorted(landed)       # one after another
+    assert max(landed) <= ui.SUSPECTS_LAST_IN < ui.SUSPECTS_UNTIL   # time to read them all
+    assert ui.SUSPECTS_UNTIL < ui.BOARD_INTRO_END < logic.DURATIONS["REVEAL"]
+    assert "introOut .8s ease 28s" in ui.page_style()   # style.css uses the same end time
+
+
+def test_board_intro_capitalises_a_lowercase_found_place_of_an_ai_case():
+    story = dict(ui._story(None), found_place="the locked rector's office")
+    assert "📍 The locked rector&#x27;s office" in ui.crime_scene(story)
 
 
 def test_vote_table_shows_every_ballot_escaped():
@@ -399,3 +443,29 @@ def test_widget_labels_with_case_texts_show_markdown_as_plain_text():
     assert ui.md("The <b>Dean</b> **x**") == "The \\<b\\>Dean\\</b\\> \\*\\*x\\*\\*"
     for place in content.PLACES:
         assert ui.md(place) == place                       # plain names stay as they are
+
+
+def test_waiting_room_greets_you_counts_who_is_here_and_escapes_names():
+    me = {"pid": 2, "name": EVIL}
+    players = [{"pid": 1, "name": "Ana", "online": True}, {"pid": 2, "name": EVIL, "online": True},
+               {"pid": 3, "name": "Ben", "online": False}]               # Ben has left: not counted
+    html = ui.waiting_room(me, "ABCD", players, is_host=False)
+    assert "<script>" not in html and "&lt;script&gt;" in html
+    assert "Checked in" in html and "Room ABCD" in html
+    assert "Waiting for the host to start" in html
+    assert f"2 of {logic.MIN_PLAYERS}–{logic.MAX_PLAYERS} here · {logic.MIN_PLAYERS - 2} more needed" in html
+    assert html.count('class="wr-p') == 2 and html.count('class="wr-p me"') == 1 and "Ben" not in html
+
+
+def test_waiting_room_for_the_host_and_a_full_room():
+    players = [{"pid": i, "name": f"P{i}", "online": True} for i in range(1, logic.MIN_PLAYERS + 1)]
+    html = ui.waiting_room({"pid": 1, "name": "P1"}, "ABCD", players, is_host=True)
+    assert "You are the host" in html and "Waiting for the host" not in html
+    assert f"{logic.MIN_PLAYERS} suspects here · ready to start" in html
+    tips = {ui.waiting_room({"pid": 1, "name": "P1"}, "ABCD", players, True, tip=t) for t in range(3)}
+    assert len(tips) == 3                                 # the tip changes as people join
+def test_round_banner_says_when_a_new_round_has_begun():
+    assert "Round 1 of 3" in ui.round_banner(1, 3) and "new move" not in ui.round_banner(1, 3)
+    second = ui.round_banner(2, 3)
+    assert "Round 2 of 3" in second and "everybody gets a new move" in second and "round-banner new" in second
+    assert ui.round_banner(0, 3) == ""

@@ -23,6 +23,7 @@ DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
 # seconds and ends early when every online player has made their one move or has no move
 # left (nothing to search, nothing to share). Interrogations happen out loud, not in the app.
 ROUNDS = 3
+HOLD_SECONDS = 120          # a place stays reserved this long while somebody solves its mini-game
 HOT_SEAT_SECONDS = 45       # how long one suspect is grilled out loud between two rounds
 HOT_SEAT_PICK_SECONDS = 20  # time to pick who is grilled; then the most picks so far count
 LOCKED_PLACES = 2      # places that are locked at the start (the crime scene is always one)
@@ -37,6 +38,7 @@ MIN_PLAYERS = 4
 MAX_PLAYERS = 6
 MIN_ONLINE = 3
 PAUSE_LIMIT = 180      # seconds a game waits, paused, for players to come back before it ends
+STAND_IN_AFTER = 15    # seconds without a sign from a phone: then a stand-in plays that seat
 MAX_TEXT = 140
 MAX_NAME = 20
 MAX_CLUE_TEXT = 200
@@ -319,6 +321,7 @@ def _advance(game, now):
             _open_hot_seat(game, now)       # a round is over: first the hot seat, then the next round
             return
         game["round"] = game.get("round", 1) + 1
+        game["holds"] = {}                  # reservations belong to the round that is over
         game["acted"] = []                  # everybody gets a new move
         game["phase_started"] = now
         game["deadline"] = now + DURATIONS["INVESTIGATION"]
@@ -375,7 +378,8 @@ def end_phase(game, token, online, now):
 def tick(game, online, now):
     """Called every time a screen asks for the current state.
 
-    Order: host handover, abort, timer, early end. At most one phase change per call.
+    Order: host handover, pause/abort, timer, early end. At most one phase change per call.
+    Stand-ins are set before (update_stand_ins); `online` should include them (with_bots).
     """
     ai = game.get("ai_case")
     if (game["phase"] == "LOBBY" and ai and ai["status"] == "writing"
@@ -388,10 +392,12 @@ def tick(game, online, now):
     online_players = [pid for pid in pids if pid in online]
     new = None  # copy only if something really changes
 
-    # 1. Host handover: the first online human in join order takes over (never a demo bot).
-    bots = set(bot_ids(game))
-    online_humans = [pid for pid in online_players if pid not in bots]
-    if game["host"] not in online and online_humans:
+    # 1. Host handover: the first online human in join order takes over (never a demo bot,
+    # never a seat that a stand-in plays: the host has to be there to press the buttons).
+    robots = set(robot_ids(game))
+    online_humans = [pid for pid in online_players if pid not in robots]
+    host_away = game["host"] not in online or game["host"] in robots
+    if host_away and online_humans:
         new = copy.deepcopy(game)
         new["host"] = online_humans[0]
 
@@ -470,10 +476,16 @@ def search(game, token, location, now, proof=None):
         raise Rejected(f"This place is locked. It opens in round {opens}.")
     if location in game["searched"]:
         raise Rejected("This place has already been searched. Pick another one.")
-    if minigames.enabled(game) and not player.get("bot") and not minigames.verify(game, location, proof):
+    # A place another player is solving is theirs for now. (Demo bots and stand-ins never pick
+    # such a place themselves, see _bot_investigate; the rule is there for people.)
+    robot = player["pid"] in robot_ids(game)
+    if not robot and place_holder(game, location, now) not in (None, player["pid"]):
+        raise Rejected("Somebody else is searching this place right now. Pick another one.")
+    if minigames.enabled(game) and not robot and not minigames.verify(game, location, proof):
         raise Rejected("The evidence is still sealed. Solve the puzzle first.")
     clue = next(c for c in game["case"]["location_clues"] if c["location"] == location)
     game = copy.deepcopy(game)
+    game.get("holds", {}).pop(location, None)      # found: the reservation is no longer needed
     game["searched"].append(location)
     game["acted"].append(player["pid"])
     _add_log(game, "search", player["pid"], clue["text"], location=location,
@@ -483,6 +495,49 @@ def search(game, token, location, now, proof=None):
 
 
 EVIDENCE_KINDS = ("search", "share")   # log entries that are public evidence
+
+
+# ---------------------------------------------------------------- holding a place (mini-games)
+#
+# A mini-game takes 30 to 90 seconds. Without a reservation two players could work on the same
+# place and the slower one would lose the move for nothing. So opening a place's mini-game holds
+# it for HOLD_SECONDS: nobody else can open or search it meanwhile. One place per player; the
+# hold ends when the place is found, the time runs out, or the round ends. Who holds a place
+# stays private (busy_places only lists the places), like who searched it.
+
+def place_holder(game, location, now):
+    """The pid holding this place right now, or None."""
+    hold = game.get("holds", {}).get(location)
+    return hold["pid"] if hold and hold["until"] > now else None
+
+
+def open_place(game, token, location, now):
+    """A player starts the mini-game of a place and holds it for HOLD_SECONDS."""
+    player = _begin_action(game, token)
+    if location not in story_of(game)["locations"]:
+        raise Rejected("Unknown location.")
+    if locked_until(game, location) is not None or location in game["searched"]:
+        raise Rejected("This place cannot be searched right now. Pick another one.")
+    if place_holder(game, location, now) not in (None, player["pid"]):
+        raise Rejected("Somebody else is searching this place right now. Pick another one.")
+    game = copy.deepcopy(game)
+    holds = {loc: h for loc, h in game.get("holds", {}).items() if h["pid"] != player["pid"]}
+    holds[location] = {"pid": player["pid"], "until": now + HOLD_SECONDS}
+    game["holds"] = holds
+    return game
+
+
+def busy_places(game, now):
+    """Places somebody is searching right now (without saying who)."""
+    return sorted(loc for loc in game.get("holds", {}) if place_holder(game, loc, now) is not None)
+
+
+def my_hold(game, token, now):
+    """The place this player is holding, or None."""
+    player = next((p for p in game["players"] if token and p["token"] == token), None)
+    if player is None:
+        return None
+    return next((loc for loc in game.get("holds", {}) if place_holder(game, loc, now) == player["pid"]), None)
 
 
 def share(game, token, clue_id, now):
@@ -720,11 +775,14 @@ def _close_hot_seat(game):
 
 
 def pick_hot_seat(game, token, target_pid, now):
-    """A player picks who should sit in the hot seat. They may change their pick."""
+    """A player picks who should sit in the hot seat. The pick is locked in: it cannot be
+    changed afterwards (playtest: picks changed by accident with a second tap)."""
     _require_hot_seat(game)
     player = _player_by_token(game, token)
     if game["hot_seat"]["seat"] is not None:
         raise Rejected("Somebody is already in the hot seat.")
+    if str(player["pid"]) in game["hot_seat"]["picks"]:
+        raise Rejected("Your pick is locked in.")
     if target_pid == player["pid"]:
         raise Rejected("You cannot put yourself in the hot seat.")
     if target_pid not in hot_seat_candidates(game):
@@ -866,8 +924,44 @@ def bot_ids(game):
 
 
 def with_bots(game, online):
-    """Bots have no screen that sends heartbeats, so they always count as online."""
-    return set(online) | set(bot_ids(game))
+    """Bots and stand-ins have no screen that sends heartbeats, so they always count as online."""
+    return set(online) | set(robot_ids(game))
+
+
+# ---------------------------------------------------------------- stand-ins (players who dropped out)
+#
+# A phone that goes dark or loses its connection must not stop the game for everybody else.
+# After STAND_IN_AFTER seconds without a sign of life, a stand-in plays that seat: it moves,
+# picks, rates and votes exactly like a demo suspect (same functions, same knowledge: the
+# player's own card and the public log). As soon as the phone is back, the player plays again.
+# Who is played by a stand-in is stored in game["stand_ins"], so every screen shows the same.
+
+RUNNING_PHASES = ("REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE")
+
+
+def stand_in_ids(game):
+    return list(game.get("stand_ins", []))
+
+
+def robot_ids(game):
+    """Seats the computer plays right now: demo suspects and stand-ins."""
+    return bot_ids(game) + [pid for pid in stand_in_ids(game) if pid not in bot_ids(game)]
+
+
+def update_stand_ins(game, presence, now):
+    """Give every human seat without a sign of life for STAND_IN_AFTER seconds a stand-in,
+    and take it away again when the player is back. presence: pid -> last sign of life.
+    Only while the game runs. Returns the same game if nothing changes."""
+    if game["phase"] in RUNNING_PHASES:
+        away = sorted(p["pid"] for p in game["players"] if not p.get("bot")
+                      and now - presence.get(p["pid"], float("-inf")) > STAND_IN_AFTER)
+    else:
+        away = []
+    if away == game.get("stand_ins", []):
+        return game
+    game = copy.deepcopy(game)
+    game["stand_ins"] = away
+    return game
 
 
 def add_bot(game, token, now):
@@ -922,13 +1016,17 @@ def _bot_scene(game, pid):
 
 def _bot_investigate(game, bot, index, now):
     pid = bot["pid"]
+    robots = set(robot_ids(game))
+    # Players who are here and have not moved yet (not the seats the computer plays).
+    humans_waiting = any(p["pid"] not in robots and p["pid"] not in game["acted"]
+                         for p in game["players"])
     # With mini-games a human needs 30 to 90 seconds to open a place. Demo bots wait until
     # every human has made their move, so they never snatch a place from someone solving it.
-    if minigames.enabled(game) and any(not p.get("bot") and p["pid"] not in game["acted"]
-                                       for p in game["players"]):
+    if minigames.enabled(game) and humans_waiting:
         return game
     places = [loc for loc in story_of(game)["locations"] if locked_until(game, loc) is None]
-    free = [loc for loc in places if loc not in game["searched"]]
+    free = [loc for loc in places if loc not in game["searched"]
+            and place_holder(game, loc, now) in (None, pid)]
     if pid == game["case"]["murderer"]:
         # A guilty bot does not search where its own traces are.
         mine = {c["location"] for c in game["case"]["location_clues"]
@@ -936,7 +1034,6 @@ def _bot_investigate(game, bot, index, now):
         free = [loc for loc in free if loc not in mine]
     # Places are scarce (one clue each): a bot leaves the last open place to a human
     # player who has not moved yet.
-    humans_waiting = any(not p.get("bot") and p["pid"] not in game["acted"] for p in game["players"])
     if humans_waiting and len(free) <= 1:
         free = []
     if free:
@@ -947,7 +1044,8 @@ def _bot_investigate(game, bot, index, now):
         return share(game, bot["token"], clue["id"], now)
     # Nothing it would rather do: a guilty bot searches its own place after all, so the round
     # can still end early. Places it leaves to a waiting human stay theirs.
-    rest = [loc for loc in places if loc not in game["searched"]]
+    rest = [loc for loc in places if loc not in game["searched"]
+            and place_holder(game, loc, now) in (None, pid)]
     if rest and not humans_waiting:
         return search(game, bot["token"], rest[index % len(rest)], now)
     return game       # nothing left at all: the round does not wait for it (has_move)
@@ -971,6 +1069,11 @@ def bot_moves(game, now):
     """Let every bot make the moves that are due. Returns the same game if nothing happens."""
     bots = [p for p in game["players"] if p.get("bot")]
     if not bots or game["phase"] not in ("INVESTIGATION", "DISCUSSION", "VOTE"):
+    """Let every bot and stand-in make the moves that are due. Returns the same game if
+    nothing happens."""
+    robots = set(robot_ids(game))
+    bots = [p for p in game["players"] if p["pid"] in robots]
+    if not bots or game["phase"] not in ("INVESTIGATION", "VOTE"):
         return game
     elapsed = now - game["phase_started"]
     for index, bot in enumerate(bots):
@@ -1032,6 +1135,7 @@ def public_view(game, online):
                 "name": p["name"],
                 "role": role_of.get(p["pid"]),
                 "online": p["pid"] in online,
+                "stand_in": p["pid"] in game.get("stand_ins", []),   # dropped out: the computer plays
                 "is_host": p["pid"] == game["host"],
                 "acted": p["pid"] in game["acted"],
                 "voted": str(p["pid"]) in game["votes"],
@@ -1059,6 +1163,7 @@ def private_view(game, token):
         "phase": game["phase"],
         "acted": pid in game["acted"],
         "voted": str(pid) in game["votes"],
+        "stand_in": pid in game.get("stand_ins", []),
         "role": None,
         "intro": None,
         "alibi": None,
@@ -1295,36 +1400,54 @@ def host_note(game, token):
     if ai is None:
         return None
     if ai["status"] == "writing":
+        if ai.get("attempt", 1) > 1:
+            return "The first AI case did not pass the checks. The AI is writing another one …"
         return "The AI is writing a new case for this room …"
     if ai["status"] == "ready":
         return f"New AI case ready: “{ai['story']['case_title']}”."
     return f"No AI case ({ai['reason']}). {FIXED_CASE_NOTE}"
 
 
-def ai_case_writing(game, now):
-    """Mark that an AI is writing a new case for this lobby."""
+def ai_case_writing(game, now, attempt=1):
+    """Mark that an AI is writing a new case for this lobby (attempt 2: the first one failed
+    the checks, and the AI tries once more on its own)."""
     _require_phase(game, "LOBBY")
     game = copy.deepcopy(game)
-    game["ai_case"] = {"status": "writing", "since": now}
+    game["ai_case"] = {"status": "writing", "since": now, "attempt": attempt}
     return game
 
 
-def ai_case_ready(game, story, now):
-    """Store a story the AI wrote, but only if it passes every check."""
-    if game["phase"] != "LOBBY":
-        return game   # too late: the game has already started with another case
+def ai_case_retrying(game, now):
+    """The first AI case failed the checks; a second one is being written. Ignored once the
+    game has started or the host has moved on (the AI case is no longer being written)."""
+    if game["phase"] != "LOBBY" or (game.get("ai_case") or {}).get("status") != "writing":
+        return game
+    return ai_case_writing(game, now, attempt=2)
+
+
+def story_problems(story):
+    """Every check an AI story must pass before it is played: the texts (validate_story), and
+    a fair, balanced case for every number of players. [] means: playable."""
     problems = validate_story(story)
     if not problems:
-        story = copy.deepcopy(story)
-        story["source"] = "ai"
-        story["case_number"] = game["code"]
-        # Every player count must give a fair, balanced case with this story.
         for count in range(MIN_PLAYERS, MAX_PLAYERS + 1):
             try:
                 balance.build_balanced_case(list(range(1, count + 1)), count, story)
             except Rejected as problem:
                 problems.append(str(problem))
                 break
+    return problems
+
+
+def ai_case_ready(game, story, now):
+    """Store a story the AI wrote, but only if it passes every check."""
+    if game["phase"] != "LOBBY":
+        return game   # too late: the game has already started with another case
+    problems = story_problems(story)
+    if not problems:
+        story = copy.deepcopy(story)
+        story["source"] = "ai"
+        story["case_number"] = game["code"]
     game = copy.deepcopy(game)
     if problems:
         game["ai_case"] = {"status": "failed", "reason": "the AI case did not pass the checks",

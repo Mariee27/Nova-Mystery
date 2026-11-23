@@ -88,9 +88,10 @@ button:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
 /* ---- code lock ---- */
 .note{background:#F3EAD6;color:#1d1a16;border-radius:4px;padding:10px 12px;font-family:var(--hand);font-size:22px;line-height:1.15;
   transform:rotate(-1deg);box-shadow:0 6px 18px rgba(0,0,0,.4);margin:0 4px 10px}
-.facts{display:flex;gap:8px;margin-bottom:12px}
-.facts div{flex:1;border:1px dashed rgba(167,176,191,.4);border-radius:8px;padding:6px 8px;font-size:12px;color:var(--muted)}
-.facts b{display:block;font-family:var(--mono);font-size:18px;color:var(--ivory);letter-spacing:.06em}
+.facts{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.facts div{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px dashed rgba(167,176,191,.4);
+  border-radius:8px;padding:6px 10px;font-size:13px;line-height:1.3;color:var(--muted)}
+.facts b{flex:none;font-family:var(--mono);font-size:18px;color:var(--ivory);letter-spacing:.06em}
 .lockface{background:#05080D;border:1px solid #2a3446;border-radius:12px;padding:10px 12px 12px;display:flex;flex-direction:column;align-items:stretch;gap:8px}
 .slots{display:flex;gap:8px;justify-content:center}
 .slots span{flex:1;max-width:58px;height:58px;border-radius:8px;background:#0F1724;border:1px solid #33415a;display:grid;place-items:center;

@@ -1,6 +1,7 @@
 """Evidence mini-games: puzzles, the Python-side check, and how logic.search uses it."""
 
 import json
+import re
 
 import pytest
 
@@ -76,10 +77,60 @@ def test_mini_games_off_means_no_specs():
 
 # ---------------------------------------------------------------- solvable from the story
 
-def test_the_code_follows_from_the_case_timeline():
-    assert content.MURDER_TIME == "23:30" and content.FOUND_TIME == "23:47"
-    assert minigames._code_answer(0) == "1723"        # 17 minutes, then the hour 23
-    assert minigames._code_answer(1) == "2317"        # the hour found, then 17 minutes
+def lock_of(game):
+    loc = place_of(game, "code")
+    return loc, minigames.spec(game, loc), minigames.solve(game, loc)["code"]
+
+
+def solve_from_the_note(facts, riddle):
+    """Solve a lock like a player: only from what the phone shows (the note and its last line)."""
+    times = {fact[0][0]: fact[1] for fact in facts}             # "A · ..." -> "21:15"
+
+    def minutes(letter):
+        hours, mins = times[letter].split(":")
+        return int(hours) * 60 + int(mins)
+    if " read backwards." in riddle:
+        return times[riddle[0]].replace(":", "")[::-1]
+    if "twelve-hour clock" in riddle:
+        hours, mins = times[riddle[0]].split(":")
+        return f"{int(hours) - 12:02d}{mins}"
+    letters = re.findall(r"\b([ABCD])\b", riddle)
+    if riddle.startswith("The minutes of"):
+        a, b, c = letters
+        return f"{int(times[a][3:]) + int(times[b][3:]):02d}{times[c][3:]}"
+    if riddle.startswith("The minutes from"):
+        a, b, c = letters
+        return f"{minutes(b) - minutes(a):02d}{times[c][:2]}"
+    c, a, b = letters                                           # "The hour of C – then the minutes from A to B."
+    return f"{times[c][:2]}{minutes(b) - minutes(a):02d}"
+
+
+@pytest.mark.parametrize("seed", range(40))
+def test_the_code_can_be_worked_out_from_the_note_alone(seed):
+    game = investigation(seed=seed)
+    _, spec, answer = lock_of(game)
+    assert len(spec["facts"]) == 4 and [f[0][0] for f in spec["facts"]] == list("ABCD")
+    assert any(f[1] == content.FOUND_TIME for f in spec["facts"])                 # the discovery is always there
+    assert solve_from_the_note(spec["facts"], spec["riddle"]) == answer
+    assert re.fullmatch(r"\d{4}", answer)
+    assert answer not in {f[1].replace(":", "") for f in spec["facts"]}         # never just a time from the note
+    assert answer not in spec["hints"][0]                                         # the first hint is a nudge
+
+
+def test_the_code_changes_from_game_to_game():
+    codes = {lock_of(investigation(seed=seed))[2] for seed in range(60)}
+    riddles = {lock_of(investigation(seed=seed))[1]["riddle"].split()[1] for seed in range(60)}
+    assert len(codes) >= 20 and len(riddles) >= 3
+
+
+def test_the_code_of_an_ai_case_uses_its_own_evening():
+    from test_case_minigames import AI_MINIGAMES, ai_story, game_with
+    game = game_with(ai_story(AI_MINIGAMES), seed=3)
+    loc = place_of(game, "code")
+    spec = minigames.spec(game, loc)
+    diary = {clock for clock, _ in AI_MINIGAMES["order"]["events"]} | {content.FOUND_TIME}
+    assert {f[1] for f in spec["facts"]} <= diary
+    assert solve_from_the_note(spec["facts"], spec["riddle"]) == minigames.solve(game, loc)["code"]
 
 
 def test_cipher_is_a_shift_whose_signature_is_the_victim():
@@ -123,7 +174,7 @@ def place_of(game, kind):
 def test_wrong_codes_fail(proof):
     game = investigation()
     loc = place_of(game, "code")
-    if proof == {"code": 1723} and minigames.solve(game, loc)["code"] == "1723":
+    if proof == {"code": 1723} and minigames.solve(game, loc)["code"] == "1723":   # pragma: no cover
         assert minigames.verify(game, loc, proof)      # "1723" as a number is the same digits
         return
     assert not minigames.verify(game, loc, proof)
@@ -195,7 +246,7 @@ def test_feedback_is_helpful_but_never_the_answer():
     game = investigation()
     loc = place_of(game, "code")
     answer = minigames.solve(game, loc)["code"]
-    assert "one time from the case file" in minigames.feedback(game, loc, {"code": "2347"})
+    assert "one time from the note" in minigames.feedback(game, loc, {"code": content.FOUND_TIME.replace(":", "")})
     assert "four digits" in minigames.feedback(game, loc, {"code": "12"})
     assert "halfway" in minigames.feedback(game, loc, {"code": answer[:2] + "00"})
     for code in ("0000", "2347", answer[:2] + "00"):

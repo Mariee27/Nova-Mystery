@@ -3,7 +3,8 @@
 import db
 import logic
 import minigames
-from test_app_smoke import Browser, game_db, tap  # noqa: F401  (game_db is a fixture)
+import ui
+from test_app_smoke import HOST_SKIP, Browser, game_db, tap  # noqa: F401  (game_db is a fixture)
 
 
 def demo_round(game_db):
@@ -12,7 +13,7 @@ def demo_round(game_db):
     phone.run(press=["Play a demo"])
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
-    phone.run(press=["End phase (host)"])
+    phone.run(press=[HOST_SKIP])
     conn = db.connect(game_db)
     assert db.load(conn, code)["phase"] == "INVESTIGATION"
     return phone, code, conn
@@ -26,7 +27,7 @@ def open_puzzle(phone, conn, code, kind=None):
                 and logic.locked_until(game, s["location"]) is None and s["location"] not in game["searched"]]
     game = db.load(conn, code)
     while not candidates(game):
-        phone.run(press=["End phase (host)"])
+        phone.run(press=[HOST_SKIP])
         game = db.load(conn, code)
     place = candidates(game)[0]
     tap(phone, step="search", place=place)
@@ -58,14 +59,15 @@ def test_wrong_answer_unlocks_nothing_and_hints_come_one_by_one(game_db):
     page = phone.run(component={"submit": {"code": "2347"}})
     assert place not in db.load(conn, code)["searched"]            # no evidence for a wrong code
     data = last_data(phone)
-    assert data["state"]["seq"] == 1 and "one time from the case file" in data["state"]["note"]
+    assert data["state"]["seq"] == 1 and "one time from the note" in data["state"]["note"]
 
+    hints = minigames.spec(db.load(conn, code), place)["hints"]
     page = phone.run(press=["💡 Hint 1 of 3"])
-    assert "Hint 1" in page and "timeline" in page and "Hint 2</b>" not in page
+    assert "Hint 1" in page and ui.h(hints[0]) in page and "Hint 2</b>" not in page
     page = phone.run(press=["💡 Hint 2 of 3"])
     assert "Hint 2" in page and "Hint 3</b>" not in page
     page = phone.run(press=["💡 Hint 3 of 3"])
-    assert "Hint 3" in page and "47 − 30 = 17" in page
+    assert "Hint 3" in page and ui.h(hints[2]) in page
     conn.close()
 
 
@@ -93,7 +95,7 @@ def test_the_reward_survives_the_end_of_the_round(game_db):
     phone, code, conn = demo_round(game_db)
     place, _ = open_puzzle(phone, conn, code)
     phone.run(component={"submit": minigames.solve(db.load(conn, code), place)})
-    phone.run(press=["End phase (host)"])                                    # round 2 starts
+    phone.run(press=[HOST_SKIP])                                    # round 2 starts
     assert db.load(conn, code)["round"] == 2
     page = phone.run()
     assert "Access granted" in page and "Your move.</div>" not in page
