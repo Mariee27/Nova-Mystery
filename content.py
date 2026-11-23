@@ -3,7 +3,7 @@
 Only words live here. Who did it, where, and which clue points to whom is decided
 in generator.py.
 
-Case #001 is the fixed case: it is played whenever no AI-written
+Case #001 is the fixed case: it is used for the demo, and whenever no AI-written
 case is available (see ai.py). All its texts are collected in DEFAULT_STORY at the
 bottom of this file; an AI-written case has exactly the same shape.
 """
@@ -246,6 +246,8 @@ HOW_TO_PLAY = """Each player is one of 4 to 6 suspects. One of you killed the vi
 4. **Accuse:** vote for a suspect **and** for the place where the victim really died. Name both correctly for the full truth.
 """
 
+# First names of the demo suspects (bots) used in presentation mode. "(demo)" is added to each.
+DEMO_NAMES = ["Sofia", "Tiago", "Inês", "Rui", "Marta", "João"]
 
 # Every text of case #001 in one place. An AI-written case (see ai.py) has exactly
 # these keys, and logic.validate_story checks it before it is ever used.

@@ -238,15 +238,14 @@ def suspects(players, phase, guilty_pid=None, story=None):
             tags.append("host")
         if phase == "VOTE" and player.get("voted"):
             tags.append("voted")
-        if not player.get("online"):
-            tags.append(AWAY_TAG)
+        if player.get("stand_in"):
+            tags.append(STAND_IN_TAG)
         dot = '<span class="dot"></span>' if player.get("online") else '<span class="dot off"></span>'
-        css = " guilty" if guilty_pid is not None and player["pid"] == guilty_pid else ""
-        css += "" if player.get("online") else " away"
+        guilty = " guilty" if guilty_pid is not None and player["pid"] == guilty_pid else ""
         role_html = f'<div class="r">{h(role)}</div>' if role else '<div class="r">awaiting file</div>'
         dossier_html = f'<div class="d">{h(dossier)}</div>' if dossier else ""
         cards.append(
-            f'<div class="suspect{css}"><div class="tags">{h(" · ".join(tags))}{dot}</div>'
+            f'<div class="suspect{guilty}"><div class="tags">{h(" · ".join(tags))}{dot}</div>'
             f'<div class="face">{initial(player["name"])}</div>'
             f'<div class="n">{h(player["name"])}</div>{role_html}{dossier_html}</div>')
     if not cards:
@@ -254,7 +253,7 @@ def suspects(players, phase, guilty_pid=None, story=None):
     return f'<div class="suspects">{"".join(cards)}</div>'
 
 
-AWAY_TAG = "away"   # no sign from their phone: the game goes on without them until they are back
+STAND_IN_TAG = "stand-in"   # dropped out: the computer plays this seat until they are back
 
 
 def suspect_list(players, phase, me_pid=None):
@@ -269,12 +268,11 @@ def suspect_list(players, phase, me_pid=None):
             tags.append("host")
         if phase == "VOTE" and player.get("voted"):
             tags.append("voted")
-        if not player.get("online"):
-            tags.append(AWAY_TAG)
-        online = "online" if player.get("online") else "away"
+        if player.get("stand_in"):
+            tags.append(STAND_IN_TAG)
+        online = "online" if player.get("online") else "offline"
         dot_css = "dot" if player.get("online") else "dot off"
         mine = " me" if player["pid"] == me_pid else ""
-        mine += "" if player.get("online") else " away"
         rows.append(
             f'<div class="srow{mine}" role="listitem">'
             f'<span class="face">{initial(player["name"])}</span>'
@@ -494,9 +492,11 @@ def waiting_list(players, me_pid):
     rows = []
     for player in players:
         if not player.get("online"):
-            state, css = "away", "off"
+            state, css = "offline", "off"
         elif player.get("acted"):
             state, css = "done", "done"
+        elif player.get("stand_in"):
+            state, css = "stand-in plays", "wait"
         else:
             state, css = "choosing…", "wait"
         you = " (you)" if player["pid"] == me_pid else ""
@@ -530,13 +530,14 @@ def detectives(players):
     rows = []
     for player in players:
         if not player.get("online"):
-            state, css = "Away", "off"
+            state, css = "Offline", "off"
         elif player.get("acted"):
             state, css = "Moved", "done"
+        elif player.get("stand_in"):
+            state, css = "Stand-in plays", "wait"
         else:
             state, css = "Choosing…", "wait"
-        away = "" if player.get("online") else " away"
-        rows.append(f'<div class="dt-row{away}"><span class="face">{initial(player["name"])}</span>'
+        rows.append(f'<div class="dt-row"><span class="face">{initial(player["name"])}</span>'
                     f'<span class="dn">{h(player["name"])}</span><span class="dr">{h(player.get("role") or "")}</span>'
                     f'<span class="ds {css}">{h(state)}</span></div>')
     return (f'<div class="box dt"><div class="lbl">Detectives<span>{moved} of {len(online)} moved</span></div>'
