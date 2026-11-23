@@ -963,7 +963,8 @@ def host_controls(code, token, public, me):
         online = sum(1 for p in public["players"] if p["online"])
         url = base_url()
         if url:
-            st.caption(f"Board for the projector: {url}/?room={code}&view=board")
+            st.link_button("📺 Board for the projector", f"{url}/?room={code}&view=board")
+            st.caption("Open it on the laptop that is connected to the projector or big screen.")
         choice, waiting = case_choice(code, me, public.get("demo", False))
         players = public["players"]
         full = len(players) >= logic.MAX_PLAYERS

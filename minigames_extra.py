@@ -36,9 +36,26 @@ def _rng(game, location, kind):
     return random.Random(f"{game['case']['seed']}|{location}|{kind}-variant")
 
 
+# The picture that shows the place itself. A place with its own picture always shows it;
+# the others show a random one (a photo taken somewhere else and left there).
+PICTURE_OF = {"Hovione Atrium": "atrium", "Library": "library", "Main Deck": "deck", "Canteen": "canteen",
+              "Garage": "garage", "Auditorium": "auditorium"}
+
+
 def variant_of(game, location, kind):
     """Which of the five variants this place shows in this game."""
+    looks = SPOT if kind == "spot" else FIND
+    own = [i for i, look in enumerate(looks) if look["scene"] == PICTURE_OF.get(location)]
+    if own:
+        return own[0]
     return _rng(game, location, kind).randrange(VARIANTS)
+
+
+def _photo_of(look, location, victim):
+    """Where the photo comes from: the place itself, or a photo the victim took elsewhere."""
+    if look["scene"] == PICTURE_OF.get(location):
+        return f"a photo of this room, the {location}"
+    return f"a photo {victim} took of {look['title']} that evening, left in the {location}"
 
 
 def _scene(name):
@@ -117,7 +134,7 @@ def _spot_spec(game, location, victim):
     copy = _with(base, "".join(change[0] for change in look["changes"]))
     changes = look["changes"]
     return {
-        "story": f"Two prints of the same photo of {look['title']}, found in the {location}. Somebody changed "
+        "story": f"Two prints of {_photo_of(look, location, victim)}. Somebody changed "
                  f"one of them in {len(changes)} places. Tap every change in the copy.",
         "left": base, "right": copy, "spots": [[x, y, r] for _, x, y, r, _ in changes],
         "spare": SPARE_TAPS,
@@ -199,7 +216,8 @@ def _find_spec(game, location, victim):
     thing = look["target"].replace("usb", "USB")
     wanted = f"{victim}'s {thing}"
     return {
-        "story": f"A photo of {look['title']}, found in the {location}. On the back: “Where did {victim} leave "
+        "story": f"{_photo_of(look, location, victim)[0].upper()}{_photo_of(look, location, victim)[1:]}. "
+                 f"On the back: “Where did {victim} leave "
                  f"the {thing}?” Find it in the picture.",
         "ask": f"Find {wanted}",
         "image": picture, "target": [target[1], target[2], FIND_RADIUS],

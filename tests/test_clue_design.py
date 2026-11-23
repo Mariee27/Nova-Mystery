@@ -58,8 +58,8 @@ def test_every_sighting_is_of_somebody_at_the_observers_own_place(story):
                     assert clue["at"] in clue["text"] and clue["time"] in clue["text"]
                     if c["pid"] != case["murderer"] and clue["seen"] != case["murderer"]:
                         assert place_of[c["pid"]] == place_of[clue["seen"]] == clue["at"]
-                    else:                                         # the culprit's walk at 23:05
-                        assert clue["time"] == generator.EARLY_TIME
+                    else:                                         # the culprit's walk before 23:15
+                        assert clue["time"] in generator.EARLY_TIMES
 
 
 def test_open_air_places_have_a_camera_and_buildings_a_keycard_log():
