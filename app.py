@@ -785,8 +785,8 @@ def hot_seat_phone(code, token, public, me):
     if mine.get("pick") is not None:            # locked in: no second tap can change it
         st.markdown(f'<div class="kicker">🔒 Locked in: {ui.h(name_of(public, mine["pick"]))}</div>',
                     unsafe_allow_html=True)
-        st.caption(f"{hot['picked']} picked so far. The hot seat starts when everybody has picked, "
-                   f"or after {logic.HOT_SEAT_PICK_SECONDS} seconds.")
+        st.caption(f"{hot['picked']} picked so far. " + (f"The clock starts when the player who just found evidence taps Continue." if hot.get("reading") else
+                f"It starts when everybody has picked, or after {logic.HOT_SEAT_PICK_SECONDS} seconds."))
         if me["is_host"]:
             action_button("Start the hot seat now (host)", code,
                           lambda g, on, now: logic.start_hot_seat(g, token, now))
@@ -798,8 +798,8 @@ def hot_seat_phone(code, token, public, me):
         action_button(("✓ " if chosen else "") + label, code,
                       lambda g, on, now, pid=pid: logic.pick_hot_seat(g, token, pid, now),
                       key=f"hot_{pid}", type="primary" if chosen else "secondary", use_container_width=True)
-    st.caption(f"{hot['picked']} picked so far. It starts when everybody has picked, "
-               f"or after {logic.HOT_SEAT_PICK_SECONDS} seconds.")
+    st.caption(f"{hot['picked']} picked so far. " + (f"The clock starts when the player who just found evidence taps Continue." if hot.get("reading") else
+                f"It starts when everybody has picked, or after {logic.HOT_SEAT_PICK_SECONDS} seconds."))
     if me["is_host"] and hot["picked"]:
         action_button("Start the hot seat now (host)", code, lambda g, on, now: logic.start_hot_seat(g, token, now))
 
@@ -831,7 +831,7 @@ def hot_seat_signature(public, me):
     if hot is None:
         return None
     mine = me.get("hot_seat") or {}
-    return (hot["seat"], hot["picked"], len(hot["history"]), mine.get("pick"), mine.get("rating"))
+    return (hot["seat"], hot["picked"], len(hot["history"]), mine.get("pick"), mine.get("rating"), hot.get("reading"))
 
 
 @st.fragment(run_every=POLL_SECONDS)
@@ -1199,7 +1199,7 @@ def evidence_progress(public):
     return sum(1 for p in places if p["state"] == "done"), len(places)
 
 
-def pending_reward(code, public):
+def pending_reward(code, public, token=None):
     """'ACCESS GRANTED' after a solved exhibit. Stays until Continue, also when the round or
     the phase has moved on in the meantime. Returns True while it is shown."""
     reward = st.session_state.get("reward")
@@ -1220,6 +1220,8 @@ def pending_reward(code, public):
     if st.button("Continue ▸", key="reward-continue", type="primary", use_container_width=True):
         st.session_state.pop("reward", None)
         st.session_state["move"] = {}
+        if token:   # read: if the hot seat waited for this player, its picking clock starts now
+            attempt(code, lambda g, on, now: logic.done_reading(g, token, now))
         st.rerun()
     return True
 
@@ -1369,7 +1371,7 @@ def move_made(code, token, public, me):
 
 
 def investigation_actions(code, token, public, me):
-    if pending_reward(code, public):
+    if pending_reward(code, public, token):
         return
     move = st.session_state.get("move") or {}
     if move and move.setdefault("round", public["map"]["round"]) != public["map"]["round"]:
@@ -1469,11 +1471,14 @@ def player_screen(code, token):
         st.info("Read your file. The investigation starts in a moment.")
         show_case_file(public["story"])
     elif phase == "INVESTIGATION" and public["hot_seat"] is not None:
-        hot_seat_phone(code, token, public, me)  # the break between two rounds
+        # The break between two rounds. Evidence just unlocked stays on screen until Continue
+        # (the hot seat's picking clock waits for it, see logic.done_reading).
+        if not pending_reward(code, public, token):
+            hot_seat_phone(code, token, public, me)
     elif phase == "INVESTIGATION":
         investigation_actions(code, token, public, me)
     elif phase == "DISCUSSION":
-        pending_reward(code, public)             # an exhibit solved in the very last second
+        pending_reward(code, public, token)      # an exhibit solved in the very last second
         st.info("Talk to each other. Compare the alibis. Who is lying?")
     elif phase == "VOTE":
         vote_form(code, token, public, me)

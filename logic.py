@@ -322,6 +322,8 @@ def _advance(game, now):
             return
         game["round"] = game.get("round", 1) + 1
         game["holds"] = {}                  # reservations belong to the round that is over
+        game.pop("bots_from", None)         # the demo suspects wait for the people again
+        game.pop("reading", None)
         game["acted"] = []                  # everybody gets a new move
         game["phase_started"] = now
         game["deadline"] = now + DURATIONS["INVESTIGATION"]
@@ -486,6 +488,8 @@ def search(game, token, location, now, proof=None):
     clue = next(c for c in game["case"]["location_clues"] if c["location"] == location)
     game = copy.deepcopy(game)
     game.get("holds", {}).pop(location, None)      # found: the reservation is no longer needed
+    if minigames.enabled(game) and not robot:       # "Access granted" is on their phone until Continue
+        game["reading"] = sorted(set(game.get("reading", [])) | {player["pid"]})
     game["searched"].append(location)
     game["acted"].append(player["pid"])
     _add_log(game, "search", player["pid"], clue["text"], location=location,
@@ -741,6 +745,26 @@ def _open_hot_seat(game, now):
     game["hot_seat"].update(open=True, picks={}, seat=None, ratings={})
     game["phase_started"] = now          # the demo bots count their delay from here
     game["deadline"] = now + HOT_SEAT_PICK_SECONDS
+    if game.get("reading"):
+        # Somebody is still reading the evidence that ended the round: the picking clock starts
+        # when they tap Continue (done_reading), at the latest after READING_MAX seconds.
+        game["hot_seat"]["reading_until"] = now + READING_MAX
+        game["deadline"] = now + READING_MAX + HOT_SEAT_PICK_SECONDS
+
+
+def done_reading(game, token, now):
+    """A player tapped Continue after "Access granted". If the hot seat was waiting for them,
+    its picking clock starts now (once nobody is reading any more)."""
+    player = _player_by_token(game, token)
+    if player["pid"] not in game.get("reading", []):
+        return game
+    game = copy.deepcopy(game)
+    game["reading"] = [pid for pid in game["reading"] if pid != player["pid"]]
+    hot = game.get("hot_seat")
+    if not game["reading"] and hot_seat_open(game) and hot["seat"] is None and "reading_until" in hot:
+        del hot["reading_until"]
+        game["deadline"] = min(game["deadline"], now + HOT_SEAT_PICK_SECONDS)
+    return game
 
 
 def _close_hot_seat(game):
@@ -751,6 +775,7 @@ def _close_hot_seat(game):
         hot["history"].append({"pid": hot["seat"], "after_round": game.get("round", 1),
                                "believe": believe, "lie": lie})
     hot.update(open=False, picks={}, seat=None, ratings={})
+    hot.pop("reading_until", None)
 
 
 def pick_hot_seat(game, token, target_pid, now):
@@ -870,6 +895,7 @@ def hot_seat_view(game):
         "seat": hot["seat"],
         "until": game["deadline"],
         "picked": len(hot["picks"]),
+        "reading": "reading_until" in hot,          # the clock waits for somebody still reading
         "believe": believe,
         "lie": lie,
         "candidates": hot_seat_candidates(game),
@@ -896,6 +922,9 @@ def my_hot_seat(game, token):
 
 BOT_FIRST_MOVE = 6    # seconds after a phase starts before the first bot moves
 BOT_STEP = 4          # every further bot waits this much longer, so moves arrive one by one
+BOT_AFTER_HUMANS = 3  # with mini-games: seconds after the last person moved before the first bot does
+READING_MAX = 45      # the hot seat's picking clock waits at most this long for players still reading
+                      # the evidence they just unlocked (see done_reading)
 
 
 def bot_ids(game):
@@ -1064,9 +1093,18 @@ def bot_moves(game, now):
     if not bots or game["phase"] not in ("INVESTIGATION", "VOTE"):
         return game
     elapsed = now - game["phase_started"]
+    paced = game["phase"] == "INVESTIGATION" and minigames.enabled(game) and not hot_seat_open(game)
+    if paced and "bots_from" not in game and not any(
+            p["pid"] not in robots and p["pid"] not in game["acted"] for p in game["players"]):
+        # Everybody who plays in person has moved: from now on the demo suspects move one after
+        # another, like people would, instead of all at once (which ended the round at once).
+        game = copy.deepcopy(game)
+        game["bots_from"] = now
     for index, bot in enumerate(bots):
         pid = bot["pid"]
         due = elapsed >= BOT_FIRST_MOVE + BOT_STEP * index
+        if paced and not hot_seat_open(game):
+            due = "bots_from" in game and now >= game["bots_from"] + BOT_AFTER_HUMANS + BOT_STEP * index
         if hot_seat_open(game):                  # the break between two rounds: no searching
             if due:
                 game = _bot_hot_seat(game, bot, now)
