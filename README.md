@@ -49,7 +49,7 @@ they never came.
 
 | Phase | Time | What happens |
 |---|---|---|
-| Reveal | 30 s | Everybody reads their card. |
+| Reveal | 40 s | The case intro plays, then everybody reads their card. |
 | Investigation | 3 rounds, each up to 5 min | Each round every player has exactly **one** action in the app: search a place on the **campus map** or share one of their clues. Interrogations happen **out loud**: the players question each other face to face. A round ends early when everybody has moved or has nothing left to search or share. The murderer may additionally plant one fake clue. |
 | Hot seat | after rounds 1 and 2, about 1 min | Everybody picks a suspect (20 s); the one with the most picks is grilled out loud for 45 s while the others tap *believe* or *lie*. Then the next round starts. |
 | Discussion | 3 min | Players question each other in person and argue (lying is allowed). |
@@ -122,10 +122,10 @@ Phases end early when everybody is done, and the host can skip ahead.
   word with "…") and turns "the murderer"/"the killer" in a clue into "someone".
   See section 4 for the setup.
 - **Every case has its own opening.** The home page plays a short intro about the game. When the host starts,
-  every phone plays the intro of *this* case (six lines written with the story, then the case title) before the
-  private files open. The board plays a longer scene that everybody watches together: police tape and blue
+  every phone plays the intro of *this* case (six lines written with the story, one every 1.1 s, then the case
+  title; about 14 s, slow enough to read) before the private files open. The board plays a longer scene that everybody watches together: police tape and blue
   lights, the victim and where the body was found ("But this is not where Vale died."), then the suspects as
-  file cards (name, role, public dossier line) landing one by one, all within the 30 seconds of "Read your
+  file cards (name, role, public dossier line) landing one by one, all within the 40 seconds of "Read your
   file". Only public facts; who did it stays secret. While the AI is still writing, the lobby says so instead
   of showing an old case file.
 - **Every case is checked for fairness** before the game starts (exactly one murderer, at least two strong
@@ -337,7 +337,7 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_nova.py` | 46 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file). |
 | `tests/test_balanced_ai_cases.py` | 38 | AI cases: medium difficulty, the solution file, the test reading, the host's choice, the AI's status. |
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
-| `tests/test_views.py` | 22 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card; the case file shows only public facts. |
+| `tests/test_views.py` | 23 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card; the case file shows only public facts. |
 | `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
 | `tests/test_hot_seat.py` | 19 | The hot seat: allowed and refused picks and ratings, ties, the clock, the switch in `start`, only counts in the views, demo bots. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
@@ -347,7 +347,7 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
 | `tests/test_playtest_fixes.py` | 9 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 785 tests.
+All together: 786 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -477,7 +477,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (785 tests); tests/e2e/ the browser check
+tests/                  pytest suite (786 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)

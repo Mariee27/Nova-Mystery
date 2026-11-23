@@ -210,8 +210,8 @@ def play_case_intro(code, public, scene=False):
     """The intro of this room's case plays once on each screen, when the game starts.
     scene=True (the board): with the crime-scene moment before the title.
     A phone that reloads later in the reveal (a locked screen, a dropped connection) starts a
-    new session; it must not see the 8-second intro again, which would cover "Open your file"
-    while the 30 seconds run out."""
+    new session; it must not see the 14-second intro again, which would cover "Open your file"
+    while the 40 seconds run out."""
     key = f"case_intro_{code}"
     if public["phase"] == "REVEAL" and not st.session_state.get(key):
         st.session_state[key] = True
