@@ -526,7 +526,7 @@ def show_threads(public, culprit=None):
                          time.time(), lambda pid: name_of(public, pid), story=public["story"], culprit=culprit))
 
 
-FINALE_SECONDS = 17   # ui.finale fades out after about 16.4 s
+FINALE_SECONDS = 30   # ui.finale fades itself out after about 16.4 s; the margin covers a slow page load
 
 
 def show_result(public, board=False):

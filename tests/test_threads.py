@@ -153,3 +153,15 @@ def test_the_hall_of_fame_names_hunters_witnesses_oracles_and_the_liar():
     assert awards["hunter"]["pids"] == [1] and awards["witness"]["pids"] == [2]
     assert awards["oracle"]["pids"] == [oracle] and awards["oracle"]["detail"] == "1 thread to the culprit."
     assert awards["liar"]["pids"] == [killer]
+
+
+def test_a_title_shared_by_more_than_two_players_is_left_out():
+    game = with_evidence("DISCUSSION")
+    for pid in (3, 4, 5):                                              # three more statements, one each
+        clue = logic._character(game, pid)["clues"][0]["id"]
+        game = dict(game, phase="INVESTIGATION")
+        game = logic.share(game, token_of(game, pid), clue, 8)
+        game = dict(game, phase="DISCUSSION")
+    game = logic.end_phase(game, "t1", {1, 2, 3, 4, 5}, 11)
+    game = logic.end_phase(game, "t1", {1, 2, 3, 4, 5}, 12)
+    assert "witness" not in {a["key"] for a in game["result"]["awards"]}

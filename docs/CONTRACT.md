@@ -68,7 +68,7 @@ with at least one vote; `votes` and `scene_votes` are every single ballot). AI c
 An award is `{"key", "title", "pids": [pid, ...], "detail"}` (ties share it); keys: `detective` (named the culprit and
 the scene, else just the culprit), `hunter` (most exhibits found), `witness` (most clues shared), `oracle` (most threads
 to the culprit), `liar` (the murderer: master liar if they got away, caught red-handed if not). A title nobody earned
-is left out.
+is left out, and so are hunter, witness and oracle when more than two players tie for them.
 
 ## Case dict (built by `generator.build_case(pids, seed, story=None)`)
 ```

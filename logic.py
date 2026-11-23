@@ -706,7 +706,7 @@ def _awards(game, murderer, winner):
                                      ("witness", "📣 Star witness", shared, "statement{} shared"),
                                      ("oracle", "🧵 Red-thread oracle", oracle, "thread{} to the culprit")):
         pids, top = _best(counts)
-        if pids:
+        if pids and len(pids) <= 2:          # a title shared by half the room means nothing
             awards.append({"key": key, "title": title, "pids": pids,
                            "detail": f"{top} {word.format('' if top == 1 else 's')}."})
     believed = sum(entry["believe"] for entry in (game.get("hot_seat") or {}).get("history", [])
