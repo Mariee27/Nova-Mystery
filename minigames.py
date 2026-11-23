@@ -26,8 +26,9 @@ import re
 
 import content
 import exhibits
+import minigames_extra as extra   # two more games: Spot the difference, Find the object
 
-KINDS = ("code", "scratch", "puzzle", "cipher", "order")   # five kinds for the five places of a case
+KINDS = ("code", "scratch", "puzzle", "cipher", "order") + extra.KINDS   # a case uses five of them, never one twice
 
 KIND_INFO = {
     "code": {"icon": "🔐", "name": "Crack the code", "exhibit": "The locked cash box",
@@ -41,6 +42,7 @@ KIND_INFO = {
     "order": {"icon": "🗂️", "name": "Order the evening", "exhibit": "The torn diary page",
               "verb": "Tap the entries in the order they happened."},
 }
+KIND_INFO.update(extra.KIND_INFO)
 
 SCRATCH_COLS, SCRATCH_ROWS = 10, 14     # the page is checked in this grid of cells
 SCRATCH_NEEDED = 0.55                   # share of the cells that must be rubbed
@@ -48,7 +50,7 @@ MAX_SWAPS = 400
 # Faster than a person can solve it: an answer that comes sooner is ignored (seconds after the
 # puzzle opened). A puzzle that runs in the browser can always be faked by someone with the
 # browser's developer tools; this, and the limit on wrong answers, makes it slow and pointless.
-MIN_SECONDS = {"code": 3, "cipher": 3, "scratch": 4, "puzzle": 4, "order": 4}
+MIN_SECONDS = {"code": 3, "cipher": 3, "scratch": 4, "puzzle": 4, "order": 4, **extra.MIN_SECONDS}
 MAX_PROOF_ITEMS = SCRATCH_COLS * SCRATCH_ROWS
 
 
@@ -84,6 +86,10 @@ STILL_HINTS = {
               "The sea and the sand cross the middle; the terrace railing is at the bottom."],
     "stairs": ["The camera bar runs along the top; the tall window is top right, the gallery with a figure top left.",
                "The white stairs climb from the bottom right; the FLOOR 1 sign is on the left wall."],
+    "canteen": ["The camera bar and the pendant lamps are at the top; the windows onto the sea run across under them.",
+                "The CANTEEN plate is left, the menu and the counter right; the long white tables fill the bottom."],
+    "garage": ["The camera bar and the ceiling lights are at the top; the green EXIT sign is in the middle.",
+               "The blue and the white car stand in the middle; the barrier is bottom left, the GARAGE plate bottom right."],
     "facade": ["The camera bar runs along the top; the white sun fins stand on the left, the sky is top right.",
                "The nova lettering runs up the white corner in the middle; the sun and the sea are bottom right."],
 }
@@ -365,6 +371,8 @@ def spec(game, location):
     clue = next(c for c in game["case"]["location_clues"] if c["location"] == location)
     info = KIND_INFO[kind]
     victim = story["victim_short"]
+    if kind in extra.KINDS:          # the two extra games bring their own pictures and words
+        return extra.spec(game, location, kind, variant, number, clue["id"], victim)
     words = piece(game, kind)
     base = {
         "id": f"MG-{number:02d}-{kind}", "kind": kind, "variant": variant, "location": location,
@@ -459,6 +467,8 @@ def verify(game, location, proof):
     if location not in table:
         return False
     kind, variant = table[location]
+    if kind in extra.KINDS:
+        return extra.verify(game, location, kind, proof)
     try:
         if kind == "code":
             return str(proof.get("code", "")) == _lock(game, location)["answer"]
@@ -488,6 +498,8 @@ def feedback(game, location, proof):
     if location not in table or not isinstance(proof, dict):
         return "That did not work."
     kind, variant = table[location]
+    if kind in extra.KINDS:
+        return extra.feedback(game, location, kind, proof)
     if kind == "code":
         code = str(proof.get("code", ""))
         if not re.fullmatch(r"\d{4}", code):
@@ -522,6 +534,8 @@ def feedback(game, location, proof):
 def solve(game, location):
     """A valid proof for a place (used by the tests and the demo bots, never sent to a phone)."""
     kind, variant = assignment(game)[location]
+    if kind in extra.KINDS:
+        return extra.solve(game, location, kind)
     if kind == "code":
         return {"code": _lock(game, location)["answer"]}
     if kind == "scratch":

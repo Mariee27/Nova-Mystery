@@ -13,8 +13,9 @@ from conftest import host_token, make_started, online_all, token_of
 NOW = 0
 
 
-def investigation(n=5, seed=1, on=True):
-    """A started game with mini-games, in round 1 of the investigation."""
+def investigation(n=5, seed=7, on=True):
+    """A started game with mini-games, in round 1 of the investigation. A game shows five of the
+    seven kinds; with a seed that is a multiple of 7 they are the first five (code ... order)."""
     game = make_started(n=n, seed=seed)
     game = dict(game, minigames=on)
     game = logic.end_phase(game, host_token(game), online_all(game), NOW)
@@ -36,7 +37,7 @@ def test_every_place_gets_a_puzzle_and_all_four_kinds_appear():
     game = investigation()
     specs = minigames.specs(game)
     assert [s["location"] for s in specs] == logic.story_of(game)["locations"]
-    assert {s["kind"] for s in specs} == set(minigames.KINDS)
+    assert {s["kind"] for s in specs} == set(minigames.KINDS[:5])            # five different kinds
     assert len({s["id"] for s in specs}) == len(specs)                       # unique ids
     for s in specs:
         clue = next(c for c in game["case"]["location_clues"] if c["location"] == s["location"])
@@ -107,7 +108,7 @@ def solve_from_the_note(facts, riddle):
 
 @pytest.mark.parametrize("seed", range(40))
 def test_the_code_can_be_worked_out_from_the_note_alone(seed):
-    game = investigation(seed=seed)
+    game = investigation(seed=seed * 7)                                   # a game with the lock
     _, spec, answer = lock_of(game)
     assert len(spec["facts"]) == 4 and [f[0][0] for f in spec["facts"]] == list("ABCD")
     assert any(f[1] == content.FOUND_TIME for f in spec["facts"])                 # the discovery is always there
@@ -118,8 +119,8 @@ def test_the_code_can_be_worked_out_from_the_note_alone(seed):
 
 
 def test_the_code_changes_from_game_to_game():
-    codes = {lock_of(investigation(seed=seed))[2] for seed in range(60)}
-    riddles = {lock_of(investigation(seed=seed))[1]["riddle"].split()[1] for seed in range(60)}
+    codes = {lock_of(investigation(seed=seed * 7))[2] for seed in range(60)}
+    riddles = {lock_of(investigation(seed=seed * 7))[1]["riddle"].split()[1] for seed in range(60)}
     assert len(codes) >= 20 and len(riddles) >= 3
 
 

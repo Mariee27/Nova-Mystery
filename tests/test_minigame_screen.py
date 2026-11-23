@@ -26,6 +26,11 @@ def open_puzzle(phone, conn, code, kind=None):
         return [s["location"] for s in minigames.specs(game) if kind in (None, s["kind"])
                 and logic.locked_until(game, s["location"]) is None and s["location"] not in game["searched"]]
     game = db.load(conn, code)
+    if kind and kind not in {s["kind"] for s in minigames.specs(game)}:
+        # A game shows five of the seven kinds: give this room a seed whose five include this one.
+        k = minigames.KINDS.index(kind)
+        seed = game["case"]["seed"] - game["case"]["seed"] % len(minigames.KINDS) + k
+        game = db.apply(conn, code, lambda g: {**g, "case": {**g["case"], "seed": seed}})
     while not candidates(game):
         phone.run(press=[HOST_SKIP])
         game = db.load(conn, code)
