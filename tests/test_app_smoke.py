@@ -73,8 +73,13 @@ class FakeStreamlit(types.ModuleType):
             return True
         return False
 
-    def button(self, label, **kwargs):
-        return (not kwargs.get("disabled")) and self._pressed(label)
+    def button(self, label, on_click=None, args=(), **kwargs):
+        pressed = (not kwargs.get("disabled")) and self._pressed(label)
+        if pressed and on_click is not None:
+            # Like Streamlit: the callback runs first, then the whole page is drawn again.
+            on_click(*args)
+            raise Rerun()
+        return pressed
 
     def form_submit_button(self, label, **kwargs):
         return self._pressed(label)
