@@ -137,3 +137,19 @@ def test_a_guilty_demo_suspect_cuts_the_thickest_thread_against_itself():
     for now in range(int(game["phase_started"]), int(game["phase_started"]) + 120, 2):
         game = logic.bot_moves(game, now)
     assert game["cut"]["pid"] == killer
+
+
+def test_the_hall_of_fame_names_hunters_witnesses_oracles_and_the_liar():
+    game = with_evidence("DISCUSSION")
+    killer = murderer_pid(game)
+    oracle = an_innocent_other_than(game)
+    game = logic.pin_thread(game, token_of(game, oracle), notes(game)[0], killer, 10)
+    game = logic.end_phase(game, "t1", {1, 2, 3, 4, 5}, 11)                 # → VOTE
+    scene = game["case"]["murder_location"]
+    game = logic.vote(game, token_of(game, oracle), killer, 12, scene=scene)
+    game = logic.end_phase(game, "t1", {1, 2, 3, 4, 5}, 13)                 # → RESULT
+    awards = {a["key"]: a for a in game["result"]["awards"]}
+    assert awards["detective"]["pids"] == [oracle] and awards["detective"]["title"].endswith("Sharpest detective")
+    assert awards["hunter"]["pids"] == [1] and awards["witness"]["pids"] == [2]
+    assert awards["oracle"]["pids"] == [oracle] and awards["oracle"]["detail"] == "1 thread to the culprit."
+    assert awards["liar"]["pids"] == [killer]

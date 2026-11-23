@@ -672,6 +672,54 @@ def _clear_winner(tally):
     return leaders[0] if len(leaders) == 1 else None
 
 
+def _best(counts):
+    """The pids with the highest count (at least 1), and that count."""
+    top = max(counts.values(), default=0)
+    return ([pid for pid in sorted(counts) if counts[pid] == top], top) if top else ([], 0)
+
+
+def _awards(game, murderer, winner):
+    """The hall of fame after the game: a few titles, each with who earned it (ties share it)
+    and why. Only from what happened in the game; a title nobody earned is left out."""
+    awards = []
+    votes, scenes = game["votes"], game.get("scene_votes", {})
+    scene = game["case"]["murder_location"]
+    sharp = [int(v) for v, accused in sorted(votes.items()) if accused == murderer and scenes.get(v) == scene]
+    right = [int(v) for v, accused in sorted(votes.items()) if accused == murderer]
+    if sharp:
+        awards.append({"key": "detective", "title": "🕵️ Sharpest detective", "pids": sharp,
+                       "detail": "Named the culprit and the real crime scene."})
+    elif right:
+        awards.append({"key": "detective", "title": "🔎 Good instinct", "pids": right,
+                       "detail": "Named the culprit."})
+    found, shared, oracle = {}, {}, {}
+    for entry in game["log"]:
+        if entry["kind"] == "search" and not entry.get("planted") and entry.get("by") is not None:
+            found[entry["by"]] = found.get(entry["by"], 0) + 1
+        if entry["kind"] == "share":
+            shared[entry["by"]] = shared.get(entry["by"], 0) + 1
+    for pid, mine in game.get("threads", {}).items():
+        hits = sum(1 for thread in mine.values() if thread["pid"] == murderer)
+        if hits:
+            oracle[int(pid)] = hits
+    for key, title, counts, word in (("hunter", "🔍 Evidence hunter", found, "exhibit{} found"),
+                                     ("witness", "📣 Star witness", shared, "statement{} shared"),
+                                     ("oracle", "🧵 Red-thread oracle", oracle, "thread{} to the culprit")):
+        pids, top = _best(counts)
+        if pids:
+            awards.append({"key": key, "title": title, "pids": pids,
+                           "detail": f"{top} {word.format('' if top == 1 else 's')}."})
+    believed = sum(entry["believe"] for entry in (game.get("hot_seat") or {}).get("history", [])
+                   if entry["pid"] == murderer)
+    if winner == "murderer":
+        detail = "Got away with it" + (f" – and {believed} believed them in the hot seat." if believed else ".")
+        awards.append({"key": "liar", "title": "🎭 Master liar", "pids": [murderer], "detail": detail})
+    else:
+        awards.append({"key": "liar", "title": "🚨 Caught red-handed", "pids": [murderer],
+                       "detail": "The room saw through the lies."})
+    return awards
+
+
 def _compute_result(game):
     murderer = game["case"]["murderer"]
     tally = {}   # only players who received at least one vote appear here
@@ -703,6 +751,7 @@ def _compute_result(game):
         "votes": dict(game["votes"]),                     # str(voter pid) -> accused pid
         "scene_votes": dict(game.get("scene_votes", {})),  # str(voter pid) -> location
         "secrets_kept": secrets_kept,
+        "awards": _awards(game, murderer, winner),
     }
     if "solution" in game["case"]:
         # AI cases only: why the red herrings pointed where they did, and what cleared them.

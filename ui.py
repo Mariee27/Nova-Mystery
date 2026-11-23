@@ -832,6 +832,48 @@ def reveal(result, characters, name_of, story=None):
             f'<div class="r">{h(culprit["role"])} · {h(result["murder_location"])}, {h(content.MURDER_TIME)}</div></div></div>')
 
 
+def finale(result, players, name_of, story=None):
+    """The board's big moment when the vote is over (about 16 seconds, then it fades and the
+    result page below stays): "The votes are in", a 3-2-1 countdown, the ballots race as bars,
+    a drum roll, the culprit's card turns over and the stamp lands. Pure CSS (style.css
+    .finale); every time below is the moment it starts."""
+    tally = result.get("tally", {})
+    most = max(tally.values(), default=0) or 1
+    rows = []
+    ordered = sorted(players, key=lambda p: -tally.get(str(p["pid"]), 0))
+    for i, p in enumerate(ordered):
+        votes = tally.get(str(p["pid"]), 0)
+        rows.append(f'<div class="fr" style="--i:{i};--w:{votes / most * 100:.0f}%">'
+                    f'<span class="fn">{h(p["name"])}</span><span class="fb"><span></span></span>'
+                    f'<span class="fv">{votes}</span></div>')
+    culprit = next((p for p in players if p["pid"] == result["murderer"]), {"name": "?", "role": ""})
+    won = result["winner"] == "detectives"
+    ending = _story(story)["endings"].get(result.get("ending"), {"title": ""})
+    stamp = "Case closed" if won else "Escaped"
+    count = "".join(f'<span style="--n:{n}">{3 - n}</span>' for n in range(3))
+    return (f'<div class="finale{"" if won else " lost"}" aria-hidden="true">'
+            f'<div class="f1"><div class="fk">The votes are in</div><div class="fc">{count}</div></div>'
+            f'<div class="f2"><div class="fk">Who did the room accuse?</div>{"".join(rows)}</div>'
+            f'<div class="f3"><div class="fk">The murderer is …</div></div>'
+            f'<div class="f4"><div class="fcard"><div class="back">N</div><div class="front">'
+            f'<div class="face">{initial(culprit["name"])}</div><div class="n">{h(culprit["name"])}</div>'
+            f'<div class="r">{h(culprit.get("role") or "")}</div></div></div>'
+            f'<div class="fstamp">{h(stamp)}</div><div class="fend">{h(ending["title"])}</div></div></div>')
+
+
+def awards(items, name_of):
+    """The hall of fame: one card per title, popping in one after another."""
+    if not items:
+        return ""
+    cards = []
+    for i, award in enumerate(items):
+        names = " & ".join(h(name_of(pid)) for pid in award["pids"])
+        bad = " villain" if award["key"] == "liar" else ""
+        cards.append(f'<div class="award{bad}" style="--i:{i}"><div class="at">{h(award["title"])}</div>'
+                     f'<div class="an">{names}</div><div class="ad">{h(award["detail"])}</div></div>')
+    return f'<div class="awards">{"".join(cards)}</div>'
+
+
 def reconstruction(result, characters, name_of, story=None):
     """What really happened that night, built from the case data."""
     story = _story(story)

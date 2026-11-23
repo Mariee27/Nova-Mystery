@@ -1136,3 +1136,24 @@ def test_the_murderer_cuts_a_thread_from_the_phone(game_db):
         assert "Cut a thread" not in phone.run()                      # once per game
     finally:
         conn.close()
+
+
+def test_the_board_plays_the_finale_once_and_everybody_sees_the_hall_of_fame(game_db):
+    phone = Browser()
+    phone.run(press=["Play a demo"])
+    code = phone.st.query_params["room"]
+    phone.run(press=["Start game"])
+    conn = db.connect(game_db)
+    try:
+        while db.load(conn, code)["phase"] != "RESULT":
+            phone.run(press=[HOST_SKIP])
+    finally:
+        conn.close()
+    board = Browser(room=code, view="board")
+    page = board.run()
+    assert 'class="finale' in page and "Hall of fame" in page
+    assert 'class="finale' in board.run()                           # the same overlay while it runs
+    board.st.session_state[f"finale_{code}"] -= 60                    # a minute later
+    assert 'class="finale' not in board.run()
+    phone_page = phone.run()
+    assert "Hall of fame" in phone_page and 'class="finale' not in phone_page

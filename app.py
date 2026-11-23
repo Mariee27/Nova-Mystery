@@ -526,12 +526,25 @@ def show_threads(public, culprit=None):
                          time.time(), lambda pid: name_of(public, pid), story=public["story"], culprit=culprit))
 
 
+FINALE_SECONDS = 17   # ui.finale fades out after about 16.4 s
+
+
 def show_result(public, board=False):
     result = public["result"]
     characters = public["characters"]
     who = lambda pid: name_of(public, pid)   # noqa: E731
     story = public["story"]
+    if board:
+        # The big moment plays once on the board: countdown, the ballots race, the card turns.
+        # The board redraws every POLL_SECONDS: the same HTML is drawn again for FINALE_SECONDS,
+        # so the browser keeps the running animation; after that it is gone for good.
+        started = st.session_state.setdefault(f"finale_{public['code']}", time.time())
+        if time.time() - started < FINALE_SECONDS:
+            show(ui.finale(result, public["players"], who, story=story))
     show(ui.reveal(result, characters, who, story=story))
+    if result.get("awards"):
+        st.markdown("### Hall of fame")
+        show(ui.awards(result["awards"], who))
     # The ballots come right after the culprit, over the full width: the moment everybody reacts to.
     st.markdown("### How everyone voted")
     show(ui.vote_table(result, public["players"], who))
