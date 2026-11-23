@@ -1378,7 +1378,8 @@ def host_note(game, token):
         return "The AI is writing a new case for this room …"
     if ai["status"] == "ready":
         return f"New AI case ready: “{ai['story']['case_title']}”."
-    return f"No AI case ({ai['reason']}). {FIXED_CASE_NOTE}"
+    why = " Why: " + " · ".join(ai["problems"][:AI_PROBLEMS_SHOWN]) if ai.get("problems") else ""
+    return f"No AI case ({ai['reason']}).{why} {FIXED_CASE_NOTE}"
 
 
 def ai_case_writing(game, now, attempt=1):
@@ -1424,7 +1425,7 @@ def ai_case_ready(game, story, now):
     game = copy.deepcopy(game)
     if problems:
         game["ai_case"] = {"status": "failed", "reason": "the AI case did not pass the checks",
-                           "problems": problems[:5]}
+                           "problems": problems[:AI_PROBLEMS_SHOWN]}
     else:
         game["ai_case"] = {"status": "ready", "story": story}
     return game
@@ -1441,12 +1442,18 @@ def ai_status(game, token):
     return game["ai_case"]["status"]
 
 
-def ai_case_failed(game, reason, now):
-    """The AI could not write a case (no key, no answer, limit reached ...)."""
+AI_PROBLEMS_SHOWN = 3   # how many broken rules of a refused AI case the host sees
+
+
+def ai_case_failed(game, reason, now, problems=None):
+    """The AI could not write a case (no key, no answer, limit reached ...). problems: the
+    rules a refused case broke (logic.story_problems); the first few are kept for the host."""
     if game["phase"] != "LOBBY":
         return game
     game = copy.deepcopy(game)
     game["ai_case"] = {"status": "failed", "reason": str(reason)}
+    if problems:
+        game["ai_case"]["problems"] = [str(p) for p in problems[:AI_PROBLEMS_SHOWN]]
     return game
 
 

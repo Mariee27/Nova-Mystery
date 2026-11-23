@@ -531,6 +531,17 @@ def _tidy(story):
             rest = re.sub(phrase, milder, rest, flags=re.IGNORECASE)
         texts["rumor"] = head + rest
 
+    # "the murderer"/"the killer" in a text that becomes a clue would give the solution away:
+    # it becomes "someone". Endings and the briefing may name the crime (never a clue).
+    story["neutral_private_clues"] = [_no_verdict(c) for c in story["neutral_private_clues"]]
+    for location, clue in story["neutral_location_clues"].items():
+        story["neutral_location_clues"][location] = _no_verdict(clue)
+    for role, texts in story["roles"].items():
+        texts["trace"] = _no_verdict(texts["trace"])
+        texts["rumor"] = texts["rumor"][:len(role)] + _no_verdict(texts["rumor"][len(role):])
+
+    _shorten_all(story)
+
     # The intro is only decoration: if its lines do not fit, use a standard one for this victim.
     lines = story["intro_lines"]
     if (len(lines) != logic.NUMBER_OF_INTRO_LINES
@@ -538,6 +549,62 @@ def _tidy(story):
                    for line in lines)):
         story["intro_lines"] = standard_intro(story["victim"])
     return story
+
+
+VERDICT_WORDS = re.compile(r"\b(?:(?:the|a|an)\s+)?(?:murderer|killer)\w*", re.IGNORECASE)
+
+
+def _no_verdict(text):
+    """'the killer left a glove' -> 'someone left a glove' (capitalised at the start)."""
+    def someone(match):
+        return "Someone" if match.group(0)[:1].isupper() and match.start() == 0 else "someone"
+    return VERDICT_WORDS.sub(someone, text)
+
+
+SENTENCE_END = re.compile(r"[.!?…][\"”’)]?(?=\s|$)")
+# Words a cut phrase must not end on ("a silver pen with the" -> "a silver pen").
+LOOSE_ENDS = {"a", "an", "the", "of", "with", "and", "or", "in", "on", "at", "to", "from", "for",
+              "by", "that", "which", "its", "his", "her", "their", "under", "near", "into"}
+
+
+def _shorten(text, limit, phrase=False):
+    """Make a text that is too long fit its limit instead of refusing the whole case.
+
+    A text is cut after its last full sentence that fits (if that keeps at least half);
+    otherwise at a word, with "…". phrase=True (a trace, used inside a sentence: "... and
+    loses <trace>."): cut at a word, without "…" and without a dangling "the"/"with"."""
+    if len(text) <= limit:
+        return text
+    if not phrase:
+        ends = [m.end() for m in SENTENCE_END.finditer(text[:limit])]
+        if ends and ends[-1] >= limit // 2:
+            return text[:ends[-1]].strip()
+        limit -= 1                                       # room for the "…"
+    words = text[:limit + 1].split(" ")[:-1] or [text[:limit]]   # whole words only
+    while len(words) > 1 and words[-1].lower().strip(",;:–-") in LOOSE_ENDS:
+        words.pop()
+    cut = " ".join(words).rstrip(" ,;:–-")[:limit]
+    return cut if phrase else cut + "…"
+
+
+def _shorten_all(story):
+    """Apply _shorten to every text with a length limit except the names (a name that is
+    cut could clash with another one). Runs last, after the other fixes."""
+    limits = logic.STORY_LIMITS
+    for key in ("case_title", "found_place", "briefing"):
+        story[key] = _shorten(story[key], limits[key])
+    for location in story["locations"]:
+        story["location_flavor"][location] = _shorten(story["location_flavor"][location], limits["flavor"])
+        story["neutral_location_clues"][location] = _shorten(story["neutral_location_clues"][location],
+                                                             limits["neutral_clue"])
+    story["neutral_private_clues"] = [_shorten(c, limits["neutral_clue"]) for c in story["neutral_private_clues"]]
+    for texts in story["roles"].values():
+        for field in ("dossier", "intro", "secret", "rumor"):
+            texts[field] = _shorten(texts[field], limits[field])
+        texts["trace"] = _shorten(texts["trace"], limits["trace"], phrase=True)
+    for ending in story["endings"].values():
+        ending["title"] = _shorten(ending["title"], limits["ending_title"])
+        ending["text"] = _shorten(ending["text"], limits["ending_text"])
 
 
 def standard_intro(victim):
