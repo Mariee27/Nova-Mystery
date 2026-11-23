@@ -194,10 +194,13 @@ NEUTRAL_PRIVATE_CLUES = [
 
 TEMPLATES = {
     "alibi": "I was at the {location} around 23:30.",
-    "scene": "Found at the {location}: {trace}. It belongs to {role}.",
+    # The owner is not named: compare the object with what each suspect carries (their dossier).
+    "scene": "Found at the {location}: {trace}. Whose could it be?",
     # Buildings have keycard readers; open-air places (OPEN_AIR) have a night camera instead.
-    "alibi_broken": "The keycard log of the {location} shows no entry by {role} between 23:15 and 23:45.",
-    "alibi_broken_open_air": "The night camera at the {location} shows no entry by {role} between 23:15 and 23:45: "
+    # Nobody is named: whoever claims to have been there around 23:30 is lying (compare the alibis).
+    "alibi_broken": "The keycard log of the {location} shows no entry at all between 23:15 and 23:45: "
+                    "nobody was inside.",
+    "alibi_broken_open_air": "The night camera at the {location} shows nobody between 23:15 and 23:45: "
                              "nobody came or went.",
     # Somebody who was alone all evening: the log or the camera of their place vouches for them.
     "present": "The keycard log of the {location} shows {role} inside the whole time from 23:10 to 23:50.",

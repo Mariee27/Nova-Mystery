@@ -995,19 +995,31 @@ def _bot_reading(game, pid):
     return texts
 
 
+def _pointed_at(game, text):
+    """{pid: weight} for whom a piece of evidence points at, read the way a player reads it:
+    the object at the scene is matched with what each suspect carries, an empty log with who
+    claims to have been there, a witness or a rumor by the role they name."""
+    story = story_of(game)
+    characters = game["case"]["characters"]
+    if "Whose could it be?" in text:            # physical evidence: whose object is it?
+        return {c["pid"]: 3 for c in characters if story["roles"][c["role"]]["trace"] in text}
+    if "between 23:15 and 23:45" in text and "nobody" in text:   # an empty log: who says they were there?
+        return {c["pid"]: 3 for c in characters if c["alibi_location"] in text}
+    if "hurrying" in text:
+        weight = 3                              # a witness
+    elif "was seen" in text:
+        weight = 1                              # a rumor
+    else:
+        return {}
+    return {c["pid"]: weight for c in characters if c["role"] in text}
+
+
 def _bot_suspect(game, pid):
-    """Whom the bot accuses: the role that the evidence it can read points at most."""
+    """Whom the bot accuses: the player that the evidence it can read points at most."""
     scores = {other: 0 for other in _player_ids(game) if other != pid}
-    role_of = {c["pid"]: c["role"] for c in game["case"]["characters"]}
     for text in _bot_reading(game, pid):
-        if any(word in text for word in ("belongs to", "no entry by", "hurrying")):
-            weight = 3          # physical evidence, a broken alibi, a witness
-        elif "was seen" in text:
-            weight = 1          # a rumor
-        else:
-            continue
-        for other in scores:
-            if role_of[other] in text:
+        for other, weight in _pointed_at(game, text).items():
+            if other in scores:
                 scores[other] += weight
     best = max(scores.values())
     return min(other for other, score in scores.items() if score == best)
@@ -1015,7 +1027,7 @@ def _bot_suspect(game, pid):
 
 def _bot_scene(game, pid):
     for text in _bot_reading(game, pid):
-        if "belongs to" in text or "hurrying" in text:
+        if "Whose could it be?" in text or "hurrying" in text:
             for location in story_of(game)["locations"]:
                 if location in text:
                     return location
@@ -1363,6 +1375,8 @@ def public_story(story):
         "location_flavor": dict(story["location_flavor"]),
         "location_icons": dict(story["location_icons"]),
         "dossiers": {role: texts["dossier"] for role, texts in story["roles"].items()},
+        # What each suspect always carries: public, so the object found at the scene can be matched.
+        "carries": {role: texts["trace"] for role, texts in story["roles"].items()},
         "endings": copy.deepcopy(story["endings"]),
     }
 

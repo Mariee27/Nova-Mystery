@@ -84,10 +84,10 @@ phone: `private_view` gives only `id`, `text`, `shared`).
 How `build_case` decides the night: the innocents are at the places other than the crime scene and the false alibi,
 in pairs (three together if needed) and one or two alone. Every player holds two cards in random order: a sighting
 (`confirms`, of somebody at the observer's own place, inside 23:15–23:45 for pairs; the murderer and the first lone
-innocent saw each other at 23:05 at that innocent's place) or the witness account (`scene`, "hurrying toward the
+innocent saw each other between 22:55 and 23:10 at that innocent's place, each at a time of its own) or the witness account (`scene`, "hurrying toward the
 scene" at 23:25, held by an innocent), plus an observation (`neutral`), a rumor (`suspicious`) or the witness account.
 The rumor is held by the murderer or by an innocent; if the murderer holds it, an innocent holds one too and no note is
-found at a place. Place clues: the trace at the scene (`scene`), the log of the false alibi's place showing no entry
+found at a place. Place clues: the trace at the scene (`scene`, without its owner: the dossiers say who carries what), the log of the false alibi's place showing that nobody was there (no name: compare the alibis)
 (`alibi_broken`), the log of each lone innocent's place showing them there 23:10–23:50 (`confirms`), a note with a
 rumor (`suspicious`) and neutral observations. Open-air places (`content.OPEN_AIR`: Beach, Main Deck) have a night
 camera instead of a keycard log. Locked: the crime scene and the first lone innocent's place.

@@ -515,7 +515,7 @@ def _tidy(story):
         clue = neutral(clue)
         story["neutral_location_clues"][location] = (PLAIN_LOCATION_CLUE if points_at_somebody(clue)
                                                      else clue)
-    # A trace becomes "Found at the <place>: <trace>. It belongs to <role>." – it may name nobody.
+    # A trace becomes "Found at the <place>: <trace>. Whose could it be?" and stands in the dossiers – it may name nobody.
     for texts in story["roles"].values():
         texts["trace"] = neutral(texts["trace"])
 

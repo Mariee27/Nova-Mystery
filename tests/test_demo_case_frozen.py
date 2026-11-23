@@ -6,6 +6,10 @@ culprit away by their kind, and some sightings were physically impossible). Stor
 culprit, crime scene and false alibi stayed exactly the same; only the cards and the place
 clues changed. The story text changed in two words: the campus is in Carcavelos, not Lisbon. The Main Deck became an indoor hall (keycard log instead of night camera): only the wording of
 those clues changed, in the cases marked by the changed fingerprints. AI cases additionally get difficulty balancing (balance.py); case #001 never does.
+Set again on purpose when the key evidence stopped naming the culprit: the object at the scene has no
+owner (the dossiers say who carries what), the empty log names nobody (compare the alibis), and the
+culprit's walk before the keycard window has two times of its own instead of 23:05 on both cards.
+Only those texts and times changed; every fact, card and lock stayed the same.
 The words of the mini-games (story["minigames"]) are not part of the story fingerprint: they
 decide nothing about the case and are checked in tests/test_case_minigames.py.
 """
@@ -19,18 +23,18 @@ import generator
 import logic
 
 FINGERPRINTS = {
-    "demo-4": "5ca9df2c6853a2c9",
-    "story001-4-1": "547b015e3ef4bc42",
-    "story001-4-7": "705795f9638bb913",
-    "story001-4-12345": "74971e2cfad399c0",
-    "demo-5": "5c96cfdaacc07f3a",
-    "story001-5-1": "74d65229d6b54113",
-    "story001-5-7": "bc081b9465c18175",
-    "story001-5-12345": "bba6e10794f49d0a",
-    "demo-6": "354dafb879c8d3a6",
-    "story001-6-1": "5f1e2283beca2529",
-    "story001-6-7": "2022961f623c8c70",
-    "story001-6-12345": "9310613691b05d93",
+    "demo-4": "ea33d6b26eb41553",
+    "story001-4-1": "4008e92562c0fe0e",
+    "story001-4-7": "a2f1cf4a524900d2",
+    "story001-4-12345": "97612ba9778b011f",
+    "demo-5": "7ddd948788ecdb52",
+    "story001-5-1": "31db2721a303dd99",
+    "story001-5-7": "8e5236dfc94a0438",
+    "story001-5-12345": "b6499f1627968a88",
+    "demo-6": "24702e7872837fd1",
+    "story001-6-1": "c9fb786ddd73ebd2",
+    "story001-6-7": "8e707aaff0aeaab0",
+    "story001-6-12345": "1f4b565effff8a26",
 }
 STORY_FINGERPRINT = "7d4dc5ce8c5e370e"   # "Carcavelos" instead of "Lisbon" in the intro and an ending
 

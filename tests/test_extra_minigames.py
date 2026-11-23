@@ -103,8 +103,24 @@ def test_a_variant_is_stable_for_a_game_and_changes_between_games():
     game, place = game_showing("spot", 2)
     assert {extra.variant_of(game, place, "spot") for _ in range(10)} == {2}
     assert minigames.spec(game, place) == minigames.spec(copy.deepcopy(game), place)    # every rerun, every phone
-    variants = {extra.variant_of(game_with(seed=s), place, "spot") for s in range(40)}
-    assert variants == set(range(5))
+    variants = {extra.variant_of(game_with(seed=s), "Horizon Hall", "spot") for s in range(40)}
+    assert variants == set(range(5))          # a place without a picture of its own: any photo
+
+
+@pytest.mark.parametrize("kind", ["spot", "find"])
+def test_a_place_with_its_own_picture_shows_itself(kind):
+    looks = extra.SPOT if kind == "spot" else extra.FIND
+    for place, scene in extra.PICTURE_OF.items():
+        for seed in range(10):
+            look = looks[extra.variant_of(game_with(seed=seed), place, kind)]
+            if any(other["scene"] == scene for other in looks):
+                assert look["scene"] == scene
+    game, place = game_showing(kind, 0)
+    story = minigames.spec(game, place)["story"]
+    if looks[0]["scene"] == extra.PICTURE_OF.get(place):
+        assert "this room" in story
+    else:
+        assert "took of" in story             # a photo from somewhere else says where it was taken
 
 
 @pytest.mark.parametrize("proof", [None, {}, {"taps": "x"}, {"taps": [[1]]}, {"taps": [[-5, 999]]},

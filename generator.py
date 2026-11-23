@@ -15,7 +15,9 @@ MAX_ATTEMPTS = 5
 
 # When the people were seen. Sightings inside the window give an alibi for the murder (23:30).
 WINDOW_TIMES = ["23:15", "23:20", "23:25", "23:35", "23:40"]
-EARLY_TIME = "23:05"   # the murderer passes the lone suspect's place, before the keycard window
+# The murderer passes the lone suspect's place before the keycard window. Each of the two sees the
+# other at a time of its own, so the two cards do not stand out as a matching pair.
+EARLY_TIMES = ["22:55", "23:00", "23:05", "23:10"]
 
 
 def _place_text(templates, kind, location):
@@ -30,7 +32,7 @@ def build_case(pids, seed, story=None):
     - The innocents spend the evening at their places, in pairs (three together if needed)
       who see each other inside the keycard window; one or two of them are alone there.
     - The murderer claims a place they never entered (the keycard log or camera shows it),
-      passes the place of a lone innocent at 23:05 (they see each other), is seen hurrying
+      passes the place of a lone innocent before 23:15 (they see each other), is seen hurrying
       toward the crime scene at 23:25, kills at 23:30, loses their trace there and moves
       the body.
     Every card is true and physically possible: a sighting is always of somebody at the
@@ -89,8 +91,9 @@ def build_case(pids, seed, story=None):
             for index, pid in enumerate(group):
                 partner = group[(index + 1) % len(group)]
                 first[pid] = sighting(pid, partner, true_location[pid], rng.choice(WINDOW_TIMES))
-    first[early] = sighting(early, murderer, early_place, EARLY_TIME)
-    first[murderer] = sighting(murderer, early, early_place, EARLY_TIME)
+    clock = random.Random(f"{seed}|early")   # its own dice, so the rest of the case stays as it was
+    first[early] = sighting(early, murderer, early_place, clock.choice(EARLY_TIMES))
+    first[murderer] = sighting(murderer, early, early_place, clock.choice(EARLY_TIMES))
     witness = None
     for pid in lone[1:]:
         first[pid] = dict(witness_card)

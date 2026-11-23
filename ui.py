@@ -137,6 +137,7 @@ def lineup(players, story=None):
     if not players:
         return ""
     dossiers = _story(story).get("dossiers", {})
+    carries = _story(story).get("carries", {})
     step = min(SUSPECTS_STEP, (SUSPECTS_LAST_IN - SUSPECTS_FROM) / max(len(players) - 1, 1))
     cards = []
     for i, player in enumerate(players):
@@ -146,7 +147,9 @@ def lineup(players, story=None):
             f'<div class="top"><span class="no">Suspect #{i + 1}</span>'
             f'<span class="face">{initial(player["name"])}</span></div>'
             f'<div class="n">{h(player["name"])}</div><div class="r">{h(role)}</div>'
-            f'<div class="bio">{h(dossiers.get(role, ""))}</div></div>')
+            f'<div class="bio">{h(dossiers.get(role, ""))}</div>'
+            + (f'<div class="bio carries">Always carries {h(carries[role])}.</div>' if carries.get(role) else "")
+            + '</div>')
     return f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{"".join(cards)}</div></div>'
 
 
@@ -219,10 +222,13 @@ def big_timer(left, total):
 def suspects(players, phase, guilty_pid=None, story=None):
     """One dossier card per player. Roles are public from REVEAL on (see logic.public_view)."""
     dossiers = _story(story)["dossiers"]
+    carries = _story(story).get("carries", {})
     cards = []
     for player in players:
         role = player.get("role")
         dossier = dossiers.get(role, "") if role else ""
+        if role and carries.get(role):
+            dossier = f"{dossier} Always carries {carries[role]}.".strip()
         tags = []
         if player.get("is_host"):
             tags.append("host")
