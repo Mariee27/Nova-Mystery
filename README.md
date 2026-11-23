@@ -357,7 +357,7 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | File | Tests | What it checks |
 |---|---|---|
 | `tests/test_rules.py` | 141 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, the pause when players drop out, planting rules, removing players, names that only look like another one. Rejected calls must leave the game unchanged. |
-| `tests/test_ai_cases.py` | 131 | AI stories: reading the answer, the checks, the repair round, slips the code repairs, busy models, the story on every screen. |
+| `tests/test_ai_cases.py` | 134 | AI stories: reading the answer, the checks, the two repair rounds (with concrete counts), the second try with another model, slips the code repairs, busy models, the story on every screen. |
 | `tests/test_minigames.py` | 125 | The puzzles: solvable from the story (the lock from its note alone, with a new code every game), the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
 | `tests/test_case_minigames.py` | 72 | Mini-games that fit the case: five different games for the five places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
 | `tests/test_rounds_and_map.py` | 52 | Rounds, locked places and the campus map: every pin in its building, pins far enough apart to tap, no car park. |
@@ -375,7 +375,7 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
 | `tests/test_playtest_fixes.py` | 9 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 819 tests.
+All together: 822 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -511,7 +511,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (819 tests); tests/e2e/ the browser check
+tests/                  pytest suite (822 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)

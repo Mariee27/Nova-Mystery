@@ -762,10 +762,12 @@ def writing_room(conn):
 def run_writer(app, code, answers):
     """Let app.write_ai_case run with an AI that gives these answers one after the other."""
     calls = []
+    models = run_writer.models = []
 
     def fake_write_story(*args, **kwargs):
         answer = answers[len(calls)]
         calls.append(answer)
+        models.append(args[1] if len(args) > 1 else kwargs.get("model"))
         if isinstance(answer, Exception):
             raise answer
         return answer
@@ -788,6 +790,7 @@ def test_an_ai_case_that_fails_the_checks_is_written_once_more(game_db):
         code = writing_room(conn)
         calls = run_writer(app, code, [{}, fake_story()])       # first: rubbish, then a good case
         assert len(calls) == 2
+        assert run_writer.models == ["m", ai.retry_model("m")]  # the second try asks another model
         assert db.load(conn, code)["ai_case"]["status"] == "ready"
     finally:
         conn.close()
