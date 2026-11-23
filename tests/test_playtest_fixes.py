@@ -108,3 +108,59 @@ def make_lobby_hot():
     game = logic.start(make_lobby(5), "t1", ON5, 0, seed=1, hot_seat=True)
     game = logic.end_phase(game, "t1", ON5, 10)                 # → round 1
     return logic.end_phase(game, "t1", ON5, 100)                # → the hot seat break
+
+
+# ------------------------------------------------------------------ "Create room" is quick
+
+def test_creating_a_room_needs_few_database_round_trips_however_many_old_rooms_exist(tmp_path):
+    import db
+    real = db.connect(tmp_path / "rooms.db")
+    long_ago = 1000.0
+    for _ in range(12):                                          # yesterday's rooms
+        db.create_room(real, long_ago)
+    now = long_ago + db.ROOM_LIFETIME + 1
+
+    class Counting:                                              # counts every statement sent
+        def __init__(self, conn):
+            self.conn, self.statements = conn, 0
+
+        def execute(self, sql, params=()):
+            self.statements += 1
+            return self.conn.execute(sql, params)
+
+    conn = Counting(real)
+    code = db.create_room(conn, now)
+    assert conn.statements <= 7                                  # was 3 + 2 per old room
+    assert [row[0] for row in real.execute("SELECT code FROM rooms")] == [code]
+    assert real.execute("SELECT COUNT(*) FROM presence").fetchone()[0] == 0
+
+
+# ------------------------------------------------------------------ the board's suspect cards
+
+def test_suspect_cards_come_quickly_and_then_stay_up_with_a_reading_note():
+    import re
+    import ui
+    players = [{"pid": i, "name": f"P{i}", "role": ""} for i in range(1, 7)]
+    html = ui.lineup(players)
+    landed = [float(x) for x in re.findall(r"--in:([0-9.]+)s", html)]
+    assert landed[-1] - landed[0] <= 5 * 0.7 + 0.01               # six cards in about 3.5 seconds
+    assert ui.SUSPECTS_UNTIL - landed[-1] >= 14                    # then on screen for 14 s or more
+    assert "Everybody is reading their file now" in html
+
+
+# ------------------------------------------------------------------ watch the board, then read
+
+def test_the_reveal_lasts_a_minute_twenty_seconds_watching_then_forty_reading():
+    import ui
+    assert logic.DURATIONS["REVEAL"] == 60
+    assert logic.DURATIONS["REVEAL"] - ui.SUSPECTS_LAST_IN >= 40
+
+
+def test_the_board_marks_the_start_of_its_intro_once_and_only_early():
+    game = make_started(5)                                       # REVEAL from now = 0
+    marked = logic.mark_board_intro(game, 2)
+    assert logic.board_intro_at(marked) == 2
+    assert logic.mark_board_intro(marked, 3) is marked           # only once
+    assert logic.mark_board_intro(game, logic.BOARD_INTRO_LATE + 1) is game   # a late board: no wait
+    later = logic.end_phase(marked, "t1", ON5, 30)
+    assert logic.board_intro_at(later) is None                   # only in the reveal
