@@ -6,19 +6,19 @@ Each answer describes what the app actually does. The test that proves it is giv
 ## Failures
 
 **… a player goes offline (phone off, no internet)?**
-Every open phone checks in every few seconds. If nothing arrives for 15 seconds, a stand-in takes over that seat: the computer plays it like a demo suspect (it searches or shares, picks and rates in the hot seat, and votes by the evidence the player could read). Board and phones mark the seat "stand-in". Nobody has to wait: the round ends as soon as everybody (stand-ins included) has moved. (`tests/test_stand_ins.py`)
+Every open phone checks in every few seconds. If nothing arrives for 15 seconds, the player is away: their seat floats, dimmed and marked "away", on the board and the phones. Nobody plays for them, and nobody waits for them: the round, the hot seat and the vote end as soon as everybody who is there is done. (`tests/test_away.py`)
 
 **… they come back?**
-They open the same tab, their link, or just the room's QR code in the same browser, and are back in their seat, with the same card, in any phase; the stand-in stops at once. The link contains their secret token (22 random characters); the browser remembers it per room. (Smoke test, DW 17)
+They open the same tab, their link, or just the room's QR code in the same browser, and are back in their seat, with the same card, in any phase, and simply play on (whatever they missed meanwhile, such as a round's move or the vote, is gone). The link contains their secret token (22 random characters); the browser remembers it per room. (Smoke test, DW 17)
 
 **… they try from a different device?**
 It doesn't work without the link. This is intentional: if you could get back in with name and room code, anyone could take over someone else's seat and read their card.
 
 **… the host goes offline?**
-When the host's seat gets a stand-in (15 seconds) or the host counts as offline (45 seconds), the next player in join order who is there becomes host. If the old host comes back, the new host stays host. (DW 14, `tests/test_stand_ins.py`)
+When the host is away (15 seconds), the next player in join order who is there becomes host. If the old host comes back, the new host stays host. (DW 14, `tests/test_away.py`)
 
 **… too many players drop out?**
-Their seats get stand-ins, so the game goes on. (The pause below only applies if fewer than 3 seats are covered, which with stand-ins does not happen in the app.) If fewer than 3 players are online during the game, the game pauses: the clock stands still and every screen says who is missing. As soon as 3 are online again, the clock runs on with the time that was left. Only after 3 minutes without enough players does the game end with a message on all screens. The host can still end a phase while it is paused. (DW 15)
+The game goes on with whoever is there; it never pauses and never ends because people dropped out. With nobody there at all, the clocks simply run. Everybody who comes back plays on in their seat. (DW 15)
 
 **… a phone's screen turns off?**
 The game page asks the phone to keep its screen on (Screen Wake Lock: Chrome, Android, Safari from iOS 16.4). Where a browser does not support it, the lobby asks the players to keep the tab open and the screen on.
@@ -104,7 +104,7 @@ They can see that player's card and act for them. The link is the only key, whic
 Yes. A checker validates every case before the start: exactly one murderer, at least 2 strong clues against them (at least 1 of them at a location), no strong clue against innocents, at most 1 misleading clue per innocent. Tested over 600 random cases. (DW 1, 3)
 
 **Is it always the same case?**
-No. Murderer, crime scene, roles and clues are drawn anew for every game. Only a demo ("Play a demo") always plays the same case with the same culprit, for rehearsing. (DW 2)
+No. Murderer, crime scene, roles and clues are drawn anew for every game. (DW 2)
 
 **Where is the data stored?**
 In an SQLite file on the server: one row per room with the game state, plus a table with the players' heartbeats. There are no accounts, no passwords and no email addresses.
@@ -126,8 +126,8 @@ Every AI story is checked before it can be played: right number of locations and
 **Can the AI story leak secrets to the board?**
 No. The screens only get the public part of the story (titles, places, public dossiers, endings). Private intros, secrets, traces and rumors only reach a phone through that player's own card or through evidence found in the game. (`test_the_public_story_holds_no_secrets`)
 
-**Can we still rehearse the demo with the same case?**
-Yes. A demo ("Play a demo", or the link `?demo=1`) always plays case #001 with the same seed and the same culprit; its host gets no case choice. (`test_a_demo_always_plays_the_same_case_and_offers_no_choice`)
+**Is there still a demo with computer players?**
+No. The demo suspects were removed: a game needs 4 to 6 people. To try it alone, join a room from four private browser windows.
 
 **Does the interface change with the case?**
 Yes: the case file, board header, map, suspects' dossiers, the vote question, the endings and the timeline, plus a short intro of the case that plays on the board and every phone at the start. The colours and layout stay the same. The home page shows a general intro, because no case exists before a room is created. (`test_the_case_intro_shows_this_cases_lines_and_title`, `test_while_the_ai_writes_the_lobby_says_so_instead_of_showing_case_001`)

@@ -33,18 +33,17 @@ NEXT_PHASE = {
     "DISCUSSION": "VOTE",
     "VOTE": "RESULT",
 }
-OFFLINE_AFTER = 45     # seconds without a sign from a phone: then the player counts as offline
+# Seconds without a sign from a phone: then the player is away. The game goes on without them
+# (rounds, the hot seat and the vote do not wait for them) until their phone is back.
+OFFLINE_AFTER = 15
 MIN_PLAYERS = 4
 MAX_PLAYERS = 6
-MIN_ONLINE = 3
-PAUSE_LIMIT = 180      # seconds a game waits, paused, for players to come back before it ends
-STAND_IN_AFTER = 15    # seconds without a sign from a phone: then a stand-in plays that seat
 MAX_TEXT = 140
 MAX_NAME = 20
 MAX_CLUE_TEXT = 200
 STRONG_KINDS = {"scene", "alibi_broken"}
 FORBIDDEN_WORDS = ("murderer", "killer")
-DEMO_SEED = 2026
+DEMO_SEED = 2026       # start(..., seed=DEMO_SEED, fixed_case=True) always builds the same case #001
 # Keys that would give the solution away. They are removed from the public log
 # until the game is over.
 HIDDEN_LOG_KEYS = ("implicates", "clue_kind", "planted")
@@ -68,7 +67,7 @@ def new_token():
 
 
 def online_ids(presence, now):
-    """presence maps pid -> time of last sign of life. Online means <= 20 s ago."""
+    """presence maps pid -> time of last sign of life. Online means <= OFFLINE_AFTER s ago."""
     return {pid for pid, last_seen in presence.items() if now - last_seen <= OFFLINE_AFTER}
 
 
@@ -141,13 +140,6 @@ def new_game(code, now, minigames=False):
         "abort_reason": None,
         "minigames": bool(minigames),
     }
-
-
-def as_demo(game):
-    """A demo room ("Play a demo"): it always plays case #001 the same way (see app.case_choice)."""
-    game = copy.deepcopy(game)
-    game["demo"] = True
-    return game
 
 
 # Names are what players recognise each other by, so a name must look like itself and like
@@ -286,7 +278,7 @@ def start(game, token, online, now, seed=None, fixed_case=False, use_ai=True, ho
 def _story_for_start(game, fixed_case):
     """(story, note for the host) at the start of a game."""
     ai = game.get("ai_case")
-    if fixed_case or ai is None:   # demo switch, or the AI was never asked
+    if fixed_case or ai is None:   # rehearsal switch, or the AI was never asked
         return content.DEFAULT_STORY, None
     if ai["status"] == "ready":
         return ai["story"], None
@@ -312,7 +304,6 @@ def _enter_phase(game, phase, now):
 def _advance(game, now):
     """End the current step of an already copied game: the next investigation round,
     or after the last round (and in every other phase) the next phase."""
-    game.pop("paused", None)        # a new step starts with a running clock (tick pauses again if needed)
     if game["phase"] == "INVESTIGATION" and game.get("round", 1) < ROUNDS:
         hot = game.get("hot_seat")
         if hot is not None and hot["open"]:
@@ -322,7 +313,6 @@ def _advance(game, now):
             return
         game["round"] = game.get("round", 1) + 1
         game["holds"] = {}                  # reservations belong to the round that is over
-        game.pop("bots_from", None)         # the demo suspects wait for the people again
         game.pop("reading", None)
         game["acted"] = []                  # everybody gets a new move
         game["phase_started"] = now
@@ -380,8 +370,9 @@ def end_phase(game, token, online, now):
 def tick(game, online, now):
     """Called every time a screen asks for the current state.
 
-    Order: host handover, pause/abort, timer, early end. At most one phase change per call.
-    Stand-ins are set before (update_stand_ins); `online` should include them (with_bots).
+    Order: host handover, timer, early end. At most one phase change per call.
+    Players who are away (not in `online`) are not waited for: the game goes on without them,
+    and they play on as soon as their phone is back.
     """
     ai = game.get("ai_case")
     if (game["phase"] == "LOBBY" and ai and ai["status"] == "writing"
@@ -394,52 +385,22 @@ def tick(game, online, now):
     online_players = [pid for pid in pids if pid in online]
     new = None  # copy only if something really changes
 
-    # 1. Host handover: the first online human in join order takes over (never a demo bot,
-    # never a seat that a stand-in plays: the host has to be there to press the buttons).
-    robots = set(robot_ids(game))
-    online_humans = [pid for pid in online_players if pid not in robots]
-    host_away = game["host"] not in online or game["host"] in robots
-    if host_away and online_humans:
+    # 1. Host handover: the first online player in join order takes over.
+    if game["host"] not in online and online_players:
         new = copy.deepcopy(game)
-        new["host"] = online_humans[0]
+        new["host"] = online_players[0]
 
     if game["phase"] in NEXT_PHASE:
-        # 2. Fewer than 3 players online: the game pauses (the clock stops) and waits for them.
-        # Phones drop out when a screen locks or a tab is in the background; they come back.
-        # Only after PAUSE_LIMIT seconds without enough players does the game end.
-        paused = game.get("paused")
-        if len(online_players) < MIN_ONLINE:
-            if paused is None:
-                new = new or copy.deepcopy(game)
-                new["paused"] = {"since": now, "left": max(0.0, (game["deadline"] or now) - now)}
-                new["deadline"] = None
-                return new
-            if now - paused["since"] >= PAUSE_LIMIT:
-                new = new or copy.deepcopy(game)
-                new.pop("paused", None)
-                new["phase"] = "ABORTED"
-                new["phase_started"] = now
-                new["deadline"] = None
-                new["abort_reason"] = (
-                    f"Fewer than {MIN_ONLINE} players were online for {PAUSE_LIMIT // 60} minutes. "
-                    "Please create a new room."
-                )
-                return new
-            return new or game                  # still waiting: no timer, no early end
-        if paused is not None:                  # enough players again: the clock runs on
-            new = new or copy.deepcopy(game)
-            new["deadline"] = now + paused["left"]
-            new.pop("paused")
-            return new
         # The break between two rounds: only the hot seat clock counts.
         if hot_seat_open(game):
             changed = _hot_seat_tick(new or game, online_players, now)
             return changed if changed is not None else (new or game)
-        # 3. Timer, 4. early end.
-        # A player with nothing left to search or share is not waited for.
-        everyone_acted = game["phase"] == "INVESTIGATION" and all(
+        # 2. Timer, 3. early end.
+        # A player with nothing left to search or share is not waited for, and nor is one
+        # who is away. With nobody online the clock simply runs.
+        everyone_acted = game["phase"] == "INVESTIGATION" and bool(online_players) and all(
             pid in game["acted"] or not has_move(game, pid) for pid in online_players)
-        everyone_voted = all(str(pid) in game["votes"] for pid in online_players)
+        everyone_voted = bool(online_players) and all(str(pid) in game["votes"] for pid in online_players)
         if (
             now >= game["deadline"]
             or (game["phase"] == "INVESTIGATION" and everyone_acted)
@@ -467,8 +428,8 @@ def search(game, token, location, now, proof=None):
 
     Not allowed: outside the investigation, a second move in the same round, an unknown
     place, a place that is still locked, or a place that has already been searched.
-    In a room with mini-games, a human player must also send a `proof` that solves the
-    place's puzzle (checked by minigames.verify); demo bots search without one.
+    In a room with mini-games, the player must also send a `proof` that solves the
+    place's puzzle (checked by minigames.verify).
     """
     player = _begin_action(game, token)
     if location not in story_of(game)["locations"]:
@@ -478,17 +439,15 @@ def search(game, token, location, now, proof=None):
         raise Rejected(f"This place is locked. It opens in round {opens}.")
     if location in game["searched"]:
         raise Rejected("This place has already been searched. Pick another one.")
-    # A place another player is solving is theirs for now. (Demo bots and stand-ins never pick
-    # such a place themselves, see _bot_investigate; the rule is there for people.)
-    robot = player["pid"] in robot_ids(game)
-    if not robot and place_holder(game, location, now) not in (None, player["pid"]):
+    # A place another player is solving is theirs for now.
+    if place_holder(game, location, now) not in (None, player["pid"]):
         raise Rejected("Somebody else is searching this place right now. Pick another one.")
-    if minigames.enabled(game) and not robot and not minigames.verify(game, location, proof):
+    if minigames.enabled(game) and not minigames.verify(game, location, proof):
         raise Rejected("The evidence is still sealed. Solve the puzzle first.")
     clue = next(c for c in game["case"]["location_clues"] if c["location"] == location)
     game = copy.deepcopy(game)
     game.get("holds", {}).pop(location, None)      # found: the reservation is no longer needed
-    if minigames.enabled(game) and not robot:       # "Access granted" is on their phone until Continue
+    if minigames.enabled(game):       # "Access granted" is on their phone until Continue
         game["reading"] = sorted(set(game.get("reading", [])) | {player["pid"]})
     game["searched"].append(location)
     game["acted"].append(player["pid"])
@@ -704,7 +663,7 @@ def _compute_result(game):
 #      "believe" or "lie". The board shows only counts, never who picked or rated whom.
 #   3. Then the counts go into the history and the next round starts.
 # The rule is switched on with start(..., hot_seat=True); without it the rounds follow each
-# other directly. The break uses game["deadline"] as its clock, so a pause stops it too.
+# other directly. The break uses game["deadline"] as its clock.
 
 HOT_SEAT_VERDICTS = ("believe", "lie")
 
@@ -743,7 +702,7 @@ def _can_pick(game, pid):
 def _open_hot_seat(game, now):
     """Start the break of an already copied game: picking time."""
     game["hot_seat"].update(open=True, picks={}, seat=None, ratings={})
-    game["phase_started"] = now          # the demo bots count their delay from here
+    game["phase_started"] = now
     game["deadline"] = now + HOT_SEAT_PICK_SECONDS
     if game.get("reading"):
         # Somebody is still reading the evidence that ended the round: the picking clock starts
@@ -913,208 +872,8 @@ def my_hot_seat(game, token):
             "rating": hot["ratings"].get(str(player["pid"]))}
 
 
-# ---------------------------------------------------------------- demo suspects (bots)
-#
-# For presentations with fewer than 4 people. A bot is an ordinary player with
-# "bot": True. It is always online, never becomes host, and plays by the same rules
-# through the same functions as everybody else. It only "knows" what a player in
-# its seat would know: its own card and the public log. It never reads the solution.
-
-BOT_FIRST_MOVE = 6    # seconds after a phase starts before the first bot moves
-BOT_STEP = 4          # every further bot waits this much longer, so moves arrive one by one
-BOT_AFTER_HUMANS = 3  # with mini-games: seconds after the last person moved before the first bot does
 READING_MAX = 45      # the hot seat's picking clock waits at most this long for players still reading
                       # the evidence they just unlocked (see done_reading)
-
-
-def bot_ids(game):
-    return [p["pid"] for p in game["players"] if p.get("bot")]
-
-
-def with_bots(game, online):
-    """Bots and stand-ins have no screen that sends heartbeats, so they always count as online."""
-    return set(online) | set(robot_ids(game))
-
-
-# ---------------------------------------------------------------- stand-ins (players who dropped out)
-#
-# A phone that goes dark or loses its connection must not stop the game for everybody else.
-# After STAND_IN_AFTER seconds without a sign of life, a stand-in plays that seat: it moves,
-# picks, rates and votes exactly like a demo suspect (same functions, same knowledge: the
-# player's own card and the public log). As soon as the phone is back, the player plays again.
-# Who is played by a stand-in is stored in game["stand_ins"], so every screen shows the same.
-
-RUNNING_PHASES = ("REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE")
-
-
-def stand_in_ids(game):
-    return list(game.get("stand_ins", []))
-
-
-def robot_ids(game):
-    """Seats the computer plays right now: demo suspects and stand-ins."""
-    return bot_ids(game) + [pid for pid in stand_in_ids(game) if pid not in bot_ids(game)]
-
-
-def update_stand_ins(game, presence, now):
-    """Give every human seat without a sign of life for STAND_IN_AFTER seconds a stand-in,
-    and take it away again when the player is back. presence: pid -> last sign of life.
-    Only while the game runs. Returns the same game if nothing changes."""
-    if game["phase"] in RUNNING_PHASES:
-        away = sorted(p["pid"] for p in game["players"] if not p.get("bot")
-                      and now - presence.get(p["pid"], float("-inf")) > STAND_IN_AFTER)
-    else:
-        away = []
-    if away == game.get("stand_ins", []):
-        return game
-    game = copy.deepcopy(game)
-    game["stand_ins"] = away
-    return game
-
-
-def add_bot(game, token, now):
-    """The host adds one demo suspect to the lobby."""
-    _require_phase(game, "LOBBY")
-    player = _player_by_token(game, token)
-    if player["pid"] != game["host"]:
-        raise Rejected("Only the host can add demo suspects.")
-    taken = {name_key(p["name"]) for p in game["players"]}
-    name = next((f"{first} (demo)" for first in content.DEMO_NAMES
-                 if name_key(f"{first} (demo)") not in taken), None)
-    if name is None or len(game["players"]) >= MAX_PLAYERS:
-        raise Rejected(f"The room is full ({MAX_PLAYERS} players).")
-    game = join(game, name, new_token(), now)
-    game["players"][-1]["bot"] = True   # join returned a fresh copy, so this is safe
-    return game
-
-
-def _bot_reading(game, pid):
-    """Texts a bot may use: the public evidence and its own private clues."""
-    texts = [e["text"] for e in game["log"] if e["kind"] in EVIDENCE_KINDS]
-    texts += [c["text"] for c in _character(game, pid)["clues"]]
-    return texts
-
-
-def _pointed_at(game, text):
-    """{pid: weight} for whom a piece of evidence points at, read the way a player reads it:
-    the object at the scene is matched with what each suspect carries, an empty log with who
-    claims to have been there, a witness or a rumor by the role they name."""
-    story = story_of(game)
-    characters = game["case"]["characters"]
-    if "Whose could it be?" in text:            # physical evidence: whose object is it?
-        return {c["pid"]: 3 for c in characters if story["roles"][c["role"]]["trace"] in text}
-    if "between 23:15 and 23:45" in text and "nobody" in text:   # an empty log: who says they were there?
-        return {c["pid"]: 3 for c in characters if c["alibi_location"] in text}
-    if "hurrying" in text:
-        weight = 3                              # a witness
-    elif "was seen" in text:
-        weight = 1                              # a rumor
-    else:
-        return {}
-    return {c["pid"]: weight for c in characters if c["role"] in text}
-
-
-def _bot_suspect(game, pid):
-    """Whom the bot accuses: the player that the evidence it can read points at most."""
-    scores = {other: 0 for other in _player_ids(game) if other != pid}
-    for text in _bot_reading(game, pid):
-        for other, weight in _pointed_at(game, text).items():
-            if other in scores:
-                scores[other] += weight
-    best = max(scores.values())
-    return min(other for other, score in scores.items() if score == best)
-
-
-def _bot_scene(game, pid):
-    for text in _bot_reading(game, pid):
-        if "Whose could it be?" in text or "hurrying" in text:
-            for location in story_of(game)["locations"]:
-                if location in text:
-                    return location
-    return None
-
-
-def _bot_investigate(game, bot, index, now):
-    pid = bot["pid"]
-    robots = set(robot_ids(game))
-    # Players who are here and have not moved yet (not the seats the computer plays).
-    humans_waiting = any(p["pid"] not in robots and p["pid"] not in game["acted"]
-                         for p in game["players"])
-    # With mini-games a human needs 30 to 90 seconds to open a place. Demo bots wait until
-    # every human has made their move, so they never snatch a place from someone solving it.
-    if minigames.enabled(game) and humans_waiting:
-        return game
-    places = [loc for loc in story_of(game)["locations"] if locked_until(game, loc) is None]
-    free = [loc for loc in places if loc not in game["searched"]
-            and place_holder(game, loc, now) in (None, pid)]
-    if pid == game["case"]["murderer"]:
-        # A guilty bot does not search where its own traces are.
-        mine = {c["location"] for c in game["case"]["location_clues"]
-                if c["implicates"] == pid and c["kind"] in STRONG_KINDS}
-        free = [loc for loc in free if loc not in mine]
-    # Places are scarce (one clue each): a bot leaves the last open place to a human
-    # player who has not moved yet.
-    if humans_waiting and len(free) <= 1:
-        free = []
-    if free:
-        return search(game, bot["token"], free[index % len(free)], now)
-    public = {e.get("clue_id") for e in game["log"]}
-    clue = next((c for c in _character(game, pid)["clues"] if c["id"] not in public), None)
-    if clue is not None:
-        return share(game, bot["token"], clue["id"], now)
-    # Nothing it would rather do: a guilty bot searches its own place after all, so the round
-    # can still end early. Places it leaves to a waiting human stay theirs.
-    rest = [loc for loc in places if loc not in game["searched"]
-            and place_holder(game, loc, now) in (None, pid)]
-    if rest and not humans_waiting:
-        return search(game, bot["token"], rest[index % len(rest)], now)
-    return game       # nothing left at all: the round does not wait for it (has_move)
-
-
-def _bot_hot_seat(game, bot, now):
-    """A bot picks the suspect it trusts least, and calls them a liar in the hot seat."""
-    pid = bot["pid"]
-    hot = game["hot_seat"]
-    suspect = _bot_suspect(game, pid)
-    if hot["seat"] is None and str(pid) not in hot["picks"] and _can_pick(game, pid):
-        options = [other for other in hot_seat_candidates(game) if other != pid]
-        target = suspect if suspect in options else options[0]
-        return pick_hot_seat(game, bot["token"], target, now)
-    if hot["seat"] is not None and hot["seat"] != pid and str(pid) not in hot["ratings"]:
-        return rate_hot_seat(game, bot["token"], "lie" if hot["seat"] == suspect else "believe", now)
-    return game
-
-
-def bot_moves(game, now):
-    """Let every bot and stand-in make the moves that are due. Returns the same game if
-    nothing happens."""
-    robots = set(robot_ids(game))
-    bots = [p for p in game["players"] if p["pid"] in robots]
-    if not bots or game["phase"] not in ("INVESTIGATION", "VOTE"):
-        return game
-    elapsed = now - game["phase_started"]
-    paced = game["phase"] == "INVESTIGATION" and minigames.enabled(game) and not hot_seat_open(game)
-    if paced and "bots_from" not in game and not any(
-            p["pid"] not in robots and p["pid"] not in game["acted"] for p in game["players"]):
-        # Everybody who plays in person has moved: from now on the demo suspects move one after
-        # another, like people would, instead of all at once (which ended the round at once).
-        game = copy.deepcopy(game)
-        game["bots_from"] = now
-    for index, bot in enumerate(bots):
-        pid = bot["pid"]
-        due = elapsed >= BOT_FIRST_MOVE + BOT_STEP * index
-        if paced and not hot_seat_open(game):
-            due = "bots_from" in game and now >= game["bots_from"] + BOT_AFTER_HUMANS + BOT_STEP * index
-        if hot_seat_open(game):                  # the break between two rounds: no searching
-            if due:
-                game = _bot_hot_seat(game, bot, now)
-            continue
-        if game["phase"] == "INVESTIGATION" and due and pid not in game["acted"]:
-            game = _bot_investigate(game, bot, index, now)
-        if game["phase"] == "VOTE" and due and str(pid) not in game["votes"]:
-            game = vote(game, bot["token"], _bot_suspect(game, pid), now,
-                        scene=_bot_scene(game, pid))
-    return game
 
 
 # ---------------------------------------------------------------- views
@@ -1149,16 +908,12 @@ def public_view(game, online):
         "code": game["code"],
         "phase": game["phase"],
         "deadline": game["deadline"],
-        "demo": bool(game.get("demo")),
-        # While too few players are online: when the pause began (the game ends PAUSE_LIMIT later).
-        "paused_since": (game.get("paused") or {}).get("since"),
         "players": [
             {
                 "pid": p["pid"],
                 "name": p["name"],
                 "role": role_of.get(p["pid"]),
                 "online": p["pid"] in online,
-                "stand_in": p["pid"] in game.get("stand_ins", []),   # dropped out: the computer plays
                 "is_host": p["pid"] == game["host"],
                 "acted": p["pid"] in game["acted"],
                 "voted": str(p["pid"]) in game["votes"],
@@ -1186,7 +941,6 @@ def private_view(game, token):
         "phase": game["phase"],
         "acted": pid in game["acted"],
         "voted": str(pid) in game["votes"],
-        "stand_in": pid in game.get("stand_ins", []),
         "role": None,
         "intro": None,
         "alibi": None,
@@ -1343,7 +1097,7 @@ STORY_LIMITS = {   # the longest allowed text per field, in characters
 }
 NUMBER_OF_INTRO_LINES = len(content.INTRO_LINES)   # 6, the 4th one is shown in red
 ENDING_KEYS = ("truth", "incomplete", "wrong", "escaped")
-# The demo suspects (bots) read these phrases as evidence, so ordinary texts must not use them.
+# Clue texts use these phrases to point at somebody, so ordinary texts must not use them.
 EVIDENCE_PHRASES = ("belongs to", "no entry by", "hurrying", "was seen")
 NUMBER_OF_LOCATIONS = len(content.LOCATIONS)   # 5
 NUMBER_OF_ROLES = len(content.ROLES)           # 6
@@ -1543,7 +1297,7 @@ def validate_story(story):
     locations = [check_text(loc, "location", "A location name") for loc in locations]
     role_names = [check_text(role, "role", "A role name") for role in roles]
 
-    # No name may be part of another one: clues and bots find people and places by name.
+    # No name may be part of another one: clues name people and places, and the code finds them by name.
     names = [name for name in locations + role_names if name]
     for a in names:
         for b in names:

@@ -234,14 +234,15 @@ def suspects(players, phase, guilty_pid=None, story=None):
             tags.append("host")
         if phase == "VOTE" and player.get("voted"):
             tags.append("voted")
-        if player.get("stand_in"):
-            tags.append(STAND_IN_TAG)
+        if not player.get("online"):
+            tags.append(AWAY_TAG)
         dot = '<span class="dot"></span>' if player.get("online") else '<span class="dot off"></span>'
-        guilty = " guilty" if guilty_pid is not None and player["pid"] == guilty_pid else ""
+        css = " guilty" if guilty_pid is not None and player["pid"] == guilty_pid else ""
+        css += "" if player.get("online") else " away"
         role_html = f'<div class="r">{h(role)}</div>' if role else '<div class="r">awaiting file</div>'
         dossier_html = f'<div class="d">{h(dossier)}</div>' if dossier else ""
         cards.append(
-            f'<div class="suspect{guilty}"><div class="tags">{h(" · ".join(tags))}{dot}</div>'
+            f'<div class="suspect{css}"><div class="tags">{h(" · ".join(tags))}{dot}</div>'
             f'<div class="face">{initial(player["name"])}</div>'
             f'<div class="n">{h(player["name"])}</div>{role_html}{dossier_html}</div>')
     if not cards:
@@ -249,7 +250,7 @@ def suspects(players, phase, guilty_pid=None, story=None):
     return f'<div class="suspects">{"".join(cards)}</div>'
 
 
-STAND_IN_TAG = "stand-in"   # dropped out: the computer plays this seat until they are back
+AWAY_TAG = "away"   # no sign from their phone: the game goes on without them until they are back
 
 
 def suspect_list(players, phase, me_pid=None):
@@ -264,11 +265,12 @@ def suspect_list(players, phase, me_pid=None):
             tags.append("host")
         if phase == "VOTE" and player.get("voted"):
             tags.append("voted")
-        if player.get("stand_in"):
-            tags.append(STAND_IN_TAG)
-        online = "online" if player.get("online") else "offline"
+        if not player.get("online"):
+            tags.append(AWAY_TAG)
+        online = "online" if player.get("online") else "away"
         dot_css = "dot" if player.get("online") else "dot off"
         mine = " me" if player["pid"] == me_pid else ""
+        mine += "" if player.get("online") else " away"
         rows.append(
             f'<div class="srow{mine}" role="listitem">'
             f'<span class="face">{initial(player["name"])}</span>'
@@ -488,11 +490,9 @@ def waiting_list(players, me_pid):
     rows = []
     for player in players:
         if not player.get("online"):
-            state, css = "offline", "off"
+            state, css = "away", "off"
         elif player.get("acted"):
             state, css = "done", "done"
-        elif player.get("stand_in"):
-            state, css = "stand-in plays", "wait"
         else:
             state, css = "choosing…", "wait"
         you = " (you)" if player["pid"] == me_pid else ""
@@ -526,42 +526,20 @@ def detectives(players):
     rows = []
     for player in players:
         if not player.get("online"):
-            state, css = "Offline", "off"
+            state, css = "Away", "off"
         elif player.get("acted"):
             state, css = "Moved", "done"
-        elif player.get("stand_in"):
-            state, css = "Stand-in plays", "wait"
         else:
             state, css = "Choosing…", "wait"
-        rows.append(f'<div class="dt-row"><span class="face">{initial(player["name"])}</span>'
+        away = "" if player.get("online") else " away"
+        rows.append(f'<div class="dt-row{away}"><span class="face">{initial(player["name"])}</span>'
                     f'<span class="dn">{h(player["name"])}</span><span class="dr">{h(player.get("role") or "")}</span>'
                     f'<span class="ds {css}">{h(state)}</span></div>')
     return (f'<div class="box dt"><div class="lbl">Detectives<span>{moved} of {len(online)} moved</span></div>'
             f'{"".join(rows)}</div>')
 
 
-def evidence_board(log, name_of, story=None):
-    """All public evidence, newest first: search results (no finder) and shared clues."""
-    icons = _story(story)["location_icons"]
-    cards = []
-    for entry in reversed(log):
-        tag = f'R{entry["round"]}' if entry.get("round") else ""
-        if entry["kind"] == "search":
-            place = entry.get("location", "")
-            title = f'{icons.get(place, "")} {place}'.strip()
-        elif entry["kind"] == "share":
-            title = f"Shared by {name_of(entry['by'])}"
-        else:
-            continue
-        cards.append(f'<div class="eb"><span class="eb-r">{h(tag)}</span><div class="eb-c">'
-                     f'<div class="eb-t">Exhibit {h(entry["id"])} · {h(title)}</div>'
-                     f'<div class="eb-b">{h(entry["text"])}</div></div></div>')
-    if not cards:
-        cards.append('<div class="muted small">Nothing has been found yet.</div>')
-    return f'<div class="lbl">Evidence board</div><div class="ebs">{"".join(cards)}</div>'
-
-
-# ---------------------------------------------------------------- evidence feed
+# ---------------------------------------------------------------- stamps on the evidence
 
 RELIABILITY = {   # shown only after the case is closed (clue_kind is hidden before)
     "scene": ("Key evidence", "st-gold"),
@@ -583,26 +561,7 @@ def _stamp(entry):
     return ""
 
 
-def log_entry(entry, name_of, story=None):
-    """One entry of the public log as a card. name_of(pid) -> display name."""
-    kind = entry["kind"]
-    text = h(entry["text"])
-    if kind == "search":
-        icon = h(_story(story)["location_icons"].get(entry.get("location"), ""))
-        note = ""
-        if entry.get("planted"):
-            note = '<div class="h" style="color:#B91C1C;margin-top:.4rem">Forged evidence: planted by the murderer</div>'
-        return (f'<div class="ev exhibit">{_stamp(entry)}'
-                f'<div class="h">Exhibit {entry["id"]} · {icon} {h(entry.get("location", ""))}</div>'
-                f'<div class="b">{text}</div>{note}</div>')
-    if kind == "share":
-        return (f'<div class="ev statement">{_stamp(entry)}'
-                f'<div class="h">Exhibit {entry["id"]} · Witness statement · {h(name_of(entry["by"]))}</div>'
-                f'<div class="b">{text}</div></div>')
-    return f'<div class="ev note">— {text}</div>'
-
-
-# ---------------------------------------------------------------- evidence wall (board)
+# ---------------------------------------------------------------- evidence wall (board and phones)
 
 # Small tilts in degrees. The id picks one, so a note keeps its angle on every refresh.
 TILTS = (-3, 2, -1.5, 3, -2.5, 1.5, -1, 2.5)
@@ -623,6 +582,8 @@ def pinned_note(entry, name_of, newest=False, story=None):
         body = (f'<div class="shot">{icon}</div>'
                 f'<div class="cap">Exhibit {number} · {h(entry.get("location", ""))}</div>'
                 f'<div class="b">{text}</div>')
+        if entry.get("planted"):    # only known once the case is closed (see logic.public_view)
+            body += '<div class="forged">Forged evidence: planted by the murderer</div>'
     elif kind == "share":      # a witness statement: typed paper
         css = "typed"
         body = (f'<div class="cap">Exhibit {number} · Witness statement</div>'
@@ -636,12 +597,13 @@ def pinned_note(entry, name_of, newest=False, story=None):
 
 
 def evidence_wall(log, name_of, story=None):
-    """The whole public log as a cork board. Oldest first, so old notes never move;
-    only the newest note gets the class 'new' and drops in."""
+    """The whole public log as a cork board, on the board and on every phone the whole game.
+    Newest first: the latest note is pinned at the top left, so nobody has to scroll to it,
+    and only that one gets the class 'new' and drops in."""
     if not log:
         return '<div class="cork empty">Nothing has been pinned up yet.</div>'
-    notes = [pinned_note(entry, name_of, newest=(i == len(log) - 1), story=story)
-             for i, entry in enumerate(log)]
+    notes = [pinned_note(entry, name_of, newest=(i == 0), story=story)
+             for i, entry in enumerate(reversed(log))]
     return f'<div class="cork" role="list" aria-label="Evidence wall">{"".join(notes)}</div>'
 
 

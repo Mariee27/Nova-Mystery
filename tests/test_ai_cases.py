@@ -354,20 +354,21 @@ def test_the_ai_case_texts_reach_the_screens():
     assert "Library" in ui.campus_map([], story=story)
 
 
-# ---------------------------------------------------------------- the bots can play it
+# ---------------------------------------------------------------- people can play it
 
-def test_demo_suspects_play_an_ai_case_to_the_end():
-    g = make_lobby(1)
-    for _ in range(4):
-        g = logic.add_bot(g, "t1", 0)
+def test_four_players_play_an_ai_case_to_the_end():
+    g = make_lobby(4)
     g = logic.ai_case_ready(logic.ai_case_writing(g, 0), fake_story(), 1)
-    g = logic.start(g, "t1", logic.with_bots(g, {1}), 0, seed=3)
+    everybody = {1, 2, 3, 4}
+    g = logic.start(g, "t1", everybody, 0, seed=3)
     now = 0
-    for _ in range(1200):
-        if g["phase"] == "RESULT":
-            break
-        now += 2
-        g = logic.bot_moves(logic.tick(g, logic.with_bots(g, {1}), now), now)
+    while g["phase"] != "VOTE":
+        now = g["deadline"]
+        g = logic.tick(g, everybody, now)
+    locations = list(logic.story_of(g)["locations"])
+    for pid in everybody:
+        g = logic.vote(g, f"t{pid}", pid % 4 + 1, now, scene=locations[0])
+    g = logic.tick(g, everybody, now)
     assert g["phase"] == "RESULT"
     assert len(g["votes"]) == 4
     assert all(scene in FAKE_LOCATIONS for scene in g["scene_votes"].values())

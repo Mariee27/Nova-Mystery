@@ -429,12 +429,12 @@ def test_dw12_offline_player_who_has_not_voted_does_not_block_vote():
 
 
 # ================================================================ DW13
-def test_dw13_online_ids_46s_offline_45s_online():
-    presence = {1: 54, 2: 55, 3: 100, 4: 0}
+def test_dw13_online_ids_16s_away_15s_online():
+    presence = {1: 84, 2: 85, 3: 100, 4: 0}
     assert logic.online_ids(presence, 100) == {2, 3}
-    assert logic.online_ids({1: 54}, 100) == set()
-    assert logic.online_ids({1: 55}, 100) == {1}
-    assert logic.OFFLINE_AFTER == 45          # a glance at another app does not count as leaving
+    assert logic.online_ids({1: 84}, 100) == set()
+    assert logic.online_ids({1: 85}, 100) == {1}
+    assert logic.OFFLINE_AFTER == 15          # then the game goes on without them until they are back
 
 
 # ================================================================ DW14
@@ -474,38 +474,13 @@ def test_dw14_new_host_can_end_phase_old_host_cannot():
 
 # ================================================================ DW15
 @pytest.mark.parametrize("phase", ["REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE"])
-def test_dw15_two_online_pauses_the_game_and_stops_the_clock(phase):
+def test_dw15_with_two_online_the_game_goes_on_and_never_ends_by_itself(phase):
     g = started_in(phase)
-    left = g["deadline"] - 1
+    deadline = g["deadline"]
     g = logic.tick(g, {1, 2}, 1)
-    assert g["phase"] == phase and g["deadline"] is None and g["abort_reason"] is None
-    assert logic.public_view(g, {1, 2})["paused_since"] == 1
-    g = logic.tick(g, {1, 2}, 1 + logic.PAUSE_LIMIT - 1)        # still waiting, nothing moves on
-    assert g["phase"] == phase and g["deadline"] is None
-
-
-@pytest.mark.parametrize("phase", ["REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE"])
-def test_dw15_the_clock_runs_on_when_the_players_are_back(phase):
-    g = started_in(phase)
-    left = g["deadline"] - 1
-    g = logic.tick(g, {1, 2}, 1)
-    g = logic.tick(g, {1, 2, 3}, 100)                            # back after 99 seconds
-    assert g["phase"] == phase and "paused" not in g
-    assert g["deadline"] == pytest.approx(100 + left)            # the time left is the same as before
-    assert logic.public_view(g, {1, 2, 3})["paused_since"] is None
-
-
-@pytest.mark.parametrize("phase", ["REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE"])
-def test_dw15_the_game_ends_when_nobody_comes_back(phase):
-    g = logic.tick(started_in(phase), {1, 2}, 1)
-    g = logic.tick(g, {1, 2}, 1 + logic.PAUSE_LIMIT)
-    assert g["phase"] == "ABORTED" and g["abort_reason"]
-
-
-def test_dw15_the_host_can_still_end_a_paused_phase():
-    g = logic.tick(started_in("DISCUSSION"), {1, 2}, 1)
-    g = logic.end_phase(g, "t1", {1, 2}, 5)
-    assert g["phase"] == "VOTE" and "paused" not in g and g["deadline"] is not None
+    assert g["phase"] == phase and g["deadline"] == deadline and "paused" not in g
+    g = logic.tick(g, {1}, 1 + 600)                              # long after: no pause, no abort
+    assert g["phase"] != "ABORTED" and g["abort_reason"] is None
 
 
 @pytest.mark.parametrize("phase", ["REVEAL", "INVESTIGATION", "DISCUSSION", "VOTE"])

@@ -1,9 +1,10 @@
 // End-to-end check in a real browser (Chromium via Playwright), run by CI against a running app:
 //   node tests/e2e/browser_check.cjs http://localhost:8501
 // The pytest suite drives app.py with a stand-in for Streamlit; it cannot see layout or the
-// browser. This script plays a demo game on a phone-sized screen and checks what only a real
-// browser shows: one paper card per private clue, the stamp on every file, tapping a pin,
-// the vote without a preselection, the result, and no error anywhere.
+// browser. This script opens a room on the board, lets four phones join, plays the host's game
+// on a phone-sized screen and checks what only a real browser shows: one paper card per private
+// clue, the stamp on every file, tapping a pin, the evidence wall, the vote without a
+// preselection, the result, and no error anywhere.
 const { chromium } = require('playwright');
 
 (async () => {
@@ -27,12 +28,33 @@ const goStep = async (params) => {
   await page.goto(url.toString()); await settle(3500);
 };
 
+const phoneTab = async () => {
+  const tab = await browser.newPage({ viewport: { width: 390, height: 900 } });
+  tab.on('pageerror', (e) => errors.push(e.message));
+  return tab;
+};
+const joinAs = async (tab, code, name) => {
+  await tab.goto(`${base}/?room=${code}`); await tab.waitForTimeout(5000);
+  await tab.getByLabel('Your name').fill(name);
+  await tab.getByRole('button', { name: 'Join', exact: true }).click(); await tab.waitForTimeout(4000);
+};
+
 try {
-  await page.goto(`${base}/?demo=1`); await settle(7000);
-  check(!(await text()).includes('Which case?') && (await text()).includes('the same culprit every time'),
-        'a demo plays the fixed demo case without a choice');
+  // The board opens the room; the host and three more players join on their phones.
+  const board = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  board.on('pageerror', (e) => errors.push(e.message));
+  await board.goto(base); await board.waitForTimeout(5000);
+  check(!(await board.locator('body').innerText()).includes('Play a demo'), 'there is no demo any more');
+  const skipIntro = board.getByRole('button', { name: 'Skip intro ›' });
+  if (await skipIntro.count()) { await skipIntro.click(); await board.waitForTimeout(3000); }
+  await board.getByRole('button', { name: 'Create room', exact: true }).click(); await board.waitForTimeout(6000);
+  const code = new URL(board.url()).searchParams.get('room');
+  check(/^[A-Z0-9]{4}$/.test(code || ''), `the board opened room ${code}`);
+  await joinAs(page, code, 'Detective');
+  for (const name of ['Sofia', 'Tiago', 'Ines']) await joinAs(await phoneTab(), code, name);
+  await settle(4000);
   check(!(await text()).includes('Keep this page open'), 'the host is not told to wait for the host');
-  await click('Start game');
+  await page.getByRole('button', { name: 'Start game', exact: true }).click({ timeout: 20000 }); await settle();
   await click('Open your file'); await settle(3000);
   const stamp = await page.locator('.dstamp').innerText();
   check(['MURDERER', 'INNOCENT'].includes(stamp.trim().toUpperCase()), `the opened file is stamped ${stamp.trim()}`);
@@ -41,6 +63,7 @@ try {
 
   await skip();
   check(await page.locator('.act').count() >= 2, 'the round starts with the action cards');
+  check(await page.locator('.cork').count() === 1, 'the phone shows the evidence wall during the round');
   await goStep({ step: 'share' });
   check(await page.locator('.paper.clue').count() === 2, 'Share a clue shows exactly two paper cards');
   const cards = await page.locator('.paper.clue').allInnerTexts();
@@ -85,10 +108,7 @@ try {
   await skip(); await settle(4000);
   check(await page.locator('.culprit').count() === 1, 'the result names the culprit');
 
-  const code = new URL(page.url()).searchParams.get('room');
-  const board = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  board.on('pageerror', (e) => errors.push(e.message));
-  await board.goto(`${base}/?room=${code}&view=board`); await board.waitForTimeout(6000);
+  await board.reload(); await board.waitForTimeout(6000);
   check(await board.locator('.plan2').count() === 1, 'the board shows the campus map');
   const exceptions = await page.locator('[data-testid="stException"]').count()
     + await board.locator('[data-testid="stException"]').count();

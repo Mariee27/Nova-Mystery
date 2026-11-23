@@ -1,6 +1,6 @@
 """The hot seat between two investigation rounds: pick a suspect, grill them out loud, rate
 believe or lie. Allowed and refused cases for every rule, the views (counts only), the clock,
-the switch in start() and the demo bots."""
+the switch in start()."""
 import json
 
 import pytest
@@ -187,28 +187,6 @@ def test_the_public_and_private_views_keep_their_contract():
     game = logic.pick_hot_seat(break_after_round_1(), "t1", 4, 110)
     assert "hot_seat" not in logic.public_view(game, online_all(game))
     assert "hot_seat" not in json.dumps(logic.private_view(game, "t1"))
-
-
-# ------------------------------------------------------------------ demo bots
-
-def test_demo_bots_pick_and_rate_and_never_search_in_the_break():
-    lobby = logic.new_game("DEMO", 0)
-    lobby = logic.join(lobby, "Ana", "human", 0)
-    for _ in range(4):
-        lobby = logic.add_bot(lobby, "human", 0)
-    online = {p["pid"] for p in lobby["players"]}
-    game = logic.start(lobby, "human", online, 0, seed=1, hot_seat=True)
-    game = logic.end_phase(game, "human", online, 10)            # → round 1
-    game = logic.end_phase(game, "human", online, 100)           # → break
-    searched = list(game["searched"])
-    game = logic.bot_moves(game, 100 + 60)                       # all bots are due
-    assert len(game["hot_seat"]["picks"]) == 4 and game["searched"] == searched
-    game = logic.pick_hot_seat(game, "human", game["hot_seat"]["picks"]["2"], 161)
-    game = logic.tick(game, online, 162)
-    seat = game["hot_seat"]["seat"]
-    game = logic.bot_moves(game, 162 + 60)
-    raters = set(game["hot_seat"]["ratings"])
-    assert str(seat) not in raters and len(raters) == (4 if seat == 1 else 3)
 
 
 # ---------------------------------------------------------------- the hot seat waits for the reader

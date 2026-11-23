@@ -78,21 +78,6 @@ def test_a_player_who_has_moved_cannot_hold_a_place():
         logic.open_place(game, "t2", open_place_name(game), 21)
 
 
-def test_demo_bots_leave_a_held_place_alone():
-    lobby = logic.new_game("DEMO", 0)
-    lobby = logic.join(lobby, "Ana", "human", 0)
-    for _ in range(4):
-        lobby = logic.add_bot(lobby, "human", 0)
-    online = {p["pid"] for p in lobby["players"]}
-    game = logic.start(lobby, "human", online, 0, seed=1)
-    game = logic.end_phase(game, "human", online, 10)
-    held = [p["name"] for p in logic.map_view(game)["places"] if p["state"] == "open"]
-    # Every open place is held by somebody (set directly: one player can hold only one place).
-    game["holds"] = {place: {"pid": 1, "until": 1000} for place in held}
-    game = logic.bot_moves(game, 60)
-    assert not set(game["searched"]) & set(held)
-
-
 # ------------------------------------------------------------------ hot seat pick locked in
 
 def test_a_hot_seat_pick_is_locked_in():

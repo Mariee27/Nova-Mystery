@@ -56,7 +56,7 @@ def reward(spec, text, exhibit_id, done, total, celebrate):
             f'<div class="mg-ev">Evidence #{spec["evidence_no"]:02d} — {h(spec["exhibit"])}</div>'
             f'<div class="mg-place">{h(spec["location"])} · Exhibit {h(exhibit_id)} on the board</div>'
             f'<div class="mg-text">{h(text)}</div>{progress(done, total)}'
-            '<a class="mg-inspect" href="#evidence-log" target="_self">Inspect it in the evidence log ↓</a></div>')
+            '<a class="mg-inspect" href="#evidence-log" target="_self">Inspect it on the evidence wall ↓</a></div>')
 
 
 # ---------------------------------------------------------------- the component
