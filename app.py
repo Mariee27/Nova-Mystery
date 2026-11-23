@@ -30,7 +30,8 @@ import ui
 
 DB_PATH = os.environ.get("MURDER_DB", "data/murder.db")
 POLL_SECONDS = 2   # every open screen asks for the current state this often
-HEARTBEAT_SECONDS = 10   # ... and tells the database it is online this often (see sync)
+HEARTBEAT_SECONDS = 5    # ... and tells the database it is online this often (see sync);
+                         # well below logic.STAND_IN_AFTER, so a phone that is there never gets a stand-in
 
 PHASE_TITLES = {
     "LOBBY": "Lobby – the suspects arrive",
@@ -100,15 +101,17 @@ def sync(code, token=None):
                 db.heartbeat(conn, code, me["pid"], now)
                 st.session_state[beat] = now
             seen = {**seen, me["pid"]: now}
-        online = logic.with_bots(game, logic.online_ids(seen, now))
 
-        def step(g):   # timers first, then whatever the demo suspects have to do
-            return logic.bot_moves(logic.tick(g, online, now), now)
+        def step(g):
+            # Who dropped out gets a stand-in (and who is back plays again), then the timers,
+            # then whatever the demo suspects and stand-ins have to do.
+            g = logic.update_stand_ins(g, seen, now)
+            return logic.bot_moves(logic.tick(g, logic.with_bots(g, logic.online_ids(seen, now)), now), now)
 
-        # Only write when the timers or the bots really change something.
+        # Only write when the stand-ins, the timers or the bots really change something.
         if step(game) is not game:
             game = db.apply(conn, code, step)
-        return views(game, online, token)
+        return views(game, logic.with_bots(game, logic.online_ids(seen, now)), token)
 
 
 def views(game, online, token=None):
@@ -363,6 +366,40 @@ export default function () {
 """
 
 
+SEAT_JS = r"""
+export default function (component) {
+  // Remembers this browser's seat per room (the player link carries a secret token), so a
+  // player who closed the tab or scanned the room's QR code again gets back to their seat.
+  // The token never leaves this browser: it is only handed back to this same page.
+  const { data, setTriggerValue } = component;
+  if (!data || !data.room) return;
+  const key = 'nova-seat-' + data.room;
+  try {
+    if (data.token) { localStorage.setItem(key, data.token); return; }
+    const token = localStorage.getItem(key);
+    if (token && !window.__novaSeatAsked) { window.__novaSeatAsked = true; setTriggerValue('seat', token); }
+  } catch (e) { /* storage blocked (private mode): the link still works */ }
+}
+"""
+
+
+def seat_memory(code, token=None):
+    """With a token: remember this seat in the browser. Without: the remembered token, or None."""
+    v2 = getattr(getattr(st, "components", None), "v2", None)
+    if v2 is None:
+        return None
+    key = (id(v2), "nova_seat")
+    if key not in minigame_ui.RENDERERS:
+        minigame_ui.RENDERERS[key] = v2.component("nova_seat", js=SEAT_JS)
+    if token:                                     # only remember: nothing comes back
+        minigame_ui.RENDERERS[key](key="nova-seat", data={"room": code, "token": token})
+        return None
+    result = minigame_ui.RENDERERS[key](key="nova-seat", data={"room": code, "token": None},
+                                        on_seat_change=_ignore)
+    seat = getattr(result, "seat", None)
+    return seat if isinstance(seat, str) else None
+
+
 def show_rules(expanded=False):
     with st.expander("How to play", expanded=expanded):
         st.markdown(content.HOW_TO_PLAY)
@@ -411,6 +448,16 @@ def show_result(public):
 
 # ---------------------------------------------------------------- home and join
 
+def page_top():
+    """The top of every page that starts with the logo: an always-present slot (the start page's
+    intro), then the logo. Streamlit matches the parts of a page by their position; with the same
+    top on every page, going from one page to the next replaces the logo in place instead of
+    showing the old page under the new one while the new one loads. Returns the slot."""
+    slot = st.container()
+    show(ui.brand())
+    return slot
+
+
 def home_screen():
     # Presentation link ?demo=1: go straight into a demo game, without the intro.
     if st.query_params.get("demo"):
@@ -419,12 +466,16 @@ def home_screen():
         return
     # The opening plays once per browser session. It is pure CSS, works without sound,
     # and is switched off for people who ask their system for reduced motion.
+    # It sits in the slot of page_top, which is there on every page and empty after the first
+    # visit: a page whose top was two parts shorter than the last one showed the old and the
+    # new start page on top of each other while "Create room" ran.
+    slot = page_top()
     if not st.session_state.get("intro_seen"):
         st.session_state["intro_seen"] = True
-        show(ui.intro())
-        if st.button("Skip intro ›", key="skip_intro"):
-            st.rerun()
-    show(ui.brand())
+        with slot:
+            show(ui.intro())
+            if st.button("Skip intro ›", key="skip_intro"):
+                st.rerun()
     left, right = st.columns([3, 2])
     with left:
         show(ui.teaser())
@@ -478,7 +529,7 @@ def start_demo():
 
 def join_screen(code):
     public, _ = sync(code)
-    show(ui.brand())
+    page_top()
     if public is None:
         st.error(f"Room {code} does not exist.")
         if st.button("Back"):
@@ -487,8 +538,18 @@ def join_screen(code):
         return
     st.markdown(f'<div class="kicker">Room {ui.h(code)} · {ui.h(case_kicker(public))}</div>',
                 unsafe_allow_html=True)
+    # Back to your seat: this browser has played in this room before (tab closed, QR scanned again).
+    seat = seat_memory(code)
+    if seat:
+        with open_db() as conn:
+            game = db.load(conn, code)
+        if game is not None and logic.private_view(game, seat) is not None:
+            st.query_params["t"] = seat
+            st.rerun()
     if public["phase"] != "LOBBY":
-        st.warning("This investigation has already started. You can watch on the board.")
+        st.warning("This investigation has already started. If you are playing: open this room in the "
+                   "browser you joined with, or your own player link, and you are back in your seat "
+                   "(a stand-in plays for you meanwhile). Everybody else can watch on the board.")
         if st.button("Open the board"):
             st.query_params["view"] = "board"
             st.rerun()
@@ -596,7 +657,7 @@ def board_round(code, public):
 
 
 def board_screen(code):
-    show(ui.brand())
+    page_top()
     public, _ = sync(code)
     if public is not None:
         st.session_state["board_phase"] = public["phase"]
@@ -668,7 +729,7 @@ def signature(public, me):
     evidence = sum(1 for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS)
     # Who is in the room, online, has moved or voted: the suspect list shows it (it is drawn
     # with the page, so the page must be redrawn when it changes).
-    players = tuple((p["pid"], p["online"], p["acted"], p["voted"]) for p in public["players"])
+    players = tuple((p["pid"], p["online"], p["acted"], p["voted"], p.get("stand_in")) for p in public["players"])
     # The round and the state of every place: the map's markers depend on them.
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
@@ -846,8 +907,24 @@ def host_controls(code, token, public, me):
                     if st.button("Remove from room"):
                         act(code, lambda g, on, now: logic.kick(g, token, victim, now))
     elif public["phase"] in logic.DURATIONS:
-        if st.button("End phase (host)"):
+        if st.button(f"{skip_label(public)} (host)", key="host-skip", use_container_width=True):
             act(code, lambda g, on, now: logic.end_phase(g, token, on, now))
+
+
+def skip_label(public):
+    """What the host's button ends right now, in the words of the game."""
+    phase, rounds, round_no = public["phase"], public["map"]["rounds"], public["map"]["round"]
+    if phase == "REVEAL":
+        return "⏭ Start the investigation now"
+    if phase == "INVESTIGATION" and public.get("hot_seat") is not None:
+        return "⏭ End the hot seat – next round"
+    if phase == "INVESTIGATION" and round_no < rounds:
+        return f"⏭ End round {round_no} now"
+    if phase == "INVESTIGATION":
+        return "⏭ End the last round – to the discussion"
+    if phase == "DISCUSSION":
+        return "⏭ Start the vote now"
+    return "⏭ Close the vote now"
 
 
 # ---------------------------------------------------------------- the move, step by step
@@ -1267,6 +1344,7 @@ def player_screen(code, token):
     player_status(code, token)
     play_case_intro(code, public)                # a fixed overlay: where it sits does not matter
     keep_screen_on()                             # below the fragment, like everything that may vary
+    seat_memory(code, token)                     # this browser finds its way back to this seat
 
     flash = st.session_state.pop("flash", None)
     if flash:
@@ -1275,9 +1353,9 @@ def player_screen(code, token):
     # Mobile first: in every phase, the thing you have to do or read right now comes first.
     # Your card follows (folded away once you have read it), then the suspects, then the evidence.
     if phase == "LOBBY":
+        # The waiting room: you are checked in, who else is here, what happens next.
+        show(ui.waiting_room(me, code, public["players"], me["is_host"], tip=len(public["players"])))
         host_controls(code, token, public, me)   # the host's "Start game" is the main thing here
-        if not me["is_host"]:
-            st.info("Keep this page open. The host starts the game.")
         st.caption(STAY_ONLINE)
         show(ui.sealed_file())
         player_suspects(code, me["pid"])         # who has joined so far
@@ -1291,20 +1369,20 @@ def player_screen(code, token):
         st.info("Read your file. The investigation starts in a moment.")
     elif phase == "INVESTIGATION" and public["hot_seat"] is not None:
         hot_seat_phone(code, token, public, me)  # the break between two rounds
-        show_card(me, expanded=False)
     elif phase == "INVESTIGATION":
         investigation_actions(code, token, public, me)
-        show_card(me, expanded=False)
     elif phase == "DISCUSSION":
         pending_reward(code, public)             # an exhibit solved in the very last second
         st.info("Talk to each other. Compare the alibis. Who is lying?")
-        show_card(me, expanded=False)
     elif phase == "VOTE":
         vote_form(code, token, public, me)
-        show_card(me, expanded=False)
 
     if phase in logic.DURATIONS:                 # REVEAL, INVESTIGATION, DISCUSSION, VOTE
-        host_controls(code, token, public, me)   # "End phase" sits below the player's own move
+        # The host's "End round now" sits right below the player's own move, before the card,
+        # so the host finds it without scrolling when everybody is done.
+        host_controls(code, token, public, me)
+        if phase != "REVEAL":
+            show_card(me, expanded=False)
         player_suspects(code, me["pid"])
     if phase != "RESULT":
         st.divider()
@@ -1324,7 +1402,7 @@ def main():
         home_screen()
     elif not valid_code(code):
         # Never echo an unchecked code: it could carry links or other Markdown.
-        show(ui.brand())
+        page_top()
         st.error("This is not a valid room code.")
         if st.button("Back"):
             st.query_params.clear()

@@ -6,7 +6,7 @@ phone shows – the proof is checked here, in Python, against data the phone nev
 (the code, the cipher key) or cannot change (the starting order of the puzzle pieces).
 
 The kinds, one per place of a case:
-  code     🔐  a keypad lock; the 4-digit code follows from the case timeline
+  code     🔐  a keypad lock; a note turns four times of the night into a new code every game
   scratch  🕵️  rub the dust off a find of this case: a note, a printout, a phone, a photo
   puzzle   🧩  a torn still of the night camera at the place: tap two pieces to swap them
   cipher   🧠  the victim's note in shifted letters: turn the cipher wheel until it reads
@@ -220,13 +220,86 @@ def assignment(game):
 
 # ---------------------------------------------------------------- the secret parts
 
-def _code_answer(variant):
-    death_h, death_m = _minutes(content.MURDER_TIME)
-    found_h, found_m = _minutes(content.FOUND_TIME)
-    gap = (found_h * 60 + found_m) - (death_h * 60 + death_m)
-    if variant % 2 == 0:
-        return f"{gap:02d}{death_h:02d}"
-    return f"{found_h:02d}{gap:02d}"
+# ---------------------------------------------------------------- the lock: a new code every game
+#
+# The note next to the keypad lists four times as A-D: three entries of the victim's evening
+# (the case's own diary, story["minigames"]["order"]) and the discovery of the body. One line
+# of the note says how to make the code from them; one entry is a decoy. Which entries, which
+# letters and which rule are drawn from the seed, so every game has its own code. Every rule
+# only needs the times on the note and a little arithmetic, and none just copies a time.
+
+def _clock_minutes(clock):
+    hours, minutes = _minutes(clock)
+    return hours * 60 + minutes
+
+
+def _lock_rules(times):
+    """Every rule that gives a good code for these times: (name, letters used, code, hints)."""
+    letters = "ABCD"
+    rules = []
+    for i, a in enumerate(letters):
+        for j, b in enumerate(letters):
+            if i == j:
+                continue
+            gap = _clock_minutes(times[j]) - _clock_minutes(times[i])
+            for k, c in enumerate(letters):
+                if k in (i, j):
+                    continue
+                hour = _minutes(times[k])[0]
+                if 10 <= gap <= 99:
+                    rules.append(("gap-hour", f"The minutes from {a} to {b} – then the hour of {c}.",
+                                  f"{gap:02d}{hour:02d}",
+                                  ["Count the minutes from the first time to the second, then write the hour "
+                                   "of the third time with two digits.",
+                                   f"From {a} ({times[i]}) to {b} ({times[j]}) is {gap} minutes.",
+                                   f"{gap}, then the hour of {c} ({times[k]})."]))
+                    rules.append(("hour-gap", f"The hour of {c} – then the minutes from {a} to {b}.",
+                                  f"{hour:02d}{gap:02d}",
+                                  ["Two digits for an hour, then two digits for a number of minutes.",
+                                   f"The hour of {c} ({times[k]}) is {hour:02d}.",
+                                   f"{hour:02d}, then the minutes from {times[i]} to {times[j]}: {gap}."]))
+                total = _minutes(times[i])[1] + _minutes(times[j])[1]
+                if i < j and 10 <= total <= 99:
+                    rules.append(("sum", f"The minutes of {a} plus the minutes of {b} – then the minutes of {c}.",
+                                  f"{total:02d}{_minutes(times[k])[1]:02d}",
+                                  ["Only the minutes count: 22:40 gives 40.",
+                                   f"{_minutes(times[i])[1]} + {_minutes(times[j])[1]} = {total}.",
+                                   f"{total}, then the minutes of {c} ({times[k]})."]))
+        if times[i] == content.FOUND_TIME:
+            continue                        # the same in every case: a rule on it alone would repeat
+        hours, minutes = _minutes(times[i])
+        example = next(t for t in ("20:05", "19:25", "18:50") if t not in times)
+        if 13 <= hours <= 23:
+            rules.append(("twelve", f"{a} on a twelve-hour clock, four digits, without the colon.",
+                          f"{hours - 12:02d}{minutes:02d}",
+                          [f"On a twelve-hour clock, {example} is {int(example[:2]) - 12}:{example[3:]} – "
+                           f"with four digits: {int(example[:2]) - 12:02d}{example[3:]}.",
+                           f"{a} is at {times[i]}.",
+                           f"{times[i]} is {hours - 12}:{minutes:02d} on a twelve-hour clock."]))
+        reverse = times[i].replace(":", "")[::-1]
+        if reverse != times[i].replace(":", ""):
+            rules.append(("backwards", f"{a} read backwards.", reverse,
+                          ["Write the four digits of that time in the opposite order.",
+                           f"{a} is at {times[i]}.",
+                           f"{times[i].replace(':', '')} backwards."]))
+    return rules
+
+
+def _lock(game, location):
+    """{"facts": [[label, time]] as A-D, "riddle", "answer", "hints"} of the lock at this place."""
+    victim = _story(game)["victim_short"]
+    rng = _rng(game, location, "lock")
+    events = [(clock, _fill(text, location, victim)) for clock, text in piece(game, "order")["events"]]
+    entries = rng.sample(events, 3) + [(content.FOUND_TIME, "The body is found")]
+    rng.shuffle(entries)
+    times = [clock for clock, _ in entries]
+    shown = {clock.replace(":", "") for clock in times}
+    rules = [rule for rule in _lock_rules(times) if rule[2] not in shown and rule[2] != "0000"]
+    kinds = sorted({rule[0] for rule in rules})
+    kind = rng.choice(kinds)                        # every kind of rule is equally likely
+    _, riddle, answer, hints = rng.choice([rule for rule in rules if rule[0] == kind])
+    facts = [[f"{letter} · {text}", clock] for letter, (clock, text) in zip("ABCD", entries)]
+    return {"facts": facts, "riddle": riddle, "answer": answer, "hints": hints}
 
 
 def _cipher_key(game, location):
@@ -300,17 +373,9 @@ def spec(game, location):
         "exhibit": _fill(words["exhibit"], location, victim),
     }
     if kind == "code":
-        if variant % 2 == 0:
-            riddle = (f"The minutes between {victim}'s last breath and the discovery of the body – "
-                      "then the hour it all ended.")
-        else:
-            riddle = (f"The hour the body of {victim} was found – then the minutes between "
-                      "the last breath and the discovery.")
-        base.update(
-            story=_fill(words["story"], location, victim),
-            riddle=riddle,
-            facts=[["Time of death", f"≈ {content.MURDER_TIME}"], ["Body found", content.FOUND_TIME]],
-            hints=_code_hints(variant))
+        lock = _lock(game, location)
+        base.update(story=_fill(words["story"], location, victim), riddle=lock["riddle"],
+                    facts=lock["facts"], hints=lock["hints"])
     elif kind == "scratch":
         lines = [_fill(line, location, victim) for line in words["lines"]]
         base.update(
@@ -377,16 +442,6 @@ def _order_answer(start):
     return [start.index(true) for true in range(len(start))]
 
 
-def _code_hints(variant):
-    if variant % 2 == 0:
-        return ["Both numbers come from the timeline of the night, shown above the keypad.",
-                "Death about 23:30, body found 23:47. The first two digits are the minutes in between.",
-                "47 − 30 = 17 minutes. Then the hour of death: 23."]
-    return ["Both numbers come from the timeline of the night, shown above the keypad.",
-            "Found at 23:47 – the first two digits are that hour. Then the minutes between 23:30 and 23:47.",
-            "The hour is 23. Then 47 − 30 = 17."]
-
-
 def specs(game):
     """The puzzle of every place, in the order of the story's locations."""
     if not enabled(game):
@@ -406,7 +461,7 @@ def verify(game, location, proof):
     kind, variant = table[location]
     try:
         if kind == "code":
-            return str(proof.get("code", "")) == _code_answer(variant)
+            return str(proof.get("code", "")) == _lock(game, location)["answer"]
         if kind == "scratch":
             cells = proof.get("cells")
             if not isinstance(cells, list) or len(cells) > MAX_PROOF_ITEMS:
@@ -437,13 +492,13 @@ def feedback(game, location, proof):
         code = str(proof.get("code", ""))
         if not re.fullmatch(r"\d{4}", code):
             return "The lock wants exactly four digits."
-        times = {content.MURDER_TIME.replace(":", ""), content.FOUND_TIME.replace(":", "")}
-        if code in times:
-            return "ACCESS DENIED – that is just one time from the case file. The note combines two of them."
-        answer = _code_answer(variant)
+        lock = _lock(game, location)
+        if code in {clock.replace(":", "") for _, clock in lock["facts"]}:
+            return "ACCESS DENIED – that is just one time from the note. The last line says what to do with it."
+        answer = lock["answer"]
         if code[2:] == answer[2:] or code[:2] == answer[:2]:
             return "ACCESS DENIED – the lock clicked halfway. Half of your code is right."
-        return "ACCESS DENIED – read the note again and use the timeline above the keypad."
+        return "ACCESS DENIED – read the last line of the note again: which letters does it use?"
     if kind == "cipher":
         shift = proof.get("shift")
         if not isinstance(shift, int):
@@ -468,7 +523,7 @@ def solve(game, location):
     """A valid proof for a place (used by the tests and the demo bots, never sent to a phone)."""
     kind, variant = assignment(game)[location]
     if kind == "code":
-        return {"code": _code_answer(variant)}
+        return {"code": _lock(game, location)["answer"]}
     if kind == "scratch":
         return {"cells": list(range(MAX_PROOF_ITEMS))}
     if kind == "cipher":
