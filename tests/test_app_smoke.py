@@ -101,6 +101,9 @@ class FakeStreamlit(types.ModuleType):
     def tabs(self, labels):
         return [Block() for _ in labels]
 
+    def container(self, **kwargs):
+        return Block()
+
     def expander(self, label, **kwargs):
         self.shown.append(str(label))
         return Block()
