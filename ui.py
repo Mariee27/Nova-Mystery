@@ -122,13 +122,14 @@ def crime_scene(story):
             f'{tape.format(" b")}</div>')
 
 
-# The board intro must be over before the reveal phase ends (logic.DURATIONS["REVEAL"] = 40 s):
+# The board intro must be over before the reveal phase ends (logic.DURATIONS["REVEAL"] = 60 s):
 # at the next phase the board redraws and the intro would be cut off.
 SUSPECTS_FROM = 16.4      # seconds: the first suspect card flies in after the crime scene
-SUSPECTS_LAST_IN = 28.0   # the last card has landed by then; all stay up to be read
-SUSPECTS_STEP = 3.0       # at most this many seconds between two cards (few players)
-SUSPECTS_UNTIL = 34.6     # the lineup fades out
-BOARD_INTRO_END = 35.0    # the whole intro fades out (style.css: .intro.long)
+SUSPECTS_LAST_IN = 20.0   # the last card has landed by then; all stay up to be read
+SUSPECTS_STEP = 0.7       # seconds between two cards: quick, so they stay up longer (playtest)
+SUSPECTS_WAIT = 20.6      # then a note that everybody is still reading their file
+SUSPECTS_UNTIL = 57.6     # the lineup stays while everybody reads (phones open their files at SUSPECTS_LAST_IN)
+BOARD_INTRO_END = 58.0    # the whole intro fades out (style.css: .intro.long)
 
 def lineup(players, story=None):
     """The players as file cards that fly in one after another and stay, so the room can read
@@ -150,7 +151,10 @@ def lineup(players, story=None):
             f'<div class="bio">{h(dossiers.get(role, ""))}</div>'
             + (f'<div class="bio carries">Always carries {h(carries[role])}.</div>' if carries.get(role) else "")
             + '</div>')
-    return f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{"".join(cards)}</div></div>'
+    wait = (f'<div class="lu-wait" style="--wait:{SUSPECTS_WAIT:.1f}s">'
+            'Everybody is reading their file now …</div>')
+    return (f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{"".join(cards)}</div>'
+            f'{wait}</div>')
 
 
 def _intro(lines, css, start, step, final, red=3, middle=""):
@@ -916,3 +920,10 @@ def round_banner(round_no, rounds):
         return f'<div class="round-banner">Round 1 of {h(rounds)}</div>'
     return (f'<div class="round-banner new">Round {h(round_no)} of {h(rounds)} · '
             f'a new round: everybody gets a new move</div>')
+
+
+def watch_board():
+    """The phone at the start of the reveal, while the board introduces the suspects."""
+    return ('<div class="watch"><div class="wk">👀 Look at the board</div>'
+            '<div class="wt">The crime scene and the suspects are being introduced.</div>'
+            '<div class="wc">Your file opens right after – then you have about 40 seconds to read it.</div></div>')
