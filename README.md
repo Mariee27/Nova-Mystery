@@ -140,6 +140,8 @@ Phases end early when everybody is done, and the host can skip ahead.
   taps until the answer has arrived. On the server, the same action from the same phone in the same moment of
   the game (same phase, same timer) within 2 seconds is ignored, so "End round now" tapped twice ends one
   round, not two. "Add demo suspect" may be tapped quickly on purpose and is exempt.
+- **One trip per tap.** Every action button saves its action in its callback (`on_click`), before the page is
+  drawn, so a tap needs one run of the page instead of two (save, then `st.rerun()` to show the result).
 - **Timers** on every phase, so the game always ends.
 - **The hot seat** between the rounds: the room picks one suspect to grill out loud and rates the answers.
 - **Host tools:** choose the case, switch the hot seat on or off, start the game, skip ahead (the button says
