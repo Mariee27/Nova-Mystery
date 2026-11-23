@@ -70,6 +70,8 @@ BUILDINGS = {
     "H": {"name": "Teresa e Alexandre Soares dos Santos Library", "shape": [(51.2, 16), (61.6, 15), (62.4, 27.2), (52.0, 28.5)]},
     "G": {"name": "Horizon Hall", "shape": [(65.6, 10), (75.2, 9), (76.0, 25.4), (66.4, 26.5)]},
     "F": {"name": "Jerónimo Martins Grand Auditorium", "shape": [(77.6, 24), (87.2, 22), (88.8, 38), (79.2, 41)]},
+    # The garage: in the bottom-left corner, directly beneath the green site, above the N6-7.
+    "J": {"name": "Garage", "shape": [(10.5, 86.4), (31.0, 86.6), (31.0, 89.8), (10.5, 89.8)]},
 }
 
 # The ground around the buildings, drawn below them in this order: (css class, outline).
@@ -100,6 +102,8 @@ PLACES = {
     "Hovione Atrium": {"letter": "A", "icon": "🏛️", "x": 20, "y": 38.5},
     "Santander Hall": {"letter": "D", "icon": "🧪", "x": 60, "y": 55},
     "Beach": {"letter": "≈", "icon": "🌊", "x": 88, "y": 82, "open_air": True},
+    "Canteen": {"letter": "I", "icon": "🍽️", "x": 64, "y": 33.5},    # in the Gallery (I), east of the Main Deck
+    "Garage": {"letter": "J", "icon": "🚗", "x": 20, "y": 88},        # beneath the green site, bottom left
 }
 
 OPEN_AIR = {name for name, place in PLACES.items() if place.get("open_air")}   # no keycard reader there

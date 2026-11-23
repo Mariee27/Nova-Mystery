@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" width="300" height="300">
+<!-- The campus garage at night, one level below the lawn: concrete ceiling with pipes and
+     fluorescent tubes, round pillars, two parked cars, the barrier, a green EXIT sign. -->
+<defs>
+  <linearGradient id="gr-floor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5c5f66"/><stop offset="1" stop-color="#34363c"/></linearGradient>
+  <linearGradient id="gr-wall" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8a8d93"/><stop offset="1" stop-color="#6b6e75"/></linearGradient>
+</defs>
+<rect width="300" height="300" fill="#2b2d33"/>
+<!-- ceiling with pipes and lights -->
+<polygon points="0,0 300,0 230,96 70,96" fill="#45484f"/>
+<g stroke="#7d8189" stroke-width="5"><path d="M0 22 L300 22 M20 50 L280 50"/></g>
+<g stroke="#b9493e" stroke-width="3"><path d="M40 74 L260 74"/></g>
+<g fill="#f2f6ff"><rect x="60" y="34" width="54" height="5" rx="2"/><rect x="186" y="34" width="54" height="5" rx="2"/><rect x="118" y="62" width="64" height="4" rx="2"/></g>
+<g fill="#f2f6ff" opacity=".12"><rect x="40" y="38" width="94" height="30"/><rect x="166" y="38" width="94" height="30"/></g>
+<!-- the back wall with the exit -->
+<rect x="70" y="96" width="160" height="80" fill="url(#gr-wall)"/>
+<rect x="128" y="120" width="44" height="56" fill="#1d2027"/>
+<rect x="132" y="104" width="36" height="12" rx="1" fill="#1d8f4e"/>
+<text x="150" y="113.5" font-family="Helvetica, Arial, sans-serif" font-size="8" font-weight="bold" fill="#eafff2" text-anchor="middle">EXIT</text>
+<rect x="80" y="104" width="40" height="16" rx="2" fill="#1a2a44"/>
+<text x="100" y="115" font-family="Helvetica, Arial, sans-serif" font-size="7" font-weight="bold" letter-spacing="1.4" fill="#f2d79a" text-anchor="middle">LEVEL −1</text>
+<!-- side walls -->
+<polygon points="0,0 70,96 70,176 0,232" fill="#55585f"/><polygon points="300,0 230,96 230,176 300,232" fill="#4d5057"/>
+<!-- the floor with painted lines and arrows -->
+<polygon points="0,232 70,176 230,176 300,232 300,300 0,300" fill="url(#gr-floor)"/>
+<g stroke="#e8e2c6" stroke-width="2.2"><path d="M70 176 L0 300 M230 176 L300 300"/><path d="M118 176 L76 300 M182 176 L224 300"/></g>
+<g fill="#e8e2c6"><polygon points="146,226 154,226 154,246 160,246 150,258 140,246 146,246"/></g>
+<!-- round pillars -->
+<g><rect x="34" y="96" width="20" height="170" fill="#9a9da4"/><rect x="34" y="96" width="6" height="170" fill="#b7bac0"/>
+   <rect x="34" y="180" width="20" height="10" fill="#e0b43a"/><rect x="34" y="194" width="20" height="10" fill="#2b2d33"/></g>
+<g><rect x="246" y="96" width="20" height="170" fill="#8e9198"/><rect x="246" y="96" width="6" height="170" fill="#aeb1b8"/>
+   <rect x="246" y="180" width="20" height="10" fill="#e0b43a"/><rect x="246" y="194" width="20" height="10" fill="#2b2d33"/></g>
+<!-- two parked cars -->
+<g><rect x="74" y="186" width="56" height="26" rx="8" fill="#2f5f9e"/><rect x="82" y="178" width="38" height="14" rx="5" fill="#264d80"/>
+   <rect x="86" y="181" width="14" height="9" fill="#9ec3e8"/><rect x="103" y="181" width="13" height="9" fill="#9ec3e8"/>
+   <circle cx="86" cy="213" r="6" fill="#16181d"/><circle cx="118" cy="213" r="6" fill="#16181d"/>
+   <rect x="75" y="196" width="6" height="4" fill="#ffe2a0"/><rect x="123" y="196" width="6" height="4" fill="#ffe2a0"/></g>
+<g><rect x="170" y="186" width="56" height="26" rx="8" fill="#c9c9c4"/><rect x="178" y="178" width="38" height="14" rx="5" fill="#b3b3ad"/>
+   <rect x="182" y="181" width="14" height="9" fill="#9ec3e8"/><rect x="199" y="181" width="13" height="9" fill="#9ec3e8"/>
+   <circle cx="182" cy="213" r="6" fill="#16181d"/><circle cx="214" cy="213" r="6" fill="#16181d"/>
+   <rect x="171" y="196" width="6" height="4" fill="#d14a3c"/><rect x="219" y="196" width="6" height="4" fill="#d14a3c"/></g>
+<!-- the barrier at the front -->
+<rect x="8" y="236" width="10" height="34" fill="#3a3d44"/>
+<rect x="18" y="242" width="110" height="6" fill="#f4f4f2"/>
+<g fill="#d14a3c"><rect x="30" y="242" width="12" height="6"/><rect x="54" y="242" width="12" height="6"/><rect x="78" y="242" width="12" height="6"/><rect x="102" y="242" width="12" height="6"/></g>
+<!-- a figure by the exit -->
+<g fill="#1c1f26"><circle cx="160" cy="150" r="5"/><path d="M154 172 q0 -16 6 -16 q6 0 6 16 z"/></g>
+<rect x="196" y="252" width="80" height="16" rx="2" fill="#1a2a44"/>
+<text x="236" y="263.5" font-family="Helvetica, Arial, sans-serif" font-size="8.5" font-weight="bold" letter-spacing="2.2" fill="#f2d79a" text-anchor="middle">GARAGE</text>
+<rect width="300" height="300" fill="none" stroke="#0d1a2e" stroke-width="6"/>
+</svg>
