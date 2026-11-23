@@ -65,10 +65,6 @@ Result: `{"winner": "detectives"|"murderer", "ending": "truth"|"incomplete"|"wro
 "murderer": pid, "murder_location": str, "tally": {"3": 2, ...}, "scene_tally": {"Library": 2, ...},
 "votes": {...}, "scene_votes": {...}, "secrets_kept": [pid, ...]}` (`tally` and `scene_tally` only list entries
 with at least one vote; `votes` and `scene_votes` are every single ballot). AI cases add `"red_herrings"` (see *Stories*).
-`hall_of_fame(game)` (None before RESULT) gives the awards: each `{"key", "title", "pids": [pid, ...], "detail"}` (ties share it); keys: `detective` (named the culprit and
-the scene, else just the culprit), `hunter` (most exhibits found), `witness` (most clues shared), `oracle` (most threads
-to the culprit), `liar` (the murderer: master liar if they got away, caught red-handed if not). A title nobody earned
-is left out, and so are hunter, witness and oracle when more than two players tie for them.
 
 ## Case dict (built by `generator.build_case(pids, seed, story=None)`)
 ```
@@ -152,15 +148,7 @@ with_bots(game, online) -> set[int]                 # online plus all bots and s
 stand_in_ids(game) -> list[int]; robot_ids(game) -> list[int]   # stand-ins; bots + stand-ins
 update_stand_ins(game, presence, now) -> game       # stand-ins for seats without a sign of life
 add_bot(game, token, now) -> game                   # host only, only in LOBBY
-bot_moves(game, now) -> game                        # the moves of all bots that are due now (threads included)
-pin_thread(game, token, entry_id, target_pid, now) -> game   # INVESTIGATION/DISCUSSION; one thread per player and note
-unpin_thread(game, token, entry_id, now) -> game
-cut_thread(game, token, entry_id, target_pid, now) -> game   # the murderer, DISCUSSION, once
-can_cut(game, pid) -> bool
-thread_view(game) -> [{"entry", "pid", "count", "at"}]     # public: counts per connection, never who
-cut_view(game) -> None | {"entry", "pid", "at"}            # public: what the murderer cut, never by whom
-my_threads(game, token) -> None | {"threads": {entry id: pid}, "can_cut": bool}   # one player's own
-hall_of_fame(game) -> None | [award, ...]                  # after the game
+bot_moves(game, now) -> game                        # the moves of all bots that are due now
 public_view(game, online) -> dict
 private_view(game, token) -> dict | None
 last_move(game, pid) -> dict | None                 # the player's own move in the current round
@@ -240,19 +228,6 @@ through the same functions as everybody else and only uses its own card and the 
   the last open place) only counts players who are there, not stand-ins.
 - `public_view` players and `private_view` carry `"stand_in": bool`. As soon as the player's phone is back, the
   stand-in ends and the player plays again (with mini-games, puzzles again).
-
-### Red threads
-- `game["threads"] = {str(pid): {str(entry id): {"pid": suspect, "at": time}}}`: a player connects a note (a search
-  or share entry) to another player. Free (not the move of the round), in INVESTIGATION (also in the hot seat break)
-  and DISCUSSION; pinning the same note again moves the thread, `unpin_thread` takes it down. Refused: an unknown note,
-  oneself, an unknown suspect, a connection that was cut, another phase.
-- `cut_thread`: only the murderer, only in DISCUSSION, once per game (`game["cut"] = {"entry", "pid", "at"}`), only a
-  connection that has a thread. Removes every thread on it; that connection cannot be pinned again.
-- Like the hot seat, the threads live next to the views, not in them (the views keep their fields): public
-  `thread_view` (counts per connection, never who) and `cut_view` (what was cut, never by whom); private
-  `my_threads` (the player's own threads and `can_cut`). The app adds them to its screens' data.
-- Demo suspects and stand-ins pin one thread at a time (`BOT_THREAD_DELAY`, `BOT_THREAD_GAP`) from the notes that point
-  at somebody the way they read them; a guilty one cuts the thickest thread against itself in the discussion.
 
 ### Views
 - `public_view(game, online)` → `{"code","phase","deadline","demo","paused_since","players":[{"pid","name","role","online","stand_in","is_host","acted","voted"}],"log":[...],"searched":[...],"result":None|result,"abort_reason", "characters": None | [...]}`. `paused_since` is None unless the game is paused.
