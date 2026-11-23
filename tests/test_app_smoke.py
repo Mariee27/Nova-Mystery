@@ -112,6 +112,9 @@ class FakeStreamlit(types.ModuleType):
     def container(self, **kwargs):
         return Block()
 
+    def spinner(self, text="", **kwargs):
+        return Block()
+
     def expander(self, label, **kwargs):
         self.shown.append(str(label))
         return Block()
