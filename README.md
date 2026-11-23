@@ -94,12 +94,14 @@ academic halls B, C, D and E hang below it as parallel wings; the Library (H) an
 just above it and the Grand Auditorium (F) just past its right end. As on the aerial views, the N6-7 runs
 along the bottom into the roundabout below the campus and the big road passes its right end; the beach of
 Carcavelos and the sea begin beyond that road, in the bottom right corner. The buildings carry the letters
-of the official campus map. There is no car park and no canteen on the plan. The drawing is one SVG of
+of the official campus map. The Canteen sits in the west part of the Gallery, and the Garage is a pin on the green
+site in the bottom-left corner. The drawing is one SVG of
 building outlines, roads and grounds; it and the pins use percent of the map (`content.BUILDINGS`,
 `GROUNDS`, `ROADS`, `PLACES`), so phone and board draw the same plan. The buildings carry no letters (a
-legend would only crowd the phone); every place of a case has its name on its pin. The north arrow follows
-the satellite view: north is left and a little up. Every case happens at 5 of 7 places
-(Library, Horizon Hall, Auditorium, Main Deck, Hovione Atrium, Santander Hall, Beach). Each place holds exactly one clue. Pins are
+legend would only crowd the phone); every place of a case has its name on its pin. The plan has no north arrow. Every case happens at 5 of 9 places
+(Library, Horizon Hall, Auditorium, Main Deck, Hovione Atrium, Santander Hall, Beach, Canteen, Garage). Case #001
+always plays its own five (Santander Hall, Library, Horizon Hall, Auditorium, Main Deck); the Canteen and the
+Garage come up in AI cases. Each place holds exactly one clue. Pins are
 red (open), grey with a tick (searched) or dashed with a lock (locked). Two places are locked at the
 start – the crime scene and one other – and open in rounds 2 and 3. The board names the round a place
 was searched in, never who searched it, so the murderer's planted clue does not stand out.
@@ -137,6 +139,13 @@ Phases end early when everybody is done, and the host can skip ahead.
   file cards (name, role, public dossier line) landing one by one, all within the 40 seconds of "Read your
   file". Only public facts; who did it stays secret. While the AI is still writing, the lobby says so instead
   of showing an old case file.
+- **Key evidence has to be worked out, not just read.** The object found at the crime scene names no owner
+  ("Found at the Main Deck: a silver fountain pen with a chipped cap. Whose could it be?"); every suspect's
+  dossier on the board says what they always carry, so the room has to match it. The keycard log (or night
+  camera) of the false alibi's place names nobody either ("…no entry at all between 23:15 and 23:45"): whoever
+  claims to have been there is lying, so the room has to compare the alibis. The culprit and the lone
+  innocent see each other at two different times before the keycard window, so their cards do not form an
+  obvious pair. Demo suspects reason the same way.
 - **Every case is checked for fairness** before the game starts (exactly one murderer, at least two strong
   clues against them, no strong clue against innocents, …). See `logic.validate_case`.
 - **Hidden information:** each phone only ever receives its own card. The board shows no secrets until the result.
@@ -159,17 +168,19 @@ Phases end early when everybody is done, and the host can skip ahead.
 - **One trip per tap.** Every action button saves its action in its callback (`on_click`), before the page is
   drawn, so a tap needs one run of the page instead of two (save, then `st.rerun()` to show the result).
 - **Timers** on every phase, so the game always ends.
-- **The hot seat** between the rounds: the room picks one suspect to grill out loud and rates the answers.
+- **The hot seat** between the rounds: the room picks one suspect to grill out loud and rates the answers
+  ("👍 Believe" / "👎 Lying"; the chosen button shows a tick and can be changed until the time is up). If a
+  player is still reading newly unlocked evidence, the picking clock waits for their *Continue* (at most 45 s).
 - **Host tools:** choose the case, switch the hot seat on or off, start the game, skip ahead (the button says
   what it ends: "End round 1 now", "End the hot seat – next round", "Start the vote now", …), start the
-  hot seat early, add demo suspects (computer players for presentations), remove strangers from the lobby.
+  hot seat early, open the projector board with one button in the lobby, add demo suspects (computer players for presentations), remove strangers from the lobby.
 
 ### Evidence mini-games – play to unlock
 
 In every room created by the app, each place's clue is a **sealed exhibit**. Tap a pin, press
 *Search &lt;place&gt;*, and solve that place's puzzle on your phone; solving it is your move for the round.
-A case has five places and there are five games, so **every place has a different game**; which place gets
-which game changes from game to game. The games are made of things the victim left behind that night, in
+There are seven games and a case has five places: every case uses five of them, **never one twice**, and which
+place gets which game changes from game to game. The games are made of things the victim left behind that night, in
 the case's own words (see *Mini-games that fit the case* below).
 
 | Game | What you do | Solvable from |
@@ -179,6 +190,12 @@ the case's own words (see *Mini-games that fit the case* below).
 | 🧩 Reassemble the still | Tap two pieces to swap them (9 or 6 pieces of the night camera's still of the place) | The picture itself; the hints say where its parts are |
 | 🧠 Decode the note | Turn a cipher wheel until the victim's shifted-letter note reads | The note is signed with the victim's name |
 | 🗂️ Order the evening | Tap four torn diary entries in the order they happened | Their times (24-hour clock) |
+| 👁️ Spot the difference | Tap every change (3–4) in a copy of a campus photo | Comparing the two prints; a limited number of misses |
+| 🔎 Find the object | Tap the victim's lost object (keycard, key, phone, glasses, USB stick) among five things | The note on the back of the photo names it |
+
+The last two (`minigames_extra.py`) have five picture variants each (Atrium, Library, Main Deck, Canteen,
+Garage, Auditorium). A place that has its own picture always shows it; any other place shows a photo the
+victim took somewhere else that evening, and the story says so.
 
 - **Checked in Python, never on the phone.** The phone only reports what the player did (digits, rubbed cells,
   swaps, wheel setting, the order tapped). `minigames.verify` checks it against data the phone never gets (the
@@ -211,7 +228,8 @@ the case's own words (see *Mini-games that fit the case* below).
   screen with messages, or a photo print of the campus (`assets/minigames/scratchcards/`) with a caption.
 - Every puzzle is built from the case seed and the story, so it works for case #001 and AI-written cases, and
   every player in a room gets the same puzzle for the same place. Demo bots skip the puzzles and wait until every
-  human has moved, so they never snatch a place from someone who is solving it.
+  human has moved, so they never snatch a place from someone who is solving it; then they move one by one,
+  a few seconds apart, like people would.
 
 ## 4. Run it locally
 
@@ -341,14 +359,15 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_rules.py` | 141 | Every rule and every rejected action: wrong phase, wrong player, acting twice, voting for yourself, ties, timers, early end, host handover, the pause when players drop out, planting rules, removing players, names that only look like another one. Rejected calls must leave the game unchanged. |
 | `tests/test_ai_cases.py` | 131 | AI stories: reading the answer, the checks, the repair round, slips the code repairs, busy models, the story on every screen. |
 | `tests/test_minigames.py` | 125 | The puzzles: solvable from the story (the lock from its note alone, with a new code every game), the phone never gets the answer, wrong/forged/duplicate proofs fail, `search` needs a valid proof and awards each clue once, hints and feedback, bots. |
-| `tests/test_case_minigames.py` | 70 | Mini-games that fit the case: five different games for the five places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
+| `tests/test_case_minigames.py` | 72 | Mini-games that fit the case: five different games for the five places, case #001's own words and the AI's (checked, with fallback), the pictures, the diary order, rubbish from a phone never crashes a check. |
 | `tests/test_rounds_and_map.py` | 52 | Rounds, locked places and the campus map: every pin in its building, pins far enough apart to tap, no car park. |
 | `tests/test_nova.py` | 46 | Accusation and endings, demo suspects, the HTML building blocks (escaping, the murderer stamp on the own file). |
 | `tests/test_balanced_ai_cases.py` | 38 | AI cases: medium difficulty, the solution file, the test reading, the host's choice, the AI's status. |
 | `tests/test_case.py` | 21 | Case generator and validator, including 600 random cases that must all be solvable and fair. |
 | `tests/test_views.py` | 23 | Who sees what: no token, secret, murderer or private clue in the public view before the result; each phone only sees its own card; the case file shows only public facts. |
 | `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
-| `tests/test_hot_seat.py` | 19 | The hot seat: allowed and refused picks and ratings, ties, the clock, the switch in `start`, only counts in the views, demo bots. |
+| `tests/test_hot_seat.py` | 21 | The hot seat: allowed and refused picks and ratings, ties, the clock (and that it waits for a player reading new evidence), the switch in `start`, only counts in the views, demo bots. |
+| `tests/test_extra_minigames.py` | 29 | Spot the difference and Find the object: every variant solvable, wrong or forged taps refused, rubbish never crashes, a place shows its own picture, the Canteen and the Garage. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
 | `tests/test_app_smoke.py` | 39 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
@@ -356,7 +375,7 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
 | `tests/test_playtest_fixes.py` | 9 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 786 tests.
+All together: 819 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -369,7 +388,8 @@ app.py         screens (Streamlit): board, phone, join form; only shows data and
    │
    ├── logic.py      all game rules as pure functions: game in → new game out, or Rejected
    │      ├── generator.py   builds a random case from the texts (balance.py tunes AI cases)
-   │      ├── minigames.py   the evidence mini-games and their checks (exhibits.py draws the pictures)
+   │      ├── minigames.py   the evidence mini-games and their checks (exhibits.py draws the pictures;
+   │      │                  minigames_extra.py adds Spot the difference and Find the object)
    │      └── content.py     all texts of case #001: roles, locations, clue templates, mini-games
    │
    ├── ai.py         asks an AI (OpenRouter) for a new story, in a background thread
@@ -379,13 +399,14 @@ app.py         screens (Streamlit): board, phone, join form; only shows data and
 
 | File | Lines | Responsibility |
 |---|---|---|
-| `logic.py` | ~1550 | Rules, phases, timers, the pause, the hot seat, demo bots and stand-ins, results, the public and private views, case and story validator |
-| `app.py` | ~1400 | All screens and the polling loop |
-| `ui.py` | ~880 | HTML building blocks: map, cards, board, hot seat, result |
-| `ai.py` | ~660 | The AI request, reading and repairing the answer, the test reading |
-| `minigames.py` | ~500 | The five mini-games: what the phone gets, the checks, hints, the case's words |
+| `logic.py` | ~1620 | Rules, phases, timers, the pause, the hot seat, demo bots and stand-ins, results, the public and private views, case and story validator |
+| `app.py` | ~1530 | All screens and the polling loop |
+| `ui.py` | ~960 | HTML building blocks: map, cards, board, hot seat, result |
+| `ai.py` | ~730 | The AI request, reading and repairing the answer, the test reading |
+| `minigames.py` | ~570 | The first five mini-games: what the phone gets, the checks, hints, the case's words |
+| `minigames_extra.py` | ~370 | Spot the difference and Find the object: pictures, checks, hints |
 | `minigame_ui.py` | ~490 | The mini-games on the phone (one custom component) |
-| `content.py` | ~330 | Case #001: story texts, the campus map, clue templates, the mini-games' words |
+| `content.py` | ~340 | Case #001: story texts, the campus map, clue templates, the mini-games' words |
 | `balance.py` | ~320 | Medium difficulty for AI cases and the solution file |
 | `db.py` | ~260 | Rooms, transactions, heartbeats, room and AI limits |
 | `generator.py` | ~210 | Turns a seed into a complete case |
@@ -453,6 +474,9 @@ More scenarios, each with the test that proves it, are in [`docs/WHAT_HAPPENS_IF
 - **The link is the key:** whoever has a player's link (screenshot, browser history) can see that card. The seat is
   remembered in the browser that joined (its local storage); coming back on another device is not possible without the link.
 - **2-second delay:** updates appear with up to 2 seconds of delay, and every open screen causes a small amount of server work.
+- **A far-away database is slow:** every action is a few round trips to PostgreSQL. With a free database in
+  another region than the app (Streamlit Community Cloud runs in the US) a tap can take a second or more; a
+  database in the same region as the app would make it faster.
 - **Phones that sleep:** the page keeps the screen on where the browser allows it (not on iOS before 16.4). A phone
   that goes dark anyway gets a stand-in after 15 seconds, which may make that player's move before they are back.
 - **Fixed size:** every case has 6 roles and 5 locations, so the game supports at most 6 players. Without the AI,
@@ -481,12 +505,13 @@ content.py              story texts of case #001 and the clue templates
 ai.py                   asks an AI (via OpenRouter) for a new story
 db.py                   storage: SQLite or PostgreSQL
 minigames.py            evidence mini-games: puzzles, hints and the Python-side check
+minigames_extra.py      the two photo games: Spot the difference and Find the object
 minigame_ui.py          the mini-games on the phone (HTML fragments and one custom component)
 exhibits.py             the mini-games' pictures: camera stills and documents, drawn as SVG
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (786 tests); tests/e2e/ the browser check
+tests/                  pytest suite (819 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)
