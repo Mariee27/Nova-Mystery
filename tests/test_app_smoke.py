@@ -213,6 +213,35 @@ class Browser:
         return "\n".join(self.st.shown)
 
 
+OTHERS = ["Sofia", "Tiago", "Ines", "Rui", "Marta"]
+
+
+def host_room(others=4):
+    """A room with you as host ("Detective") plus `others` players whose phones are open
+    (each sent a sign of life just now). Returns your phone: a browser tab on your seat."""
+    import os
+    now = time.time()
+    token = logic.new_token()
+
+    def seat_everybody(g):
+        g = logic.join(g, "Detective", token, now)
+        for i in range(others):
+            g = logic.join(g, OTHERS[i], f"other-{i + 2}", now)
+        return g
+
+    conn = db.connect(os.environ["MURDER_DB"])
+    try:
+        code = db.create_room(conn, now, minigames=True)
+        game = db.apply(conn, code, seat_everybody)
+        for player in game["players"]:
+            db.heartbeat(conn, code, player["pid"], now)
+    finally:
+        conn.close()
+    phone = Browser(room=code, t=token)
+    phone.run()
+    return phone
+
+
 @pytest.fixture
 def game_db(tmp_path, monkeypatch):
     path = tmp_path / "smoke.db"
@@ -321,22 +350,13 @@ def test_unknown_room_and_unknown_token(game_db):
     assert "not a player" in stranger.run()
 
 
-def test_play_a_demo_seats_you_with_four_demo_suspects(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
-    code, token = phone.st.query_params["room"], phone.st.query_params.get("t")
-    assert token, "the demo gave no seat"
-    conn = db.connect(game_db)
-    try:
-        game = db.load(conn, code)
-        assert len(game["players"]) == 5
-        assert sum(1 for p in game["players"] if p.get("bot")) == 4
-        assert game["host"] == 1 and not game["players"][0].get("bot")
-        assert "Board for the projector" in phone.run()     # the host is told where the board is
-        phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
-        assert db.load(conn, code)["phase"] == "REVEAL"      # bots count as online
-    finally:
-        conn.close()
+def test_the_home_page_offers_no_demo_any_more(game_db):
+    home = Browser()
+    home.run()
+    assert "Create room" in home.st.labels and not any("demo" in label.lower() for label in home.st.labels)
+    phone = Browser(demo="1")                              # an old presentation link
+    phone.run()
+    assert "t" not in phone.st.query_params and "room" not in phone.st.query_params
 
 
 def test_home_page_names_the_real_number_of_rounds(game_db):
@@ -345,27 +365,16 @@ def test_home_page_names_the_real_number_of_rounds(game_db):
     assert logic.max_minutes() == 20       # 30 s card + 3 rounds of 5 min + 3 min discussion + 1 min vote
 
 
-def test_host_lobby_folds_away_add_demo_suspect_once_there_are_enough_players(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
-    code = phone.st.query_params["room"]
+def test_host_lobby_has_no_demo_suspects_only_remove_a_player(game_db):
+    phone = host_room()
     page = phone.run()
-    assert "Add or remove players (5 of 6)" in page
+    assert "Remove a player (5 of 6)" in page
+    assert "demo" not in page.lower()
     assert "Keep this page open" not in page             # the host starts the game, so no hint
-    page = phone.run(press=["Add demo suspect"])
-    conn = db.connect(game_db)
-    try:
-        assert len(db.load(conn, code)["players"]) == 6
-    finally:
-        conn.close()
-    page = phone.run()
-    assert "Remove a player (6 of 6)" in page
-    assert "Add or remove" not in page
 
 
-def test_board_shows_the_evidence_board_and_the_phone_the_move_made(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+def test_board_and_phone_show_the_evidence_wall_and_the_phone_the_move_made(game_db):
+    phone = host_room()
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     phone.run(press=[HOST_SKIP])                     # on to INVESTIGATION
@@ -376,28 +385,15 @@ def test_board_shows_the_evidence_board_and_the_phone_the_move_made(game_db):
         conn.close()
     board = Browser(room=code, view="board")
     page = board.run()
-    assert 'class="ebs"' in page and "Exhibit 1" in page       # the evidence board, newest first
+    assert 'class="cork"' in page and "Exhibit 1" in page      # the evidence wall, during the round
     assert 'class="plan2 board"' in page and "Just now" in page
     phone_page = phone.run()
     assert "Access granted" in phone_page and "New evidence discovered" in phone_page   # the solved exhibit
     assert place in phone_page
     assert "Move made." in phone.run(press=["Continue ▸"])     # then the move, with who is still choosing
-    assert 'class="ebs"' not in phone_page
-def test_demo_link_starts_a_demo_without_the_intro(game_db):
-    home = Browser()
-    assert 'class="intro"' in home.run()                 # a normal first visit plays the intro
-    phone = Browser(demo="1")
-    page = phone.run()
-    assert 'class="intro"' not in page                   # ?demo=1 skips it completely
-    assert phone.st.query_params.get("t") and "demo" not in phone.st.query_params
-    assert phone.st.session_state["intro_seen"] is True
-    phone.st.query_params.clear()
-    assert 'class="intro"' not in phone.run()            # not even when you go back home
-
-
+    assert 'class="cork"' in phone.run() and 'id="evidence-log">Evidence wall' in phone.run()   # the same wall on the phone
 def test_board_shows_the_big_timer_and_phones_the_thin_bar(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"])
     board = Browser(room=code, view="board")
@@ -406,8 +402,7 @@ def test_board_shows_the_big_timer_and_phones_the_thin_bar(game_db):
     assert 'class="timer' in page and 'class="bigtimer' not in page
 def test_phone_shows_the_most_important_thing_first(game_db):
     """Mobile first: the phone puts the current task on top; the board keeps the big tiles."""
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     code = phone.st.query_params["room"]
     board = Browser(room=code, view="board")
     conn = db.connect(game_db)
@@ -415,14 +410,14 @@ def test_phone_shows_the_most_important_thing_first(game_db):
         phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
         assert db.load(conn, code)["phase"] == "REVEAL"
         page = phone.run()
-        assert page.index("Your card") < page.index('class="slist"') < page.index("Evidence &amp; statements")
+        assert page.index("Your card") < page.index('class="slist"') < page.index("Evidence wall")
         assert 'class="suspects"' not in page                   # no big tiles on the phone
         assert 'class="suspects"' in board.run()                # the board keeps them
 
         phone.run(press=[HOST_SKIP])
         assert db.load(conn, code)["phase"] == "INVESTIGATION"
         page = phone.run()
-        assert page.index("Your move.") < page.index("Your card") < page.index("Evidence &amp; statements")
+        assert page.index("Your move.") < page.index("Your card") < page.index("Evidence wall")
 
         end_investigation(phone, conn, code)                  # all rounds
         phone.run(press=[HOST_SKIP])
@@ -434,8 +429,7 @@ def test_phone_shows_the_most_important_thing_first(game_db):
 
 
 def test_reveal_shows_a_sealed_envelope_that_stays_open_during_the_session(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     conn = db.connect(game_db)
@@ -489,8 +483,7 @@ def test_only_the_murderer_sees_the_murderer_stamp_and_the_board_never(game_db):
 
 
 def test_the_phone_guides_through_one_move_and_explains_mistakes(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     phone.run(press=[HOST_SKIP])                     # on to INVESTIGATION
@@ -536,8 +529,7 @@ def test_the_stand_in_keeps_one_components_object_like_streamlit():
 
 
 def test_interrogations_are_out_loud_and_an_old_question_link_goes_back_to_your_move(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     phone.run(press=[HOST_SKIP])                     # on to INVESTIGATION
@@ -578,42 +570,20 @@ def host_of_a_room():
 
 
 def test_the_ai_is_only_asked_when_the_host_picks_an_ai_case(game_db, monkeypatch):
-    """Creating rooms and demos never uses the AI quota; picking "A new case written by the AI" does."""
+    """Creating rooms never uses the AI quota; picking "A new case written by the AI" does."""
     monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test-never-used")
     asked = []
     monkeypatch.setattr(ai, "write_story", lambda *args, **kwargs: asked.append(args) or {})
-    demo = Browser()
-    demo.run(press=["Play a demo"])
     code, phone = host_of_a_room()
     conn = db.connect(game_db)
     try:
         assert db.load(conn, code).get("ai_case") is None
-        assert db.load(conn, demo.st.query_params["room"]).get("ai_case") is None
         page = phone.run()
         assert "A new case written by the AI" in page                    # offered, not started
         phone.run(**{"Which case?": "ai"})                               # picked: now it writes
         assert db.load(conn, code)["ai_case"]["status"] in ("writing", "failed", "ready")
     finally:
         conn.close()
-
-
-def test_a_demo_always_plays_the_same_case_and_offers_no_choice(game_db, monkeypatch):
-    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-test-never-used")
-    murderers = set()
-    conn = db.connect(game_db)
-    try:
-        for _ in range(3):
-            phone = Browser()
-            phone.run(press=["Play a demo"])
-            page = phone.run()
-            assert "Which case?" not in page and "the same culprit every time" in page
-            phone.run(press=["Start game"])
-            game = db.load(conn, phone.st.query_params["room"])
-            assert game["case"]["seed"] == logic.DEMO_SEED and game["story"]["source"] == "fixed"
-            murderers.add(game["case"]["murderer"])
-    finally:
-        conn.close()
-    assert len(murderers) == 1
 
 
 def test_when_the_ai_limit_is_reached_the_host_is_told_and_can_play_case_001(game_db, monkeypatch):
@@ -711,8 +681,7 @@ def test_after_joining_the_phone_shows_the_waiting_room(game_db):
     page = ana.run()                                         # Ana sees Ben arrive
     assert "Ben" in page and f"2 of {logic.MIN_PLAYERS}" in page
 def test_a_phone_that_reloads_late_in_the_reveal_skips_the_intro(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     code, token = phone.st.query_params["room"], phone.st.query_params["t"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     early = Browser(room=code, t=token).run()                    # a fresh session right at the start
@@ -728,8 +697,7 @@ def test_a_phone_that_reloads_late_in_the_reveal_skips_the_intro(game_db):
 
 
 def test_a_tap_on_a_move_link_shows_the_step_without_a_reload(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     code, token = phone.st.query_params["room"], phone.st.query_params["t"]
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     phone.run(press=[HOST_SKIP])                       # REVEAL → round 1: "Your move."
@@ -869,8 +837,7 @@ def make_lobby_for_ai():
 def test_a_player_who_lost_the_tab_comes_back_to_the_seat(game_db):
     """The phone remembers its seat (SEAT_JS, localStorage). Scanning the room's QR code again
     after the start opens that seat instead of "already started"."""
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     code, token = phone.st.query_params["room"], token_of_phone(phone)
     assert ("nova_seat", "nova-seat", {"room": code, "token": token}) in phone.st.mounted
     phone.run(press=["Start game"])
@@ -880,8 +847,7 @@ def test_a_player_who_lost_the_tab_comes_back_to_the_seat(game_db):
 
 
 def test_a_stored_token_of_another_room_gets_no_seat(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"])
     stranger = Browser(room=code)
@@ -890,31 +856,30 @@ def test_a_stored_token_of_another_room_gets_no_seat(game_db):
     assert "already started" in page
 
 
-def test_the_board_shows_a_stand_in(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+def test_the_board_and_the_phones_show_an_away_player_and_the_game_goes_on(game_db):
+    phone = host_room()
     code = phone.st.query_params["room"]
     phone.run(press=["Start game"])
+    phone.run(press=[HOST_SKIP])                                   # on to round 1
     conn = db.connect(game_db)
-    now = time.time()
-    # A second human whose phone went dark 30 seconds ago.
-    game = db.load(conn, code)
-    game["players"].append({"pid": 99, "name": "Gone", "token": "gone-token", "joined_at": now})
-    game["case"]["characters"].append(dict(game["case"]["characters"][0], pid=99))
-    game["phase"] = "INVESTIGATION"
-    conn.execute("UPDATE rooms SET state = ? WHERE code = ?", (db._dump(game), code))
-    db.forget_snapshot(code)
-    db.heartbeat(conn, code, 99, now - 30)
-    page = Browser(room=code, view="board").run()
-    assert "Stand-in plays" in page                 # the board's detectives list
-    assert 99 in logic.stand_in_ids(db.load(conn, code))
+    try:
+        db.heartbeat(conn, code, 3, time.time() - 30)              # player 3's phone went dark
+        db.forget_snapshot(code)
+        page = Browser(room=code, view="board").run()
+        assert 'dt-row away' in page and "Away" in page            # floats, dimmed, on the board
+        assert "Stand-in" not in page and "stand-in" not in page
+        phone_page = phone.run()
+        assert 'srow away' in phone_page                           # and on the phones
+        game = db.load(conn, code)
+        assert game["phase"] == "INVESTIGATION" and "stand_ins" not in game
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------- the case file on the phones
 
 def test_the_case_file_is_on_the_phone_from_the_reveal_to_the_vote(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     code = phone.st.query_params["room"]
     lobby = phone.run()
     assert "Case file:" not in lobby                           # the case is still sealed
@@ -996,21 +961,9 @@ def test_different_choices_are_different_actions():
     assert calls == ["The Dean", "The Chef"]
 
 
-def test_adding_demo_suspects_quickly_adds_each_one(game_db):
-    code, phone = host_of_a_room()
-    phone.run(press=["Add demo suspect"])
-    phone.run(press=["Add demo suspect"])
-    conn = db.connect(game_db)
-    try:
-        assert len(db.load(conn, code)["players"]) == 3   # the host and two demo suspects
-    finally:
-        conn.close()
-
-
 def test_a_double_tap_on_start_starts_one_game(game_db):
-    code, phone = host_of_a_room()
-    for _ in range(3):
-        phone.run(press=["Add demo suspect"])
+    phone = host_room(others=3)
+    code = phone.st.query_params["room"]
     phone.run(press=["Start game"])
     conn = db.connect(game_db)
     try:
@@ -1064,8 +1017,7 @@ def test_with_a_board_the_phones_watch_the_suspects_first_then_open_the_file(gam
 
 
 def test_without_a_board_the_file_opens_at_once(game_db):
-    phone = Browser()
-    phone.run(press=["Play a demo"])
+    phone = host_room()
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     page = phone.run()
     assert 'class="envelope"' in page and "Look at the board" not in page

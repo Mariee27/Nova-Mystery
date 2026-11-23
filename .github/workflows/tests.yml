@@ -41,7 +41,7 @@ jobs:
         run: uvx pip-audit==2.9.0 -r requirements.txt --no-deps --disable-pip
 
   browser:
-    # A demo game in a real browser: layout, taps and errors the pytest stand-in cannot see.
+    # A game with four phones in a real browser: layout, taps and errors the pytest stand-in cannot see.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +65,7 @@ jobs:
           uv run streamlit run app.py --server.headless true --server.port 8501 > streamlit.log 2>&1 &
           for i in $(seq 1 60); do curl -sf http://localhost:8501/_stcore/health && break; sleep 1; done
 
-      - name: Play a demo game in the browser
+      - name: Play a game with four phones in the browser
         run: node tests/e2e/browser_check.cjs http://localhost:8501
 
       - name: Show the app's log

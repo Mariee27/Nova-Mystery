@@ -330,29 +330,3 @@ def test_private_view_lists_the_puzzles_only_during_the_investigation():
     assert "puzzles" not in logic.public_view(game, online_all(game))
 
 
-# ---------------------------------------------------------------- demo bots
-
-def bot_game():
-    game = logic.new_game("ABCD", 0, minigames=True)
-    game = logic.join(game, "Human", "tok-human", 0)
-    for _ in range(4):
-        game = logic.add_bot(game, "tok-human", 0)
-    online = {p["pid"] for p in game["players"]}
-    game = logic.start(game, "tok-human", online, 0, seed=logic.DEMO_SEED)
-    return logic.end_phase(game, "tok-human", online, 0)
-
-
-def test_bots_wait_while_a_human_is_solving():
-    game = bot_game()
-    later = logic.bot_moves(game, 600)
-    assert later["acted"] == [] and later["log"] == game["log"]
-    loc = open_places(game)[0]
-    game = logic.search(game, "tok-human", loc, 1, proof=minigames.solve(game, loc))
-    bots = [p["pid"] for p in game["players"] if p.get("bot")]
-    after = logic.bot_moves(game, 600)                            # everybody in person has moved ...
-    assert not any(pid in after["acted"] for pid in bots)
-    after = logic.bot_moves(after, 600 + logic.BOT_AFTER_HUMANS)  # ... then the first bot moves
-    assert sum(pid in after["acted"] for pid in bots) == 1
-    for t in range(600, 660):
-        after = logic.bot_moves(after, t)
-    assert all(pid in after["acted"] for pid in bots)            # one after another, without proofs

@@ -31,7 +31,7 @@ import ui
 DB_PATH = os.environ.get("MURDER_DB", "data/murder.db")
 POLL_SECONDS = 2   # every open screen asks for the current state this often
 HEARTBEAT_SECONDS = 5    # ... and tells the database it is online this often (see sync);
-                         # well below logic.STAND_IN_AFTER, so a phone that is there never gets a stand-in
+                         # well below logic.OFFLINE_AFTER, so a phone that is there never counts as away
 
 PHASE_TITLES = {
     "LOBBY": "Lobby – the suspects arrive",
@@ -102,16 +102,15 @@ def sync(code, token=None):
                 st.session_state[beat] = now
             seen = {**seen, me["pid"]: now}
 
-        def step(g):
-            # Who dropped out gets a stand-in (and who is back plays again), then the timers,
-            # then whatever the demo suspects and stand-ins have to do.
-            g = logic.update_stand_ins(g, seen, now)
-            return logic.bot_moves(logic.tick(g, logic.with_bots(g, logic.online_ids(seen, now)), now), now)
+        online = logic.online_ids(seen, now)
 
-        # Only write when the stand-ins, the timers or the bots really change something.
+        def step(g):
+            return logic.tick(g, online, now)
+
+        # Only write when the timers really change something.
         if step(game) is not game:
             game = db.apply(conn, code, step)
-        return views(game, logic.with_bots(game, logic.online_ids(seen, now)), token)
+        return views(game, online, token)
 
 
 def views(game, online, token=None):
@@ -131,7 +130,7 @@ def views(game, online, token=None):
     return public, me
 
 
-def action_button(label, code, action, repeatable=False, then=None, **button_args):
+def action_button(label, code, action, then=None, **button_args):
     """A button that saves action(game, online, now) -> game when it is tapped.
 
     The action runs in the button's callback, before the page is drawn: one trip from the phone
@@ -140,14 +139,13 @@ def action_button(label, code, action, repeatable=False, then=None, **button_arg
     action uses (the chosen clue, suspect, place) are the ones on the screen that was tapped.
 
     A double tap (or an impatient second tap while the first one is still on its way) sends
-    the same action twice. The second one is ignored (see once). repeatable=True: tapping
-    again is meant (add another demo suspect). then(saved): runs after the action, with
-    True if it was saved. Rejections are shown to the player (see attempt)."""
-    return st.button(label, on_click=run_action, args=(code, action, repeatable, then), **button_args)
+    the same action twice. The second one is ignored (see once). then(saved): runs after the
+    action, with True if it was saved. Rejections are shown to the player (see attempt)."""
+    return st.button(label, on_click=run_action, args=(code, action, then), **button_args)
 
 
-def run_action(code, action, repeatable=False, then=None):
-    saved = attempt(code, action if repeatable else once(code, action))
+def run_action(code, action, then=None):
+    saved = attempt(code, once(code, action))
     if then is not None:
         then(saved)
 
@@ -191,8 +189,7 @@ def attempt(code, action):
     try:
         with open_db() as conn:
             presence = db.presence(conn, code)
-            db.apply(conn, code, lambda g: action(
-                g, logic.with_bots(g, logic.online_ids(presence, now)), now))
+            db.apply(conn, code, lambda g: action(g, logic.online_ids(presence, now), now))
     except logic.Rejected as problem:
         st.session_state["flash"] = str(problem)
         return False
@@ -375,19 +372,6 @@ def show_phase(public, big_timer=False):
     else:
         show(banner)
         show(ui.timer(left, logic.DURATIONS[phase]))
-    pause_notice(public)
-
-
-def pause_notice(public):
-    """While too few players are online the game is paused: say so, and how long it waits."""
-    since = public.get("paused_since")
-    if since is None:
-        return
-    online = sum(1 for p in public["players"] if p["online"])
-    wait = max(0, int(logic.PAUSE_LIMIT - (time.time() - since)))
-    st.warning(f"⏸ Paused – only {online} of {len(public['players'])} players are online, the game needs "
-               f"{logic.MIN_ONLINE}. Whoever dropped out: open your game tab again. The clock stands still; "
-               f"the game ends in {wait // 60}:{wait % 60:02d} if not enough players come back.")
 
 
 STAY_ONLINE = ("Keep this tab open and your screen on during the game. If you drop out, open this "
@@ -495,13 +479,10 @@ def show_players(public):
     show(ui.suspects(public["players"], public["phase"], story=public["story"]))
 
 
-def show_log(public):
-    if not public["log"]:
-        st.caption("Nothing has been found yet.")
-        return
-    # Oldest first: a new entry is added at the bottom and only that card animates in.
-    for entry in public["log"]:
-        show(ui.log_entry(entry, lambda pid: name_of(public, pid), story=public["story"]))
+def show_wall(public):
+    """The evidence wall: every exhibit and statement pinned to the cork board, newest first.
+    The same wall on the board and on every phone, from the first round to the result."""
+    show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid), story=public["story"]))
 
 
 def show_result(public):
@@ -529,7 +510,7 @@ def show_result(public):
                            view=public["map"]))
     st.markdown("### The evidence, re-examined")
     st.caption("Now that the case is closed, every exhibit shows how reliable it really was.")
-    show_log(public)
+    show_wall(public)
 
 
 # ---------------------------------------------------------------- home and join
@@ -545,11 +526,6 @@ def page_top():
 
 
 def home_screen():
-    # Presentation link ?demo=1: go straight into a demo game, without the intro.
-    if st.query_params.get("demo"):
-        del st.query_params["demo"]
-        start_demo()
-        return
     # The opening plays once per browser session. It is pure CSS, works without sound,
     # and is switched off for people who ask their system for reduced motion.
     # It sits in the slot of page_top, which is there on every page and empty after the first
@@ -579,42 +555,12 @@ def home_screen():
             st.query_params["room"] = code
             st.query_params["view"] = "board"
             st.rerun()
-        if st.button("Play a demo", use_container_width=True,
-                     help="Presentation mode: you play together with 4 demo suspects."):
-            start_demo()
         with st.form("goto"):
             code = st.text_input("Room code", max_chars=4, placeholder="ABCD")
             if st.form_submit_button("Join room", use_container_width=True):
                 st.query_params["room"] = code.strip().upper()
                 st.rerun()
         show_rules()
-
-
-DEMO_BOTS = 4   # with you as host: 5 players, enough for every phase
-
-
-def start_demo():
-    """New room, you as host, plus demo suspects. You land on your phone screen in the lobby."""
-    st.session_state["intro_seen"] = True   # a demo never shows the intro, not even later
-    token = logic.new_token()
-    now = time.time()
-    try:
-        def seat_everybody(g):   # you and the demo suspects in one write: every write is a round trip
-            g = logic.join(logic.as_demo(g), "Detective", token, now)
-            for _ in range(DEMO_BOTS):
-                g = logic.add_bot(g, token, now)
-            return g
-
-        with st.spinner("Opening the demo room …"), open_db() as conn:
-            code = db.create_room(conn, now, minigames=True)
-            game = db.apply(conn, code, seat_everybody)
-            db.heartbeat(conn, code, logic.private_view(game, token)["pid"], now)
-    except logic.Rejected as problem:
-        st.error(str(problem))
-        return
-    st.query_params["room"] = code
-    st.query_params["t"] = token
-    st.rerun()
 
 
 def join_screen(code):
@@ -648,7 +594,7 @@ def join_screen(code):
     if public["phase"] != "LOBBY":
         st.warning("This investigation has already started. If you are playing: open this room in the "
                    "browser you joined with, or your own player link, and you are back in your seat "
-                   "(a stand-in plays for you meanwhile). Everybody else can watch on the board.")
+                   "(the game goes on without you meanwhile). Everybody else can watch on the board.")
         if st.button("Open the board"):
             st.query_params["view"] = "board"
             st.rerun()
@@ -737,28 +683,26 @@ def board_live(code):
         st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
     with right:
         st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
-        # The board shows the log as a cork board; phones keep the simple list (show_log).
-        show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid), story=story))
+        show_wall(public)
 
 
 def board_round(code, public):
     """The board during the rounds: header with room, round and timer; the campus plan on
-    the left; on the right who has moved and the evidence board."""
+    the left; on the right who has moved and the evidence wall."""
     story = public["story"]
     if public["hot_seat"] is not None:
         # The break between two rounds: the hot seat gets the whole board (with its own clock).
-        pause_notice(public)
         show(ui.hot_seat_board(public["hot_seat"], public["players"], seconds_left(public), room=code))
         return
     show(ui.board_head(code, public["map"]["round"], public["map"]["rounds"], seconds_left(public)))
-    pause_notice(public)
     st.markdown(f'<div class="kicker">{ui.h(case_kicker(public))}</div>', unsafe_allow_html=True)
     left, right = st.columns([3, 2])
     with left:
         show(ui.campus_map(public["searched"], story=story, view=public["map"], board=True))
     with right:
         show(ui.detectives(public["players"]))
-        show(ui.evidence_board(public["log"], lambda pid: name_of(public, pid), story=story))
+        st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
+        show_wall(public)
 
 
 def board_screen(code):
@@ -839,11 +783,11 @@ def signature(public, me):
     evidence = sum(1 for e in public["log"] if e["kind"] in logic.EVIDENCE_KINDS)
     # Who is in the room, online, has moved or voted: the suspect list shows it (it is drawn
     # with the page, so the page must be redrawn when it changes).
-    players = tuple((p["pid"], p["online"], p["acted"], p["voted"], p.get("stand_in")) for p in public["players"])
+    players = tuple((p["pid"], p["online"], p["acted"], p["voted"]) for p in public["players"])
     # The round and the state of every place: the map's markers depend on them.
     places = (public["map"]["round"],) + tuple(p["state"] for p in public["map"]["places"])
     return (public["phase"], me["acted"], me["voted"], me["is_host"], me["can_plant"],
-            evidence, me["host_note"], me.get("ai_status"), players, places, public.get("paused_since"),
+            evidence, me["host_note"], me.get("ai_status"), players, places,
             hot_seat_signature(public, me), file_wait(public) > 0)
 
 
@@ -872,7 +816,7 @@ def player_suspects(code, my_pid):
         game, seen = db.snapshot(conn, code, time.time(), key=db_target())
         online = logic.online_ids(seen, time.time())
     if game is not None:
-        public = logic.public_view(game, logic.with_bots(game, online))
+        public = logic.public_view(game, online)
         st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
         show(ui.suspect_list(public["players"], public["phase"], my_pid))
 
@@ -882,9 +826,8 @@ def player_log(code):
         game, seen = db.snapshot(conn, code, time.time(), key=db_target())
         online = logic.online_ids(seen, time.time())
     if game is not None:
-        st.markdown('<div class="kicker" id="evidence-log">Evidence &amp; statements</div>',
-                    unsafe_allow_html=True)
-        show_log(views(game, online)[0])
+        st.markdown('<div class="kicker" id="evidence-log">Evidence wall</div>', unsafe_allow_html=True)
+        show_wall(views(game, online)[0])
 
 
 def show_card(me, expanded):
@@ -944,23 +887,9 @@ CASE_CHOICES = {     # what the host of a room can play; the AI is only asked wh
 }
 CASE_HELP = ("Case #001 gets a new culprit, new roles and new clues every game. The AI writes a "
              "brand-new case for this room; that takes one to three minutes.")
-# A demo room ("Play a demo", ?demo=1) always plays case #001 the same way: same culprit, same
-# roles, same clues (logic.DEMO_SEED), so a presentation can be rehearsed. Its host gets no choice.
-
-
-def add_demo_suspect_button(code, token, full):
-    action_button("Add demo suspect", code, lambda g, on, now: logic.add_bot(g, token, now), repeatable=True,
-                  disabled=full, help="A computer player for presentations. It plays by the same rules "
-                                      "and only knows its own card and the public evidence.")
-
-
-def case_choice(code, me, demo):
+def case_choice(code, me):
     """The host picks the case. Returns (choice, waiting): waiting is True while an AI case
-    the host asked for is not ready yet (Start waits for it, or the host switches back).
-    A demo room has no choice: it always plays the fixed demo case."""
-    if demo:
-        st.caption("Demo: case #001, the same culprit every time.")
-        return "demo", False
+    the host asked for is not ready yet (Start waits for it, or the host switches back)."""
     has_ai = ai.settings(setting) is not None
     if not has_ai:
         return "shuffled", False
@@ -997,41 +926,28 @@ def host_controls(code, token, public, me):
         if url:
             st.link_button("📺 Board for the projector", f"{url}/?room={code}&view=board")
             st.caption("Open it on the laptop that is connected to the projector or big screen.")
-        choice, waiting = case_choice(code, me, public.get("demo", False))
+        choice, waiting = case_choice(code, me)
         players = public["players"]
-        full = len(players) >= logic.MAX_PLAYERS
         missing = logic.MIN_PLAYERS - online
         ready = logic.MIN_PLAYERS <= online <= logic.MAX_PLAYERS
         if not ready:
             if missing > 0:
                 st.warning(f"{online} online – the game needs {logic.MIN_PLAYERS} to {logic.MAX_PLAYERS} "
-                           f"players, so {missing} more. Let them join with the room code {code}, "
-                           f"or click “Add demo suspect” to fill up with computer players.")
+                           f"players, so {missing} more. Let them join with the room code {code}.")
             else:
                 st.warning(f"{online} online – at most {logic.MAX_PLAYERS} players can play. "
                            "Remove a player below.")
         hot_seat = st.checkbox("🔥 Hot seat between rounds", value=True,
                                help="After rounds 1 and 2 the room grills one suspect out loud.")
-        demo = choice == "demo"
-        seed = logic.DEMO_SEED if demo else None
-        action_button("Start game", code, lambda g, on, now: logic.start(g, token, on, now, seed=seed, fixed_case=demo,
+        action_button("Start game", code, lambda g, on, now: logic.start(g, token, on, now,
                                                                          use_ai=choice == "ai", hot_seat=hot_seat),
                       type="primary", disabled=not ready or waiting)
-        # "Add demo suspect" is rendered exactly once per run: in plain sight while players
-        # are missing, otherwise folded into the expander (and not at all once the room is full).
-        if missing > 0:
-            add_demo_suspect_button(code, token, full)
         others = [p["pid"] for p in players if p["pid"] != me["pid"]]
-        can_add = missing <= 0 and not full
-        if can_add or others:
-            title = "Add or remove players" if can_add else "Remove a player"
-            with st.expander(f"{title} ({len(players)} of {logic.MAX_PLAYERS})"):
-                if can_add:
-                    add_demo_suspect_button(code, token, full)
-                if others:
-                    victim = st.selectbox("Player", others, key="kick_target",
-                                          format_func=lambda pid: name_of(public, pid))
-                    action_button("Remove from room", code, lambda g, on, now: logic.kick(g, token, victim, now))
+        if others:
+            with st.expander(f"Remove a player ({len(players)} of {logic.MAX_PLAYERS})"):
+                victim = st.selectbox("Player", others, key="kick_target",
+                                      format_func=lambda pid: name_of(public, pid))
+                action_button("Remove from room", code, lambda g, on, now: logic.kick(g, token, victim, now))
     elif public["phase"] in logic.DURATIONS:
         action_button(f"{skip_label(public)} (host)", code, lambda g, on, now: logic.end_phase(g, token, on, now),
                       key="host-skip", use_container_width=True)
