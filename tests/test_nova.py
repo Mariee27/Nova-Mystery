@@ -261,7 +261,7 @@ def test_board_intro_is_over_before_the_reveal_phase_ends():
     assert len(landed) == 6 and landed == sorted(landed)       # one after another
     assert max(landed) <= ui.SUSPECTS_LAST_IN < ui.SUSPECTS_UNTIL   # time to read them all
     assert ui.SUSPECTS_UNTIL < ui.BOARD_INTRO_END < logic.DURATIONS["REVEAL"]
-    assert "introOut .8s ease 35s" in ui.page_style()   # style.css uses the same end time
+    assert "introOut .8s ease 58s" in ui.page_style()   # style.css uses the same end time
 
 
 def test_board_intro_capitalises_a_lowercase_found_place_of_an_ai_case():

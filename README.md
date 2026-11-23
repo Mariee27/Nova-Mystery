@@ -58,7 +58,7 @@ they never came.
 
 | Phase | Time | What happens |
 |---|---|---|
-| Reveal | 40 s | The case intro plays, then everybody reads their card. |
+| Reveal | 60 s | The case intro plays on the board (about 20 s), then everybody reads their card. |
 | Investigation | 3 rounds, each up to 5 min | Each round every player has exactly **one** action in the app: search a place on the **campus map** or share one of their clues. Interrogations happen **out loud**: the players question each other face to face. A round ends early when everybody has moved or has nothing left to search or share. The murderer may additionally plant one fake clue. |
 | Hot seat | after rounds 1 and 2, about 1 min | Everybody picks a suspect (20 s); the one with the most picks is grilled out loud for 45 s while the others tap *believe* or *lie*. Then the next round starts. |
 | Discussion | 3 min | Players question each other in person and argue (lying is allowed). |
@@ -135,7 +135,7 @@ Phases end early when everybody is done, and the host can skip ahead.
   every phone plays the intro of *this* case (six lines written with the story, one every 1.1 s, then the case
   title; about 14 s, slow enough to read) before the private files open. The board plays a longer scene that everybody watches together: police tape and blue
   lights, the victim and where the body was found ("But this is not where Vale died."), then the suspects as
-  file cards (name, role, public dossier line) landing one by one, all within the 40 seconds of "Read your
+  file cards (name, role, public dossier line) landing one by one, all within the 60 seconds of "Read your
   file". Only public facts; who did it stays secret. While the AI is still writing, the lobby says so instead
   of showing an old case file.
 - **Key evidence has to be worked out, not just read.** The object found at the crime scene names no owner
@@ -368,13 +368,13 @@ vulnerabilities, and a game with four phones in a real browser (`tests/e2e/brows
 | `tests/test_hot_seat.py` | 20 | The hot seat: allowed and refused picks and ratings, ties, the clock (and that it waits for a player reading new evidence), the switch in `start`, only counts in the views. |
 | `tests/test_extra_minigames.py` | 29 | Spot the difference and Find the object: every variant solvable, wrong or forged taps refused, rubbish never crashes, a place shows its own picture, the Canteen and the Garage. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
-| `tests/test_app_smoke.py` | 36 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, away players, the evidence wall and a broken database. |
+| `tests/test_app_smoke.py` | 39 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, away players, the evidence wall and a broken database. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
 | `tests/test_away.py` | 10 | Away players: away after 15 s, nobody plays for them, the game never pauses or ends, the round and the vote end early without them, back in their own seat, the host role moves on, no demo suspects. |
-| `tests/test_playtest_fixes.py` | 8 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
+| `tests/test_playtest_fixes.py` | 12 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 791 tests.
+All together: 798 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).

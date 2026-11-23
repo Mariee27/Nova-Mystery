@@ -14,7 +14,7 @@ Rules live in `logic.py`, storage in `db.py`, case building in `generator.py`, t
 ## Constants in `logic`
 ```
 PHASES = ["LOBBY","REVEAL","INVESTIGATION","DISCUSSION","VOTE","RESULT","ABORTED"]
-DURATIONS = {"REVEAL": 30, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
+DURATIONS = {"REVEAL": 60, "INVESTIGATION": 300, "DISCUSSION": 180, "VOTE": 60}
 ROUNDS = 3            # INVESTIGATION has 3 rounds; DURATIONS["INVESTIGATION"] is the length of one round
 LOCKED_PLACES = 2     # locked at the start: the crime scene and one other place
 OFFLINE_AFTER = 15     # seconds; online means now - last_seen <= 15, otherwise the player is away
@@ -151,7 +151,7 @@ Locations are always the locations of the game's story (`story_of(game)["locatio
   more than 2 combining marks in a row are refused; it needs a letter or digit; 1..20 characters. Unique in the
   room by `name_key` (ignoring case, accents, width and Cyrillic/Greek look-alike letters). A 7th player is rejected. Token must not already be used in the room.
 - **kick**: only in LOBBY; only the host; the target must be another player of the room. The player is removed from `players`.
-- **start**: only the host; only in LOBBY; the number of *online* players must be 4..6. Offline lobby players are removed from `players`. Picks the story (see *Stories* below), stores it in `game["story"]` and builds the case with it (seed=None → random seed). Phase becomes REVEAL, `phase_started = now`, `deadline = now + 30`.
+- **start**: only the host; only in LOBBY; the number of *online* players must be 4..6. Offline lobby players are removed from `players`. Picks the story (see *Stories* below), stores it in `game["story"]` and builds the case with it (seed=None → random seed). Phase becomes REVEAL, `phase_started = now`, `deadline = now + 60` (about 20 s to watch the suspects on the board, then 40 s to read the file).
 - **start** with `hot_seat=True` stores `game["hot_seat"]` (see *Hot seat* below). The app shows the host a checkbox for it, on by default.
 - **end_phase**: moves to the next step immediately (same as a timer running out): the next round, the hot seat break, or the next phase.
 - **tick** (in this order):
