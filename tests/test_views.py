@@ -287,3 +287,10 @@ def test_the_case_file_escapes_ai_texts():
     html_text = ui.case_file(story)
     assert "<b>Eve</b>" not in html_text and "&lt;b&gt;Eve&lt;/b&gt;" in html_text
     assert "A &amp; B" in html_text and "The &lt;i&gt;boathouse" in html_text
+
+
+def test_the_case_file_has_its_own_style_not_the_start_pages_paper_file():
+    # .casefile is the light paper file on the start page and in the lobby; the dark case file
+    # on the phones once borrowed that name, and its dark background hid the start page's text.
+    assert 'class="casefile' in ui.teaser() and 'class="casefile' in ui.sealed_file()
+    assert 'class="casefile' not in ui.case_file(logic.public_story(content.DEFAULT_STORY))

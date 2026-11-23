@@ -679,7 +679,7 @@ def case_file(story=None):
     ]
     facts = "".join(f'<div class="cf-row"><span class="lbl">{label}</span><span class="cf-v">{value}</span></div>'
                     for label, value in rows)
-    return (f'<div class="casefile"><span class="lbl">Case #{h(story["case_number"])}</span>'
+    return (f'<div class="casesheet"><span class="lbl">Case #{h(story["case_number"])}</span>'
             f'<div class="role">{h(story["case_title"])}</div>{facts}'
             f'<div class="cf-brief">{h(story["briefing"])}</div></div>')
 
