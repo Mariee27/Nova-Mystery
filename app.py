@@ -319,7 +319,9 @@ def write_ai_case(code, settings):
                 break
             save_ai_change(code, lambda g: logic.ai_case_retrying(g, now))
         try:
-            story = ai.write_story(settings["key"], settings["model"])
+            # The second try asks a different model: the first one tends to repeat its slip.
+            model = settings["model"] if attempt == 1 else ai.retry_model(settings["model"])
+            story = ai.write_story(settings["key"], model)
         except ai.AIError as problem:
             reason, problems = str(problem), []
             if not problem.retry:

@@ -34,7 +34,11 @@ BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free"
 FALLBACK_MODELS = ["google/gemma-4-31b-it:free", "nvidia/nemotron-3-ultra-550b-a55b:free"]
 TIMEOUT_SECONDS = 60        # per request; the lobby usually takes longer than this anyway
-MAX_REQUESTS = 2            # the first try, plus one round to repair what the checks found
+MAX_REQUESTS = 3            # the first try, plus two rounds to repair what the checks found
+# A case that still fails is written once more (app.write_ai_case) by a bigger model: the fast
+# one often keeps the same slip (five suspects again), the bigger one rarely makes it.
+RETRY_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+SUSPECTS_ASKED = 7          # one spare: the game keeps the first 6 good ones
 LOG = logging.getLogger("nova.ai")
 REVISIONS = 1               # after a failed test reading, the author may revise the case once
 REVIEW_SEED = 2027          # the sample case a test player reads (any fixed seed will do)
@@ -242,7 +246,8 @@ def write_story(api_key, model=DEFAULT_MODEL, client=None):
             break
         messages += [
             {"role": "assistant", "content": text or ""},
-            {"role": "user", "content": "Your answer has these problems:\n- " + "\n- ".join(problems[:10])
+            {"role": "user", "content": "Your answer has these problems:\n- "
+             + "\n- ".join(_count_hints(text or "") + problems[:10])
              + "\nFix them and answer again with the complete JSON object only."},
         ]
     if story is None:
@@ -273,6 +278,27 @@ def write_story(api_key, model=DEFAULT_MODEL, client=None):
         if story is None or problems:
             raise AIError("the revised AI case broke the rules")
     return story
+
+
+def retry_model(model):
+    """The model for the second try of a case: a different one than the first try."""
+    return RETRY_MODEL if model != RETRY_MODEL else DEFAULT_MODEL
+
+
+def _count_hints(text):
+    """Concrete counts for the repair round. "There must be exactly 6 roles." alone did not
+    help a free model (it sent five suspects again); "your list has 5, add 2" does."""
+    try:
+        data = json.loads(text[text.find("{"):text.rfind("}") + 1])
+        suspects = data.get("suspects")
+    except (ValueError, TypeError, AttributeError):
+        return []
+    if isinstance(suspects, list) and len(suspects) < SUSPECTS_ASKED:
+        missing = SUSPECTS_ASKED - len(suspects)
+        return [f'Your "suspects" list has only {len(suspects)} entries. It must have {SUSPECTS_ASKED} '
+                f"different suspects, each with role, dossier, intro, trace, secret and rumor. Keep the "
+                f"{len(suspects)} you wrote and add {missing} new suspect{'s' if missing > 1 else ''}."]
+    return []
 
 
 def _read(text, places):

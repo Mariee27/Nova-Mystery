@@ -456,19 +456,37 @@ def test_a_story_with_a_slip_gets_one_repair_round():
     assert len(client.author_calls) == 2
     repair = client.author_calls[1]["messages"][-1]["content"]
     assert "exactly 6 roles" in repair            # the model is told what to fix
+    n = len(FAKE_ANSWER["suspects"]) - 1
+    assert f"has only {n} entries" in repair and f"add {ai.SUSPECTS_ASKED - n} new suspect" in repair   # concretely
 
 
-def test_after_the_repair_round_the_story_is_handed_on_and_refused_by_the_room():
+def test_a_second_repair_round_fixes_a_repeated_slip():
     client = SequenceClient([five_suspects(), five_suspects(), json.dumps(FAKE_ANSWER)])
     story = ai.write_story("fake-key", client=client)
-    assert len(client.calls) == ai.MAX_REQUESTS   # never more than two requests per room
+    assert logic.validate_story(story) == [] and len(client.author_calls) == 3
+
+
+def test_count_hints_ignore_rubbish_and_full_lists():
+    assert ai._count_hints("no json") == [] and ai._count_hints('{"suspects": 5}') == []
+    assert ai._count_hints(json.dumps({"suspects": [{}] * ai.SUSPECTS_ASKED})) == []
+
+
+def test_the_second_try_of_a_case_uses_another_model():
+    assert ai.retry_model(ai.DEFAULT_MODEL) == ai.RETRY_MODEL != ai.DEFAULT_MODEL
+    assert ai.retry_model(ai.RETRY_MODEL) == ai.DEFAULT_MODEL
+
+
+def test_after_the_repair_rounds_the_story_is_handed_on_and_refused_by_the_room():
+    client = SequenceClient([five_suspects()] * ai.MAX_REQUESTS + [json.dumps(FAKE_ANSWER)])
+    story = ai.write_story("fake-key", client=client)
+    assert len(client.calls) == ai.MAX_REQUESTS   # never more than three requests per try
     g = logic.ai_case_ready(logic.ai_case_writing(make_lobby(5), 0), story, 1)
     assert g["ai_case"]["status"] == "failed"
 
 
 def test_unreadable_twice_raises_ai_error():
     with pytest.raises(ai.AIError):
-        ai.write_story("fake-key", client=SequenceClient(["no json", "still no json"]))
+        ai.write_story("fake-key", client=SequenceClient(["no json", "still no json", "never json"]))
 
 
 def test_a_good_first_answer_needs_only_one_request():
