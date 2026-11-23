@@ -566,7 +566,7 @@ def home_screen():
                    "Everybody else joins on their phone.")
         if st.button("Create room", type="primary", use_container_width=True):
             try:
-                with open_db() as conn:
+                with st.spinner("Opening a new room …"), open_db() as conn:
                     code = db.create_room(conn, time.time(), minigames=True)
             except logic.Rejected as problem:
                 st.error(str(problem))
@@ -594,12 +594,16 @@ def start_demo():
     token = logic.new_token()
     now = time.time()
     try:
-        with open_db() as conn:
-            code = db.create_room(conn, now, minigames=True)
-            game = db.apply(conn, code, lambda g: logic.join(logic.as_demo(g), "Detective", token, now))
-            db.heartbeat(conn, code, logic.private_view(game, token)["pid"], now)
+        def seat_everybody(g):   # you and the demo suspects in one write: every write is a round trip
+            g = logic.join(logic.as_demo(g), "Detective", token, now)
             for _ in range(DEMO_BOTS):
-                db.apply(conn, code, lambda g: logic.add_bot(g, token, now))
+                g = logic.add_bot(g, token, now)
+            return g
+
+        with st.spinner("Opening the demo room …"), open_db() as conn:
+            code = db.create_room(conn, now, minigames=True)
+            game = db.apply(conn, code, seat_everybody)
+            db.heartbeat(conn, code, logic.private_view(game, token)["pid"], now)
     except logic.Rejected as problem:
         st.error(str(problem))
         return

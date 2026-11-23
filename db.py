@@ -50,9 +50,9 @@ class _Postgres:
         if sql.startswith("PRAGMA"):
             return self.raw.execute("SELECT 1")
         if sql == "BEGIN IMMEDIATE":
-            self.raw.execute("BEGIN")
             # One writer at a time while readers carry on: the same as SQLite's write lock.
-            return self.raw.execute("LOCK TABLE rooms, ai_requests IN EXCLUSIVE MODE")
+            # Both statements in one round trip to the database (it may be far away).
+            return self.raw.execute("BEGIN; LOCK TABLE rooms, ai_requests IN EXCLUSIVE MODE")
         return self.raw.execute(sql.replace("?", "%s"), params)
 
     def close(self):
