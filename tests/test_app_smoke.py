@@ -73,8 +73,13 @@ class FakeStreamlit(types.ModuleType):
             return True
         return False
 
-    def button(self, label, **kwargs):
-        return (not kwargs.get("disabled")) and self._pressed(label)
+    def button(self, label, on_click=None, args=(), **kwargs):
+        pressed = (not kwargs.get("disabled")) and self._pressed(label)
+        if pressed and on_click is not None:
+            # Like Streamlit: the callback runs first, then the whole page is drawn again.
+            on_click(*args)
+            raise Rerun()
+        return pressed
 
     def form_submit_button(self, label, **kwargs):
         return self._pressed(label)
@@ -872,3 +877,84 @@ def test_the_board_shows_a_stand_in(game_db):
     page = Browser(room=code, view="board").run()
     assert "Stand-in plays" in page                 # the board's detectives list
     assert 99 in logic.stand_in_ids(db.load(conn, code))
+
+
+# ---------------------------------------------------------------- double taps
+
+class Calls(list):
+    """Records what an action did. Its repr stays the same however much it holds (an action is
+    told apart by the values it uses, and the game's actions only use values that never change)."""
+
+    def __repr__(self):
+        return "Calls"
+
+
+def test_a_double_tap_does_the_action_only_once():
+    app = app_functions()
+    once, st = app["once"], app["st"]
+    calls = Calls()          # an object that stays the same, like the game's token and choices
+
+    def end_round(g, on, now, place="Library"):
+        calls.append(now)
+        return {**g, "phase": "DISCUSSION", "deadline": now + 60}
+
+    game = {"phase": "INVESTIGATION", "deadline": 500.0}
+    after = once("ABCD", end_round)(game, set(), 100.0)
+    assert calls == [100.0] and after["phase"] == "DISCUSSION"
+    # The second tap arrives while the screen still shows round 1: the game the server sees is
+    # the same moment again only if the first tap did not change it (nothing saved yet) ...
+    assert once("ABCD", end_round)(game, set(), 100.5) is game
+    assert calls == [100.0]
+    # ... after 2 seconds the same tap counts again (it was meant).
+    once("ABCD", end_round)(game, set(), 102.5)
+    assert len(calls) == 2
+    st.session_state.clear()
+
+
+def test_the_same_button_in_the_next_phase_is_not_a_double_tap():
+    app = app_functions()
+    once = app["once"]
+    calls = Calls()
+
+    def end_phase(g, on, now):
+        calls.append(g["phase"])
+        return g
+
+    once("ABCD", end_phase)({"phase": "INVESTIGATION", "deadline": 500.0}, set(), 100.0)
+    once("ABCD", end_phase)({"phase": "DISCUSSION", "deadline": 560.0}, set(), 100.3)
+    assert calls == ["INVESTIGATION", "DISCUSSION"]   # "End round now", then "End discussion now"
+
+
+def test_different_choices_are_different_actions():
+    app = app_functions()
+    once = app["once"]
+    calls = Calls()
+    game = {"phase": "VOTE", "deadline": 500.0}
+    for suspect in ("The Dean", "The Chef"):              # changed my mind: a new vote counts
+        once("ABCD", lambda g, on, now, s=suspect: calls.append(s) or g)(game, set(), 100.0)
+    assert calls == ["The Dean", "The Chef"]
+
+
+def test_adding_demo_suspects_quickly_adds_each_one(game_db):
+    code, phone = host_of_a_room()
+    phone.run(press=["Add demo suspect"])
+    phone.run(press=["Add demo suspect"])
+    conn = db.connect(game_db)
+    try:
+        assert len(db.load(conn, code)["players"]) == 3   # the host and two demo suspects
+    finally:
+        conn.close()
+
+
+def test_a_double_tap_on_start_starts_one_game(game_db):
+    code, phone = host_of_a_room()
+    for _ in range(3):
+        phone.run(press=["Add demo suspect"])
+    phone.run(press=["Start game"])
+    conn = db.connect(game_db)
+    try:
+        first = db.load(conn, code)
+        phone.run(press=["Start game"])                # the second tap of a double tap
+        assert db.load(conn, code) == first
+    finally:
+        conn.close()
