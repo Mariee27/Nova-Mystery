@@ -230,6 +230,30 @@ hr { border-color: rgba(156,163,175,.15) !important; }
 .pin.photo .shot { display: flex; align-items: center; justify-content: center; height: 6rem; margin-bottom: .55rem;
   font-size: 2.6rem; background: linear-gradient(160deg, #2b3445, #111827); }
 .pin.photo .b { font-family: var(--hand); font-size: 1.2rem; line-height: 1.15; }
+/* The photo is a security-camera still: scanlines, a camera number and a blinking REC. */
+.pin.photo .shot { position: relative; overflow: hidden; }
+.pin.photo .shot::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(rgba(255,255,255,.07) 0 1px, transparent 1px 3px),
+              radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55));
+  animation: camRoll 6s linear infinite; }
+.pin.photo .cam, .pin.photo .rec { position: absolute; top: .3rem; font: 700 .5rem var(--mono); letter-spacing: .12em; color: #c8f7c5; }
+.pin.photo .cam { left: .4rem; }
+.pin.photo .rec { right: .4rem; color: #f87171; }
+.pin.photo .rec::before { content: "● "; animation: recBlink 1.2s steps(1) infinite; }
+@keyframes camRoll { to { background-position: 0 60px, 0 0; } }
+@keyframes recBlink { 50% { opacity: 0; } }
+/* The newest note on the board is typed letter by letter, like a terminal (ui.typed). */
+.typing > span { opacity: 0; animation: typeIn .01s linear var(--d) forwards; }
+.typing .caret { display: inline-block; width: .5em; height: 1em; margin-left: 1px; vertical-align: -.12em;
+  background: currentColor; opacity: 1; animation: caretBlink .8s steps(1) infinite; }
+.pin.new .shot { animation: camGlitch .9s steps(3) .1s; }
+@keyframes typeIn { to { opacity: 1; } }
+@keyframes caretBlink { 50% { opacity: 0; } }
+@keyframes camGlitch { 0% { filter: hue-rotate(90deg) contrast(2); transform: translateX(-3px); }
+  50% { filter: invert(.2) contrast(1.6); transform: translateX(3px); } 100% { filter: none; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .typing > span { opacity: 1; animation: none; } .pin.photo .shot::after, .pin.new .shot { animation: none; }
+}
 /* Witness statement: typed on ruled paper. */
 .pin.typed { background: repeating-linear-gradient(#f3ecdc 0 1.3rem, #d9cfb8 1.3rem calc(1.3rem + 1px)); }
 .pin.typed .b { font-family: var(--mono); font-size: .8rem; line-height: 1.3rem; }

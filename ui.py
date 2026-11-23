@@ -576,15 +576,29 @@ def tilt(entry_id):
     return TILTS[int(entry_id) % len(TILTS)]
 
 
-def pinned_note(entry, name_of, newest=False, story=None):
-    """One log entry as a note pinned to the cork board. name_of(pid) -> display name."""
+TYPE_STEP = 0.028    # seconds per letter when the newest note is typed onto the board
+TYPE_START = 0.5     # the note has landed by then (pinDrop)
+
+
+def typed(text):
+    """The text letter by letter, each letter appearing a moment after the one before
+    (style.css: .typing). Used for the newest note on the board only."""
+    letters = "".join(f'<span style="--d:{TYPE_START + i * TYPE_STEP:.2f}s">{h(ch)}</span>'
+                      for i, ch in enumerate(text))
+    return f'<span class="typing" aria-label="{h(text)}">{letters}<span class="caret"></span></span>'
+
+
+def pinned_note(entry, name_of, newest=False, story=None, typewriter=False):
+    """One log entry as a note pinned to the cork board. name_of(pid) -> display name.
+    typewriter=True (the board): the newest note's text is typed letter by letter."""
     kind = entry["kind"]
-    text = h(entry["text"])
+    text = typed(entry["text"]) if newest and typewriter else h(entry["text"])
     number = h(entry["id"])
-    if kind == "search":       # an exhibit: a polaroid photo of the place
+    if kind == "search":       # an exhibit: a still from a security camera at the place
         icon = h(_story(story)["location_icons"].get(entry.get("location"), ""))
         css = "photo"
-        body = (f'<div class="shot">{icon}</div>'
+        body = (f'<div class="shot"><span class="cam">CAM {int(entry["id"]):02d}</span>'
+                f'<span class="rec">REC</span>{icon}</div>'
                 f'<div class="cap">Exhibit {number} · {h(entry.get("location", ""))}</div>'
                 f'<div class="b">{text}</div>')
         if entry.get("planted"):    # only known once the case is closed (see logic.public_view)
@@ -601,13 +615,14 @@ def pinned_note(entry, name_of, newest=False, story=None):
             f'{_stamp(entry)}{body}</div>')
 
 
-def evidence_wall(log, name_of, story=None):
+def evidence_wall(log, name_of, story=None, typewriter=False):
     """The whole public log as a cork board, on the board and on every phone the whole game.
     Newest first: the latest note is pinned at the top left, so nobody has to scroll to it,
-    and only that one gets the class 'new' and drops in."""
+    and only that one gets the class 'new' and drops in. typewriter=True (the board): its text
+    is also typed letter by letter, like a terminal."""
     if not log:
         return '<div class="cork empty">Nothing has been pinned up yet.</div>'
-    notes = [pinned_note(entry, name_of, newest=(i == 0), story=story)
+    notes = [pinned_note(entry, name_of, newest=(i == 0), story=story, typewriter=typewriter)
              for i, entry in enumerate(reversed(log))]
     return f'<div class="cork" role="list" aria-label="Evidence wall">{"".join(notes)}</div>'
 

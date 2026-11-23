@@ -495,10 +495,12 @@ def show_players(public):
     show(ui.suspects(public["players"], public["phase"], story=public["story"]))
 
 
-def show_wall(public):
+def show_wall(public, board=False):
     """The evidence wall: every exhibit and statement pinned to the cork board, newest first.
-    The same wall on the board and on every phone, from the first round to the result."""
-    show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid), story=public["story"]))
+    The same wall on the board and on every phone, from the first round to the result.
+    board=True: the newest note is typed onto the projector letter by letter."""
+    show(ui.evidence_wall(public["log"], lambda pid: name_of(public, pid), story=public["story"],
+                          typewriter=board))
 
 
 def show_result(public):
@@ -734,7 +736,7 @@ def board_live(code):
         st.markdown(f'<div class="place">{ui.h(story["briefing"])}</div>', unsafe_allow_html=True)
     with right:
         st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
-        show_wall(public)
+        show_wall(public, board=True)
 
 
 def board_round(code, public):
@@ -755,7 +757,7 @@ def board_round(code, public):
     with right:
         show(ui.detectives(public["players"]))
         st.markdown('<div class="kicker">Evidence wall</div>', unsafe_allow_html=True)
-        show_wall(public)
+        show_wall(public, board=True)
 
 
 def board_screen(code):

@@ -439,3 +439,13 @@ def test_round_banner_says_when_a_new_round_has_begun():
     second = ui.round_banner(2, 3)
     assert "Round 2 of 3" in second and "everybody gets a new move" in second and "round-banner new" in second
     assert ui.round_banner(0, 3) == ""
+
+
+def test_the_board_types_only_the_newest_note_letter_by_letter():
+    log = [{"id": 1, "kind": "search", "by": None, "text": "Old <b>note</b>", "location": content.LOCATIONS[0]},
+           {"id": 2, "kind": "share", "by": 1, "text": "New & <i>shiny</i>"}]
+    board = ui.evidence_wall(log, str, typewriter=True)
+    assert board.count('class="typing"') == 1 and "<i>" not in board and "<b>" not in board
+    assert board.index('class="typing"') < board.index("Old &lt;b&gt;note")      # the newest, first
+    assert 'class="typing"' not in ui.evidence_wall(log, str)                      # phones: plain text
+    assert "CAM 01" in board and 'class="rec"' in board                            # a camera still

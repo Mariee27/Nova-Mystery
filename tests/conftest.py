@@ -18,9 +18,11 @@ import logic  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def no_thread_outlives_its_test():
+def no_thread_outlives_its_test(monkeypatch):
     """The app writes AI cases in a background thread. Wait for every thread a test started,
-    so it cannot run on into the next test (and call that test's stand-in for the AI)."""
+    so it cannot run on into the next test (and call that test's stand-in for the AI).
+    It asks for monkeypatch so that it is torn down first: the test's stand-ins for the AI
+    are still in place while the thread finishes (otherwise it would try the real AI)."""
     before = set(threading.enumerate())
     yield
     for thread in set(threading.enumerate()) - before:
