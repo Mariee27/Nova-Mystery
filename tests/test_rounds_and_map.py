@@ -352,7 +352,7 @@ def test_the_plan_draws_every_building_of_the_official_campus_map():
         assert f'points="{ui._points(building["shape"])}"' in html
         assert f"<title>{label} · {name}</title>" in html             # its name, without a legend
     assert 'class="btag"' not in html                                # no letters without a legend
-    assert 'class="compass"' in html and "N</div>" in html
+    assert 'class="compass"' not in html                            # no north sign on the plan
     assert "plan-key" not in html and 'class="path"' not in html
     assert 'class="g-lawn"' in html and 'class="g-sand"' in html and 'class="g-sea"' in html and "Floor 0" not in html
     assert html.startswith('<div class="plan2"') and "\n" not in html
@@ -367,6 +367,9 @@ def test_every_place_pin_sits_in_its_building_or_area():
         assert inside((spot["x"], spot["y"]), content.BUILDINGS[label]["shape"]), place
         assert spot["letter"] == label
     assert inside((content.PLACES["Beach"]["x"], content.PLACES["Beach"]["y"]), grounds["sand"])
+    assert inside((content.PLACES["Canteen"]["x"], content.PLACES["Canteen"]["y"]), content.BUILDINGS["I"]["shape"])
+    garage = content.PLACES["Garage"]
+    assert inside((garage["x"], garage["y"]), grounds["lawn"]) and garage["x"] < 30 and garage["y"] > 70   # green, bottom left
 
 
 def test_the_map_has_no_parking():
@@ -418,7 +421,8 @@ def test_the_plan_is_greyed_out_after_the_players_move_and_marks_the_selected_pl
 
 def test_every_place_on_the_campus_has_a_spot_on_the_map():
     assert list(content.PLACES) == ["Library", "Horizon Hall", "Auditorium", "Main Deck",
-                                    "Hovione Atrium", "Santander Hall", "Beach"]    # every searchable place, names unchanged
+                                    "Hovione Atrium", "Santander Hall", "Beach",
+                                    "Canteen", "Garage"]    # every searchable place, names unchanged
     assert "ICA Canteen" not in content.PLACES                     # no longer a place, so never a crime scene
     for place in content.PLACES.values():
         assert 0 <= place["x"] <= 100 and 0 <= place["y"] <= 100 and place["icon"] and place["letter"]

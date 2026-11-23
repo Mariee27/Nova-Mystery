@@ -13,6 +13,7 @@ Sound is off by default. The player can switch it on in the puzzle header (remem
 this browser); the first tap after that unlocks Web Audio, as iOS and Android require.
 """
 
+import minigames_extra
 from ui import h
 
 PROGRESS_LABEL = "Evidence unlocked"
@@ -478,6 +479,10 @@ export default function (component) {
   update(root, data);
 }
 """
+
+# The two extra games (minigames_extra.py) add their styles and their BUILD entries to the component.
+COMPONENT_CSS += minigames_extra.CSS
+COMPONENT_JS = COMPONENT_JS.replace("function update(root, data) {", minigames_extra.JS + "\nfunction update(root, data) {", 1)
 
 CHIME_JS = r"""
 export default function (component) {

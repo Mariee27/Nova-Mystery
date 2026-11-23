@@ -374,7 +374,6 @@ def campus_map(searched, scene=None, story=None, view=None, links=None, active=T
             pins.append(f'<div class="{css}" style="{style}" aria-label="{h(label)}">{inner}</div>')
     css = "plan2" + ("" if active else " off") + (" board" if board else "")
     return (f'<div class="{css}" role="group" aria-label="Campus map">{_plan_ground()}{"".join(pins)}'
-            f'<div class="compass" aria-label="North"><span class="needle">↑</span>N</div>'
             f'</div>')
 
 

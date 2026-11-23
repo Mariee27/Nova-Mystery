@@ -19,7 +19,7 @@ ASSETS = pathlib.Path(__file__).resolve().parent / "assets" / "minigames"
 # Which campus illustration the night camera of each place shows: a jigsaw picture
 # (puzzles/, 300 × 300), or the middle of a photo print (scratchcards/, 400 × 500).
 STILL_PICTURE = {"Hovione Atrium": "atrium", "Library": "library", "Main Deck": "deck",
-                 "Auditorium": "auditorium"}
+                 "Auditorium": "auditorium", "Canteen": "canteen", "Garage": "garage"}
 STILL_FROM_PRINT = {"Beach": "beach", "Santander Hall": "stairs", "Horizon Hall": "facade"}
 STILL_DEFAULT = "facade"
 PHOTO_PICTURE = {"Hovione Atrium": "skylight", "Library": "library-night", "Main Deck": "facade",

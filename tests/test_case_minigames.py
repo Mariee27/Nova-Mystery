@@ -30,7 +30,7 @@ AI_MINIGAMES = {
 }
 
 
-def game_with(story=None, seed=11, n=5):
+def game_with(story=None, seed=14, n=5):        # 14: a game with the first five kinds
     g = logic.new_game("ABCD", 0, minigames=True)
     for i in range(1, n + 1):
         g = logic.join(g, f"P{i}", f"t{i}", 0)
@@ -54,12 +54,13 @@ def test_the_five_places_always_have_five_different_games(n):
     for seed in range(40):
         for story in (None, ai_story(AI_MINIGAMES)):
             kinds = [s["kind"] for s in minigames.specs(game_with(story, seed=seed, n=n))]
-            assert len(kinds) == 5 and sorted(kinds) == sorted(minigames.KINDS)
+            assert len(kinds) == len(set(kinds)) == 5 and set(kinds) <= set(minigames.KINDS)
 
 
 def test_which_place_gets_which_game_changes_from_game_to_game():
     seen = {tuple(s["kind"] for s in minigames.specs(game_with(seed=seed))) for seed in range(20)}
-    assert len(seen) == 5
+    assert len(seen) == len(minigames.KINDS)
+    assert {kind for kinds in seen for kind in kinds} == set(minigames.KINDS)   # every game kind comes up
 
 
 @pytest.mark.parametrize("seed", range(12))
@@ -87,7 +88,7 @@ def test_case_001_has_its_own_mini_games():
 
 def test_an_ai_case_brings_its_own_mini_games():
     story = ai_story(AI_MINIGAMES)
-    assert set(story["minigames"]) == set(minigames.KINDS)
+    assert set(story["minigames"]) == set(AI_MINIGAMES)        # the AI writes words for the first five kinds
     g = game_with(story)
     by_kind = {s["kind"]: s for s in minigames.specs(g)}
     victim = story["victim_short"]
@@ -161,7 +162,7 @@ def test_a_piece_that_breaks_a_rule_is_refused(kind, raw):
     assert minigames.clean_piece(kind, raw, ai_story()) is None
 
 
-@pytest.mark.parametrize("kind", minigames.KINDS)
+@pytest.mark.parametrize("kind", list(AI_MINIGAMES))
 def test_every_good_ai_piece_is_accepted(kind):
     assert minigames.clean_piece(kind, AI_MINIGAMES[kind], ai_story()) is not None
 
