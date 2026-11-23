@@ -352,7 +352,7 @@ def test_the_plan_draws_every_building_of_the_official_campus_map():
         assert f'points="{ui._points(building["shape"])}"' in html
         assert f"<title>{label} · {name}</title>" in html             # its name, without a legend
     assert 'class="btag"' not in html                                # no letters without a legend
-    assert 'class="compass"' in html and "N</div>" in html
+    assert 'class="compass"' not in html                            # no north sign on the plan
     assert "plan-key" not in html and 'class="path"' not in html
     assert 'class="g-lawn"' in html and 'class="g-sand"' in html and 'class="g-sea"' in html and "Floor 0" not in html
     assert html.startswith('<div class="plan2"') and "\n" not in html
@@ -369,9 +369,7 @@ def test_every_place_pin_sits_in_its_building_or_area():
     assert inside((content.PLACES["Beach"]["x"], content.PLACES["Beach"]["y"]), grounds["sand"])
     assert inside((content.PLACES["Canteen"]["x"], content.PLACES["Canteen"]["y"]), content.BUILDINGS["I"]["shape"])
     garage = content.PLACES["Garage"]
-    assert inside((garage["x"], garage["y"]), content.BUILDINGS["J"]["shape"])
-    lawn_bottom = max(y for x, y in grounds["lawn"] if x < 20)             # the garage lies beneath the green site
-    assert garage["x"] < 30 and garage["y"] > lawn_bottom
+    assert inside((garage["x"], garage["y"]), grounds["lawn"]) and garage["x"] < 30 and garage["y"] > 70   # green, bottom left
 
 
 def test_the_map_has_no_parking():
