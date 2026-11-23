@@ -209,3 +209,33 @@ def test_demo_bots_pick_and_rate_and_never_search_in_the_break():
     game = logic.bot_moves(game, 162 + 60)
     raters = set(game["hot_seat"]["ratings"])
     assert str(seat) not in raters and len(raters) == (4 if seat == 1 else 3)
+
+
+# ---------------------------------------------------------------- the hot seat waits for the reader
+
+def test_the_picking_clock_waits_for_the_player_who_reads_their_evidence():
+    import minigames
+    g = logic.new_game("ABCD", 0, minigames=True)
+    for i in range(1, 5):
+        g = logic.join(g, f"P{i}", f"t{i}", 0)
+    g = logic.start(g, "t1", {1, 2, 3, 4}, 0, seed=7, hot_seat=True)
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4}, 1)
+    place = next(s["location"] for s in minigames.specs(g) if logic.locked_until(g, s["location"]) is None)
+    g = logic.search(g, "t1", place, 10, proof=minigames.solve(g, place))
+    assert g["reading"] == [1]                                   # "Access granted" on P1's phone
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4}, 11)               # the round ends: the break opens
+    assert logic.hot_seat_open(g)
+    assert logic.hot_seat_view(g)["reading"] and g["deadline"] == 11 + logic.READING_MAX + logic.HOT_SEAT_PICK_SECONDS
+    g = logic.done_reading(g, "t1", 20)                          # P1 taps Continue
+    assert g["deadline"] == 20 + logic.HOT_SEAT_PICK_SECONDS and not logic.hot_seat_view(g)["reading"]
+    assert logic.done_reading(g, "t2", 21) is g                  # somebody who was not reading: nothing
+
+
+def test_without_a_reader_the_picking_clock_starts_at_once():
+    g = logic.new_game("ABCD", 0, minigames=True)
+    for i in range(1, 5):
+        g = logic.join(g, f"P{i}", f"t{i}", 0)
+    g = logic.start(g, "t1", {1, 2, 3, 4}, 0, seed=7, hot_seat=True)
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4}, 1)
+    g = logic.end_phase(g, "t1", {1, 2, 3, 4}, 5)
+    assert logic.hot_seat_open(g) and g["deadline"] == 5 + logic.HOT_SEAT_PICK_SECONDS

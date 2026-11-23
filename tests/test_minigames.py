@@ -348,6 +348,11 @@ def test_bots_wait_while_a_human_is_solving():
     assert later["acted"] == [] and later["log"] == game["log"]
     loc = open_places(game)[0]
     game = logic.search(game, "tok-human", loc, 1, proof=minigames.solve(game, loc))
-    after = logic.bot_moves(game, 600)
-    bots = [p["pid"] for p in after["players"] if p.get("bot")]
-    assert all(pid in after["acted"] for pid in bots)            # now they all move, without proofs
+    bots = [p["pid"] for p in game["players"] if p.get("bot")]
+    after = logic.bot_moves(game, 600)                            # everybody in person has moved ...
+    assert not any(pid in after["acted"] for pid in bots)
+    after = logic.bot_moves(after, 600 + logic.BOT_AFTER_HUMANS)  # ... then the first bot moves
+    assert sum(pid in after["acted"] for pid in bots) == 1
+    for t in range(600, 660):
+        after = logic.bot_moves(after, t)
+    assert all(pid in after["acted"] for pid in bots)            # one after another, without proofs

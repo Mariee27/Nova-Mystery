@@ -893,7 +893,9 @@ def hot_seat_board(hot, players, left, room=""):
         for pid in hot["candidates"] if pid in by_pid)
     return (f'<div class="hs choosing"><div class="hs-k">{title}</div>'
             f'<div class="hs-main"><div><div class="hs-name">Who goes in the hot seat?</div>'
-            f'<div class="hs-role">Pick on your phone · {h(hot["picked"])} picked so far</div></div>{_clock(left)}</div>'
+            f'<div class="hs-role">Pick on your phone · {h(hot["picked"])} picked so far'
+            f'{" · the clock waits for a player reading new evidence" if hot.get("reading") else ""}</div></div>'
+            f'{_clock(left)}</div>'
             f'{names}{history}</div>')
 
 
