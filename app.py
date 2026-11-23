@@ -310,7 +310,7 @@ def write_ai_case(code, settings):
     "The first AI case did not pass the checks …" meanwhile. A failing service (no key,
     limit, busy, timeout) is not asked again at once. After the last try the host can still
     press Try again or play case #001."""
-    reason = "the AI case did not pass the checks"
+    reason, problems = "the AI case did not pass the checks", []
     for attempt in range(1, AI_ATTEMPTS + 1):
         if attempt > 1:
             now = time.time()
@@ -321,15 +321,19 @@ def write_ai_case(code, settings):
         try:
             story = ai.write_story(settings["key"], settings["model"])
         except ai.AIError as problem:
-            reason = str(problem)
+            reason, problems = str(problem), []
             if not problem.retry:
                 break
             continue
-        if not logic.story_problems(story):
+        problems = logic.story_problems(story)
+        if not problems:
             save_ai_change(code, lambda g: logic.ai_case_ready(g, story, time.time()))
             return
         reason = "the AI case did not pass the checks"
-    save_ai_change(code, lambda g: logic.ai_case_failed(g, reason, time.time()))
+        # Which rule the case broke: in the server log, and (the first few) for the host.
+        logging.getLogger("nova.ai").warning("AI case for room %s, try %d, failed the checks: %s",
+                                             code, attempt, "; ".join(problems))
+    save_ai_change(code, lambda g: logic.ai_case_failed(g, reason, time.time(), problems))
 
 
 def save_ai_change(code, change, claim=False):

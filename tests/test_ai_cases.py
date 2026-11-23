@@ -668,3 +668,87 @@ def test_a_place_that_is_not_on_the_campus_map_is_refused():
     story = fake_story()
     story["locations"][0] = "Moon Base"
     assert any("not a place on the campus map" in p for p in logic.validate_story(story))
+
+
+# ---------------------------------------------------------------- slips the code repairs itself
+
+def test_texts_that_are_too_long_are_shortened_instead_of_refusing_the_case():
+    answer = copy.deepcopy(FAKE_ANSWER)
+    answer["briefing"] = "A cleaner found her at 23:47. " + "The rain did not stop all night. " * 40
+    answer["locations"][0]["flavor"] = "Wet leaves glitter under the lamps " * 20
+    answer["locations"][1]["neutral_clue"] = "The scoreboard still shows the final score. " * 10
+    answer["suspects"][0]["dossier"] = "Arrived from Milan in September and never left again. " * 8
+    answer["suspects"][1]["trace"] = "a gold cufflink shaped like an anchor with the initials of the old harbour master"
+    answer["suspects"][2]["rumor"] = "The Chef was seen loading boxes of food into a private car " * 4
+    answer["neutral_private_clues"][0] = "You noticed the rain " + "and the wind " * 30
+    answer["endings"]["wrong"]["text"] = "An innocent is led away. " * 30
+    story = ai.parse_story(json.dumps(answer))
+    assert logic.validate_story(story) == []
+    limits = logic.STORY_LIMITS
+    assert story["briefing"].endswith("night.") and len(story["briefing"]) <= limits["briefing"]
+    assert story["location_flavor"]["Library"].endswith("…")
+    # A trace is used inside a sentence ("... and loses <trace>."): no "…", no dangling word.
+    trace = story["roles"]["The Dean"]["trace"]
+    assert len(trace) <= limits["trace"] and not trace.endswith(("…", " the", " of", " with"))
+    assert trace.startswith("a gold cufflink shaped like an anchor")
+    assert story["roles"]["The Chef"]["rumor"].startswith("The Chef was seen ")
+
+
+def test_texts_within_their_limits_are_not_touched():
+    assert ai.parse_story(json.dumps(FAKE_ANSWER)) == fake_story()
+    assert fake_story()["briefing"] == FAKE_ANSWER["briefing"]
+
+
+@pytest.mark.parametrize("text, limit, phrase, expected", [
+    ("One two three. Four five six seven.", 28, False, "One two three."),
+    ("Short. Then a very long second sentence.", 20, False, "Short. Then a very…"),
+    ("All good. And more words here.", 22, False, "All good. And more…"),
+    ("A long first sentence here. Rest.", 30, False, "A long first sentence here."),
+    ("a silver pen with the initials of the dean", 30, True, "a silver pen with the initials"),
+    ("a pen from the archive of the old library", 28, True, "a pen from the archive"),
+    ("x" * 50, 10, False, "x" * 9 + "…"),
+])
+def test_shorten(text, limit, phrase, expected):
+    assert ai._shorten(text, limit, phrase) == expected
+    assert len(ai._shorten(text, limit, phrase)) <= limit
+
+
+def test_a_clue_that_says_murderer_or_killer_names_someone_instead():
+    answer = copy.deepcopy(FAKE_ANSWER)
+    answer["neutral_private_clues"][0] = "You noticed the killer's umbrella dripping by the door."
+    answer["locations"][2]["neutral_clue"] = "The murderer left the printer running."
+    answer["suspects"][3]["trace"] = "a glove the killer dropped"
+    answer["suspects"][4]["rumor"] = "The Archivist was seen talking to the murderer at night."
+    story = ai.parse_story(json.dumps(answer))
+    assert logic.validate_story(story) == []
+    assert story["neutral_private_clues"][0] == "You noticed someone's umbrella dripping by the door."
+    assert story["neutral_location_clues"]["Main Deck"] == "Someone left the printer running."
+    assert story["roles"]["The Rower"]["trace"] == "a glove someone dropped"
+    assert story["roles"]["The Archivist"]["rumor"] == "The Archivist was seen talking to someone at night."
+
+
+# ---------------------------------------------------------------- the host learns why
+
+def test_the_host_sees_which_rules_a_refused_ai_case_broke():
+    problems = ["The trace of The Dean must not name anybody or any place.",
+                "There must be exactly 6 roles.", "An intro line is missing.", "A fourth one."]
+    g = logic.ai_case_failed(logic.ai_case_writing(make_lobby(5), 0),
+                             "the AI case did not pass the checks", 1, problems)
+    assert g["ai_case"]["problems"] == problems[:logic.AI_PROBLEMS_SHOWN]
+    note = logic.host_note(g, "t1")
+    assert "Why: The trace of The Dean must not name anybody" in note and "exactly 6 roles" in note
+    assert "A fourth one" not in note and "#001" in note
+    assert logic.host_note(g, "t2") is None
+
+
+def test_a_failing_service_has_no_why():
+    g = logic.ai_case_failed(logic.ai_case_writing(make_lobby(5), 0), "the AI key was not accepted", 1)
+    assert "problems" not in g["ai_case"] and "Why" not in logic.host_note(g, "t1")
+
+
+def test_a_story_refused_by_the_room_keeps_its_reasons():
+    story = fake_story()
+    del story["roles"]["The Tutor"]
+    g = logic.ai_case_ready(logic.ai_case_writing(make_lobby(5), 0), story, 1)
+    assert g["ai_case"]["status"] == "failed"
+    assert "exactly 6 roles" in logic.host_note(g, "t1")
