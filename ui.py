@@ -671,6 +671,27 @@ def dossier(me, slam=False):
             f'<div class="row"><span class="lbl">What you know</span>{"".join(slips)}</div></div>')
 
 
+def case_file(story=None):
+    """The case at a glance, for every phone during the whole game: the facts of the night
+    that everybody may know (the same as the board's briefing). Never the real crime scene."""
+    story = _story(story)
+    place = story["found_place"]
+    place = place[:1].upper() + place[1:]     # AI cases write it in lowercase ("the boathouse")
+    rows = [
+        ("Victim", h(story["victim"])),
+        ("Body found", f'{h(content.FOUND_TIME)} · {h(place)}'),
+        ("Time of death", f'around {h(content.MURDER_TIME)}'),
+        ("Crime scene", f'Unknown: not where {h(story["victim_short"])} was found. '
+                        'It is one of the places below.'),
+        ("Places", " · ".join(h(name) for name in story["locations"])),
+    ]
+    facts = "".join(f'<div class="cf-row"><span class="lbl">{label}</span><span class="cf-v">{value}</span></div>'
+                    for label, value in rows)
+    return (f'<div class="casefile"><span class="lbl">Case #{h(story["case_number"])}</span>'
+            f'<div class="role">{h(story["case_title"])}</div>{facts}'
+            f'<div class="cf-brief">{h(story["briefing"])}</div></div>')
+
+
 def envelope(name, story=None):
     """The sealed case envelope the phone shows when the REVEAL phase starts.
     No role and no card data in here: only the player's own name and the case number."""

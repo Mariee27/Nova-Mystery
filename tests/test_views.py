@@ -5,6 +5,7 @@ import pytest
 
 import content
 import logic
+import ui
 from conftest import (
     LOC, SECURE_TOKENS, advance_to, character, innocent_pids, innocent_token,
     make_lobby, make_started, murderer_pid, murderer_token,
@@ -269,3 +270,20 @@ def test_ballots_are_secret_while_voting_and_public_in_the_result():
     assert result["votes"][str(voter)] == murderer           # afterwards every ballot is shown
     assert result["votes"][str(other)] == voter
     assert set(result["votes"]) == {str(voter), str(other)}  # players who did not vote are not invented
+
+
+def test_the_case_file_holds_the_public_facts_and_never_the_crime_scene():
+    story = logic.public_story(content.DEFAULT_STORY)
+    html_text = ui.case_file(story)
+    for fact in (story["case_title"], story["victim"], content.FOUND_TIME, content.MURDER_TIME,
+                 "Vale&#x27;s locked research office", *story["locations"]):
+        assert fact in html_text
+    assert "Unknown" in html_text                              # the crime scene is the puzzle
+
+
+def test_the_case_file_escapes_ai_texts():
+    story = dict(logic.public_story(content.DEFAULT_STORY), victim="<b>Eve</b>", case_title="A & B",
+                 found_place="the <i>boathouse</i>")
+    html_text = ui.case_file(story)
+    assert "<b>Eve</b>" not in html_text and "&lt;b&gt;Eve&lt;/b&gt;" in html_text
+    assert "A &amp; B" in html_text and "The &lt;i&gt;boathouse" in html_text
