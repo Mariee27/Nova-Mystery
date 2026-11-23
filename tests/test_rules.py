@@ -24,7 +24,7 @@ def test_dw04_start_with_3_online_rejected():
 def test_dw04_start_with_4_and_6_players_works(n):
     g = make_started(n)
     assert g["phase"] == "REVEAL"
-    assert g["phase_started"] == 0 and g["deadline"] == 30
+    assert g["phase_started"] == 0 and g["deadline"] == 40
     assert pids_of(g) == list(range(1, n + 1))
     assert g["case"]["murderer"] in pids_of(g)
 
@@ -135,14 +135,14 @@ def test_dw05_unknown_token_rejected(name):
 
 
 # ================================================================ DW06
-def test_dw06_timers_30_then_5_rounds_of_300_then_180_60():
+def test_dw06_timers_40_then_rounds_of_300_then_180_60():
     g = make_started(5)
     assert g["phase"] == "REVEAL"
-    assert logic.tick(g, ON5, 29)["phase"] == "REVEAL"
-    g = logic.tick(g, ON5, 30)
+    assert logic.tick(g, ON5, 39)["phase"] == "REVEAL"
+    g = logic.tick(g, ON5, 40)
     assert g["phase"] == "INVESTIGATION" and g["round"] == 1
-    assert g["phase_started"] == 30 and g["deadline"] == 330
-    now = 30
+    assert g["phase_started"] == 40 and g["deadline"] == 340
+    now = 40
     for round_number in range(2, logic.ROUNDS + 1):      # each round lasts at most 300 s
         assert logic.tick(g, ON5, now + 299)["round"] == round_number - 1
         now += 300
@@ -163,12 +163,12 @@ def test_dw06_timers_30_then_5_rounds_of_300_then_180_60():
 
 
 def test_dw06_new_phase_starts_at_now_of_the_switching_tick():
-    g = logic.tick(make_started(5), ON5, 35)
+    g = logic.tick(make_started(5), ON5, 45)
     assert g["phase"] == "INVESTIGATION"
-    assert g["phase_started"] == 35 and g["deadline"] == 335
-    g = logic.tick(g, ON5, 340)                          # next round starts at the switching tick
+    assert g["phase_started"] == 45 and g["deadline"] == 345
+    g = logic.tick(g, ON5, 350)                          # next round starts at the switching tick
     assert g["round"] == 2
-    assert g["phase_started"] == 340 and g["deadline"] == 640
+    assert g["phase_started"] == 350 and g["deadline"] == 650
     g = to_last_round(g, now=400)
     g = logic.tick(g, ON5, 800)
     assert g["phase"] == "DISCUSSION"
