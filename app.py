@@ -130,10 +130,47 @@ def views(game, online, token=None):
     return public, me
 
 
-def act(code, action):
-    """Run one action. action(game, online, now) -> game. Rejections are shown to the player."""
-    attempt(code, action)
+def act(code, action, repeatable=False):
+    """Run one action. action(game, online, now) -> game. Rejections are shown to the player.
+
+    A double tap (or an impatient second tap while the first one is still on its way) sends
+    the same action twice. The second one is ignored (see once). repeatable=True: tapping
+    again is meant (add another demo suspect)."""
+    attempt(code, action if repeatable else once(code, action))
     st.rerun()
+
+
+DOUBLE_TAP_SECONDS = 2.0
+
+
+def action_key(code, action):
+    """What makes two actions the same: the same line of code with the same values (the
+    player's token, the chosen place, suspect, clue or vote: the lambda's defaults and the
+    variables it uses)."""
+    values = list(action.__defaults__ or ()) + [cell.cell_contents for cell in action.__closure__ or ()]
+    return repr((code, action.__code__.co_filename, action.__code__.co_firstlineno, values))
+
+
+def game_moment(game):
+    """The phase and its timer: every new phase, round and hot seat has its own deadline."""
+    return game["phase"], game.get("deadline")
+
+
+def once(code, action):
+    """The action, unless this browser already sent the very same action in the same moment
+    of the game (same phase, same timer) less than DOUBLE_TAP_SECONDS ago: then the game stays
+    as it is. So "End round now" tapped twice ends one round, but the host can still end the
+    next round right away."""
+    key = action_key(code, action)
+
+    def guarded(game, online, now):
+        last = st.session_state.get("last_action")
+        if (last is not None and last[0] == key and last[1] == game_moment(game)
+                and 0 <= now - last[2] < DOUBLE_TAP_SECONDS):
+            return game
+        st.session_state["last_action"] = (key, game_moment(game), now)
+        return action(game, online, now)
+    return guarded
 
 
 def attempt(code, action):
@@ -347,12 +384,16 @@ def keep_screen_on():
     key = (id(v2), "nova_wake")
     if key not in minigame_ui.RENDERERS:
         minigame_ui.RENDERERS[key] = v2.component("nova_wake", js=WAKE_JS)
-    minigame_ui.RENDERERS[key](key="nova-wake", data={"on": True})
+    # "run" changes with every full redraw, so the script below runs again and releases the
+    # buttons it marked as pressed (the answer to the tap has arrived).
+    st.session_state["redraws"] = st.session_state.get("redraws", 0) + 1
+    minigame_ui.RENDERERS[key](key="nova-wake", data={"on": True, "run": st.session_state["redraws"]})
 
 
 WAKE_JS = r"""
 export default function () {
   const w = window;
+  pressFeedback(w);
   if (w.__novaWake || !('wakeLock' in navigator)) return;   // once per page, where supported
   w.__novaWake = true;
   const grab = async () => {
@@ -362,6 +403,31 @@ export default function () {
   document.addEventListener('visibilitychange', grab);       // the lock ends when the tab is hidden
   document.addEventListener('pointerdown', grab, { passive: true });   // some browsers want a tap first
   grab();
+}
+
+// A tapped button (or action card, map pin, clue card) looks pressed at once, before the
+// server has answered, and a second tap on it is swallowed until the answer has arrived (the
+// next full redraw, which runs this script again) or PRESS_MS have passed. Without this a
+// tap shows nothing for a moment, and people tap again: the same action twice.
+const PRESS_MS = 3000;
+const PRESSABLE = '.stButton button, [data-testid="stFormSubmitButton"] button, a[href*="step="]';
+
+function pressFeedback(w) {
+  for (const el of document.querySelectorAll('.nova-pressed')) el.classList.remove('nova-pressed');
+  if (w.__novaPress) return;                                  // one listener per page
+  w.__novaPress = true;
+  // On window, in the capture phase: before the link listener (TAPS_JS) and before Streamlit.
+  w.addEventListener('click', (ev) => {
+    const el = ev.target.closest ? ev.target.closest(PRESSABLE) : null;
+    if (!el || el.disabled) return;
+    if (el.classList.contains('nova-pressed')) {              // the second tap: ignore it
+      ev.preventDefault();
+      ev.stopImmediatePropagation();
+      return;
+    }
+    el.classList.add('nova-pressed');
+    setTimeout(() => el.classList.remove('nova-pressed'), PRESS_MS);
+  }, true);
 }
 """
 
@@ -825,7 +891,7 @@ def add_demo_suspect_button(code, token, full):
     if st.button("Add demo suspect", disabled=full,
                  help="A computer player for presentations. It plays by the same rules "
                       "and only knows its own card and the public evidence."):
-        act(code, lambda g, on, now: logic.add_bot(g, token, now))
+        act(code, lambda g, on, now: logic.add_bot(g, token, now), repeatable=True)
 
 
 def case_choice(code, me, demo):

@@ -136,6 +136,10 @@ Phases end early when everybody is done, and the host can skip ahead.
   the phone is back, the player plays again; the host role moves to a player who is there. The phone also
   remembers its seat: reopening the tab, the player link, or simply the room's QR code in the same browser
   brings the player back to their seat.
+- **Double taps count once.** A tapped button looks pressed at once (with a small spinner) and ignores further
+  taps until the answer has arrived. On the server, the same action from the same phone in the same moment of
+  the game (same phase, same timer) within 2 seconds is ignored, so "End round now" tapped twice ends one
+  round, not two. "Add demo suspect" may be tapped quickly on purpose and is exempt.
 - **Timers** on every phase, so the game always ends.
 - **The hot seat** between the rounds: the room picks one suspect to grill out loud and rates the answers.
 - **Host tools:** choose the case, switch the hot seat on or off, start the game, skip ahead (the button says
@@ -328,13 +332,13 @@ vulnerabilities, and a demo game in a real browser (`tests/e2e/browser_check.cjs
 | `tests/test_db.py` | 19 | Storage on SQLite and PostgreSQL: transactions, rollback, two players acting at the same moment, heartbeats, room and AI limits, shared reads. |
 | `tests/test_hot_seat.py` | 19 | The hot seat: allowed and refused picks and ratings, ties, the clock, the switch in `start`, only counts in the views, demo bots. |
 | `tests/test_demo_case_frozen.py` | 19 | Case #001 cannot change by accident (fingerprints of its story and cases). |
-| `tests/test_app_smoke.py` | 32 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
+| `tests/test_app_smoke.py` | 37 | Plays whole games through every screen with a stand-in for Streamlit, including escaped user input, invalid room codes, the fixed demo case and a broken database. |
 | `tests/test_clue_design.py` | 10 | The cards: true, physically possible, never giving the murderer away by their kind. |
 | `tests/test_minigame_screen.py` | 9 | The puzzles on the phone: seal, hints, reward until *Continue*, limited wrong answers, no instant answers. |
 | `tests/test_stand_ins.py` | 15 | Stand-ins: who gets one and when it ends, the game goes on (no pause, the round and the vote end early), a stand-in searches without the puzzle and waits for the players who are there, the host role moves on, board and phone show it. |
 | `tests/test_playtest_fixes.py` | 9 | Fixes from the first playtest: a place is held while somebody solves its puzzle (nobody else can take it, nobody learns who holds it, holds run out), a hot-seat pick is locked in. |
 
-All together: 763 tests.
+All together: 768 tests.
 
 The appearance in a real browser is checked by `tests/e2e/browser_check.cjs` (in CI, or locally with
 `node tests/e2e/browser_check.cjs http://localhost:8501` while the app runs).
@@ -464,7 +468,7 @@ exhibits.py             the mini-games' pictures: camera stills and documents, d
 assets/minigames/       the campus illustrations: puzzles/ (camera stills), scratchcards/ (photo prints)
 docs/CONTRACT.md        exact function signatures and data shapes
 docs/WHAT_HAPPENS_IF.md answers for edge cases, each linked to a test
-tests/                  pytest suite (763 tests); tests/e2e/ the browser check
+tests/                  pytest suite (768 tests); tests/e2e/ the browser check
 .github/workflows/      automatic tests and dependency check on GitHub
 pyproject.toml, uv.lock pinned dependencies (uv)
 requirements.txt        the same pinned dependencies for pip (Streamlit Cloud uses uv.lock)
