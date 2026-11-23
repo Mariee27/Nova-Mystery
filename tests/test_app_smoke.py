@@ -1016,3 +1016,23 @@ def test_a_double_tap_on_start_starts_one_game(game_db):
         assert db.load(conn, code) == first
     finally:
         conn.close()
+
+
+def test_clicking_join_twice_gives_one_seat_and_the_waiting_room(game_db):
+    board = Browser()
+    board.run(press=["Create room"])
+    code = board.st.query_params["room"]
+    phone = Browser(room=code)
+    phone.run(press=["Join"], **{"Your name": "Ana"})
+    token = phone.st.query_params["t"]
+    # The second click arrives before the phone has switched to its seat (slow network).
+    del phone.st.query_params["t"]
+    page = phone.run(press=["Join"], **{"Your name": "Ana"})
+    assert "already taken" not in page
+    assert phone.st.query_params["t"] == token                 # the same seat, not a new one
+    assert "You’re in, Ana." in phone.run()
+    conn = db.connect(game_db)
+    try:
+        assert [p["name"] for p in db.load(conn, code)["players"]] == ["Ana"]   # no ghost seat
+    finally:
+        conn.close()

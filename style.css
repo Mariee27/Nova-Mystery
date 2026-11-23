@@ -785,3 +785,7 @@ a.pin2:hover .pc, a.pin2:focus .pc { transform: scale(1.12); }
 @media (prefers-reduced-motion: reduce) {
   .stButton button.nova-pressed::after, [data-testid="stFormSubmitButton"] button.nova-pressed::after { animation: none; }
 }
+
+/* the board intro: after the quick suspect cards, a calm note while the phones read their files */
+.intro .lu-wait { margin-top: 1.6rem; font-family: var(--serif); font-style: italic; font-size: clamp(1rem, 1.8vw, 1.3rem);
+  color: var(--gold); opacity: 0; animation: lineIn .6s ease var(--wait) forwards; }

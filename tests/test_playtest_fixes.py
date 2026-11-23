@@ -108,3 +108,41 @@ def make_lobby_hot():
     game = logic.start(make_lobby(5), "t1", ON5, 0, seed=1, hot_seat=True)
     game = logic.end_phase(game, "t1", ON5, 10)                 # → round 1
     return logic.end_phase(game, "t1", ON5, 100)                # → the hot seat break
+
+
+# ------------------------------------------------------------------ "Create room" is quick
+
+def test_creating_a_room_needs_few_database_round_trips_however_many_old_rooms_exist(tmp_path):
+    import db
+    real = db.connect(tmp_path / "rooms.db")
+    long_ago = 1000.0
+    for _ in range(12):                                          # yesterday's rooms
+        db.create_room(real, long_ago)
+    now = long_ago + db.ROOM_LIFETIME + 1
+
+    class Counting:                                              # counts every statement sent
+        def __init__(self, conn):
+            self.conn, self.statements = conn, 0
+
+        def execute(self, sql, params=()):
+            self.statements += 1
+            return self.conn.execute(sql, params)
+
+    conn = Counting(real)
+    code = db.create_room(conn, now)
+    assert conn.statements <= 7                                  # was 3 + 2 per old room
+    assert [row[0] for row in real.execute("SELECT code FROM rooms")] == [code]
+    assert real.execute("SELECT COUNT(*) FROM presence").fetchone()[0] == 0
+
+
+# ------------------------------------------------------------------ the board's suspect cards
+
+def test_suspect_cards_come_quickly_and_then_stay_up_with_a_reading_note():
+    import re
+    import ui
+    players = [{"pid": i, "name": f"P{i}", "role": ""} for i in range(1, 7)]
+    html = ui.lineup(players)
+    landed = [float(x) for x in re.findall(r"--in:([0-9.]+)s", html)]
+    assert landed[-1] - landed[0] <= 5 * 0.7 + 0.01               # six cards in about 3.5 seconds
+    assert ui.SUSPECTS_UNTIL - landed[-1] >= 14                    # then on screen for 14 s or more
+    assert "Everybody is reading their file now" in html

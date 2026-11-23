@@ -631,6 +631,15 @@ def join_screen(code):
         if game is not None and logic.private_view(game, seat) is not None:
             st.query_params["t"] = seat
             st.rerun()
+    # A second click on "Join" (or a slow phone): this browser already has its seat. Go there
+    # instead of joining again, which failed with "name already taken" and left a ghost seat.
+    pending = st.session_state.get(f"join_token_{code}")
+    if pending:
+        with open_db() as conn:
+            game = db.load(conn, code)
+        if game is not None and logic.private_view(game, pending) is not None:
+            st.query_params["t"] = pending
+            st.rerun()
     if public["phase"] != "LOBBY":
         st.warning("This investigation has already started. If you are playing: open this room in the "
                    "browser you joined with, or your own player link, and you are back in your seat "
@@ -645,8 +654,14 @@ def join_screen(code):
     st.caption(STAY_ONLINE)
     show_rules()
     if submitted:
-        token = logic.new_token()
+        # One token per browser and room: every click on "Join" uses the same one.
+        token = st.session_state.setdefault(f"join_token_{code}", logic.new_token())
         now = time.time()
+        with open_db() as conn:
+            game = db.load(conn, code)
+        if game is not None and logic.private_view(game, token) is not None:
+            st.query_params["t"] = token          # already joined with the first click
+            st.rerun()
         try:
             with open_db() as conn:
                 game = db.apply(conn, code, lambda g: logic.join(g, name, token, now))

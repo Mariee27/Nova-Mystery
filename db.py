@@ -122,16 +122,20 @@ def _dump(game):
 def create_room(conn, now, minigames=False):
     conn.execute("BEGIN IMMEDIATE")
     try:
-        old = [row[0] for row in conn.execute(
-            "SELECT code FROM rooms WHERE created_at < ?", (now - ROOM_LIFETIME,))]
-        for code in old:
-            conn.execute("DELETE FROM presence WHERE code = ?", (code,))
-            conn.execute("DELETE FROM rooms WHERE code = ?", (code,))
-        if _recent_rooms(conn, now) >= MAX_NEW_ROOMS_PER_HOUR:
+        # Expired rooms go in two statements, however many there are. Every statement is a
+        # round trip to the database, which may be far away: one by one (2 per room) made
+        # "Create room" slow after a quiet day with many old rooms (playtest).
+        cutoff = now - ROOM_LIFETIME
+        conn.execute("DELETE FROM presence WHERE code IN (SELECT code FROM rooms WHERE created_at < ?)",
+                     (cutoff,))
+        conn.execute("DELETE FROM rooms WHERE created_at < ?", (cutoff,))
+        recent = _recent_rooms(conn, now)
+        if recent >= MAX_NEW_ROOMS_PER_HOUR:
             for code in _abandoned_lobbies(conn, now):
                 conn.execute("DELETE FROM presence WHERE code = ?", (code,))
                 conn.execute("DELETE FROM rooms WHERE code = ?", (code,))
-        if _recent_rooms(conn, now) >= MAX_NEW_ROOMS_PER_HOUR:
+            recent = _recent_rooms(conn, now)
+        if recent >= MAX_NEW_ROOMS_PER_HOUR:
             raise logic.Rejected("Too many new rooms right now. Please try again later.")
         while True:
             code = "".join(secrets.choice(CODE_LETTERS) for _ in range(CODE_LENGTH))

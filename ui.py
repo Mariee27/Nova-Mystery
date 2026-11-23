@@ -125,8 +125,9 @@ def crime_scene(story):
 # The board intro must be over before the reveal phase ends (logic.DURATIONS["REVEAL"] = 40 s):
 # at the next phase the board redraws and the intro would be cut off.
 SUSPECTS_FROM = 16.4      # seconds: the first suspect card flies in after the crime scene
-SUSPECTS_LAST_IN = 28.0   # the last card has landed by then; all stay up to be read
-SUSPECTS_STEP = 3.0       # at most this many seconds between two cards (few players)
+SUSPECTS_LAST_IN = 20.0   # the last card has landed by then; all stay up to be read
+SUSPECTS_STEP = 0.7       # seconds between two cards: quick, so they stay up longer (playtest)
+SUSPECTS_WAIT = 20.6      # then a note that everybody is still reading their file
 SUSPECTS_UNTIL = 34.6     # the lineup fades out
 BOARD_INTRO_END = 35.0    # the whole intro fades out (style.css: .intro.long)
 
@@ -150,7 +151,10 @@ def lineup(players, story=None):
             f'<div class="bio">{h(dossiers.get(role, ""))}</div>'
             + (f'<div class="bio carries">Always carries {h(carries[role])}.</div>' if carries.get(role) else "")
             + '</div>')
-    return f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{"".join(cards)}</div></div>'
+    wait = (f'<div class="lu-wait" style="--wait:{SUSPECTS_WAIT:.1f}s">'
+            'Everybody is reading their file now …</div>')
+    return (f'<div class="lineup"><div class="lk">The suspects</div><div class="lu-row">{"".join(cards)}</div>'
+            f'{wait}</div>')
 
 
 def _intro(lines, css, start, step, final, red=3, middle=""):
