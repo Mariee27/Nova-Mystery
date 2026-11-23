@@ -10,9 +10,11 @@ Three kinds of screens, chosen by the link:
   ?room=CODE              the join form
 """
 
+import importlib
 import io
 import logging
 import os
+import sys
 import threading
 import time
 from contextlib import contextmanager
@@ -27,6 +29,45 @@ import logic
 import minigame_ui
 import minigames
 import ui
+
+# The game's own modules, in the order they import each other.
+OWN_MODULES = ("content", "exhibits", "minigames_extra", "minigames", "generator", "balance",
+               "logic", "db", "ai", "ui", "minigame_ui")
+
+
+def outdated(module):
+    """True if the module in memory was compiled from an older version of its file.
+
+    Python keeps the source file's modification time in the module's .pyc header. When the file
+    changed after the module was loaded, the two differ. Unknown cases count as current: no .pyc,
+    or Python writes no .pyc files at all (then an old .pyc left on disk says nothing)."""
+    if sys.dont_write_bytecode:
+        return False
+    try:
+        with open(module.__cached__, "rb") as cached:
+            header = cached.read(16)
+        if len(header) < 16 or int.from_bytes(header[4:8], "little") != 0:    # hash-based .pyc
+            return False
+        return int.from_bytes(header[8:12], "little") != int(os.stat(module.__file__).st_mtime) & 0xFFFFFFFF
+    except (AttributeError, TypeError, OSError):
+        return False
+
+
+def reload_outdated_modules(names=OWN_MODULES):
+    """After a deploy, Streamlit Cloud runs the new app.py but may keep the old copies of the
+    other modules in memory: the new app.py then calls functions that do not exist yet
+    (live on 23 Nov: TypeError for campus_map(busy=...)). If any module is outdated, all of
+    them are loaded again, in import order, so they fit together. Returns the reloaded names."""
+    loaded = [name for name in names if name in sys.modules]
+    if not any(outdated(sys.modules[name]) for name in loaded):
+        return []
+    for name in loaded:
+        importlib.reload(sys.modules[name])
+    logging.getLogger("nova").warning("reloaded outdated modules after a deploy: %s", ", ".join(loaded))
+    return loaded
+
+
+reload_outdated_modules()
 
 DB_PATH = os.environ.get("MURDER_DB", "data/murder.db")
 POLL_SECONDS = 2   # every open screen asks for the current state this often

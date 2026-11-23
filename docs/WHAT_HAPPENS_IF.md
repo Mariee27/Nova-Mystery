@@ -29,6 +29,9 @@ The game continues normally. They can be voted for and are revealed at the end.
 **… the app restarts?**
 Nothing is lost when `DATABASE_URL` points to a PostgreSQL database (the deployed app uses a free one on Neon): the rooms live there, not on the app's server. Without it the game state is stored in an SQLite file (DW 21): locally that is kept, but on free hosting the file is lost on a restart, and then you need a new room. (`tests/test_db.py` runs on both databases.)
 
+**… a new version is deployed while the app is running?**
+Streamlit Cloud then runs the new `app.py`, but may keep old copies of the other modules in memory, so the new screens call functions that do not exist yet (this happened live: "Search a place" crashed with a TypeError). At the start of every run `app.py` checks whether a module was loaded from an older version of its file and, if so, loads all game modules again, in import order. If that does not help (for example when the server writes no `.pyc` files), "Manage app → Reboot app" on Streamlit Cloud restarts the server; the rooms survive in PostgreSQL. (`tests/test_reload_after_deploy.py`)
+
 **… someone reloads the page?**
 Nothing is lost. The game state lives on the server, not in the browser.
 
