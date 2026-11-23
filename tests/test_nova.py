@@ -449,3 +449,16 @@ def test_the_board_types_only_the_newest_note_letter_by_letter():
     assert board.index('class="typing"') < board.index("Old &lt;b&gt;note")      # the newest, first
     assert 'class="typing"' not in ui.evidence_wall(log, str)                      # phones: plain text
     assert "CAM 01" in board and 'class="rec"' in board                            # a camera still
+
+
+def test_a_player_who_just_joined_flies_in_on_the_board():
+    players = [{"pid": 1, "name": "Ana", "online": True}, {"pid": 2, "name": "Ben", "online": True}]
+    html = ui.suspects(players, "LOBBY", arrive={2})
+    assert html.count("suspect arrive") == 1 and html.index("Ana") < html.index("suspect arrive")
+    assert "arrive" not in ui.suspects(players, "LOBBY")
+
+
+def test_the_suspects_are_dealt_from_one_deck():
+    players = [{"pid": i, "name": f"P{i}", "role": None} for i in (1, 2, 3)]
+    html = ui.lineup(players)
+    assert html.count("--dx:") == 3 and "--dx:15.0vw" in html and "--dx:-15.0vw" in html

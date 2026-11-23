@@ -132,7 +132,8 @@ SUSPECTS_UNTIL = 57.6     # the lineup stays while everybody reads (phones open 
 BOARD_INTRO_END = 58.0    # the whole intro fades out (style.css: .intro.long)
 
 def lineup(players, story=None):
-    """The players as file cards that fly in one after another and stay, so the room can read
+    """The players as file cards, dealt one after another like playing cards (face down from
+    one deck, then turned over), that stay so the room can read
     them all: number, name, role and the public dossier line. Only public facts (roles are
     public once the game runs); who did it stays secret."""
     if not players:
@@ -143,8 +144,10 @@ def lineup(players, story=None):
     cards = []
     for i, player in enumerate(players):
         role = player.get("role") or ""
+        # Dealt like playing cards: face down from one deck in the middle, then turned over.
+        deck = ((len(players) - 1) / 2 - i) * 15     # vw from this card's place to the middle
         cards.append(
-            f'<div class="lu" style="--in:{SUSPECTS_FROM + i * step:.2f}s">'
+            f'<div class="lu" style="--in:{SUSPECTS_FROM + i * step:.2f}s;--dx:{deck:.1f}vw">'
             f'<div class="top"><span class="no">Suspect #{i + 1}</span>'
             f'<span class="face">{initial(player["name"])}</span></div>'
             f'<div class="n">{h(player["name"])}</div><div class="r">{h(role)}</div>'
@@ -223,8 +226,9 @@ def big_timer(left, total):
 
 # ---------------------------------------------------------------- suspects and map
 
-def suspects(players, phase, guilty_pid=None, story=None):
-    """One dossier card per player. Roles are public from REVEAL on (see logic.public_view)."""
+def suspects(players, phase, guilty_pid=None, story=None, arrive=()):
+    """One dossier card per player. Roles are public from REVEAL on (see logic.public_view).
+    arrive: pids that have just joined (the board's lobby): their cards fly in."""
     dossiers = _story(story)["dossiers"]
     carries = _story(story).get("carries", {})
     cards = []
@@ -242,6 +246,7 @@ def suspects(players, phase, guilty_pid=None, story=None):
             tags.append(STAND_IN_TAG)
         dot = '<span class="dot"></span>' if player.get("online") else '<span class="dot off"></span>'
         guilty = " guilty" if guilty_pid is not None and player["pid"] == guilty_pid else ""
+        guilty += " arrive" if player["pid"] in arrive else ""
         role_html = f'<div class="r">{h(role)}</div>' if role else '<div class="r">awaiting file</div>'
         dossier_html = f'<div class="d">{h(dossier)}</div>' if dossier else ""
         cards.append(

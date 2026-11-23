@@ -491,8 +491,25 @@ def show_rules(expanded=False):
         st.markdown(content.HOW_TO_PLAY)
 
 
-def show_players(public):
-    show(ui.suspects(public["players"], public["phase"], story=public["story"]))
+ARRIVE_SECONDS = 4   # how long a newly joined player's card keeps its fly-in animation on the board
+
+
+def show_players(public, board=False):
+    """The suspects' cards. board=True in the lobby: a player who joined since this board's
+    last look flies in (the board remembers whom it has seen in its session)."""
+    arrive = ()
+    if board and public["phase"] == "LOBBY":
+        # pid -> when this board first saw them. Players already there when the board opens
+        # count as seen long ago. A card keeps its "arrive" class for ARRIVE_SECONDS, so the
+        # next polls draw the same HTML and do not cut the animation short.
+        seen_key = f"board_seen_{public['code']}"
+        now = time.time()
+        first = seen_key not in st.session_state
+        seen = st.session_state.setdefault(seen_key, {})
+        for p in public["players"]:
+            seen.setdefault(p["pid"], 0 if first else now)
+        arrive = {pid for pid, since in seen.items() if now - since < ARRIVE_SECONDS}
+    show(ui.suspects(public["players"], public["phase"], story=public["story"], arrive=arrive))
 
 
 def show_wall(public, board=False):
@@ -721,7 +738,7 @@ def board_live(code):
                 st.caption("Open this app on your phone and enter the room code.")
         with right:
             st.markdown('<div class="kicker">The suspects</div>', unsafe_allow_html=True)
-            show_players(public)
+            show_players(public, board=True)
             # The projector has room for the rules while everybody joins.
             st.markdown("**How to play**")
             st.markdown(content.HOW_TO_PLAY)

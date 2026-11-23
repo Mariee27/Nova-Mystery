@@ -1069,3 +1069,12 @@ def test_without_a_board_the_file_opens_at_once(game_db):
     phone.run(press=["Start game"], **{"Which case?": "rehearsal"})
     page = phone.run()
     assert 'class="envelope"' in page and "Look at the board" not in page
+
+
+def test_the_board_lobby_flies_in_only_players_who_join_while_it_is_open(game_db):
+    code, phone = host_of_a_room()
+    board = Browser(room=code, view="board")
+    assert "suspect arrive" not in board.run()        # the host was there before the board opened
+    Browser(room=code).run(press=["Join"], **{"Your name": "Ben"})
+    page = board.run()
+    assert page.count("suspect arrive") == 1 and page.index("Ben") > page.index("suspect arrive")
