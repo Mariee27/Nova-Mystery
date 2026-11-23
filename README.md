@@ -147,7 +147,7 @@ the case's own words (see *Mini-games that fit the case* below).
 
 | Game | What you do | Solvable from |
 |---|---|---|
-| 🔐 Crack the code | Tap a 4-digit code on a keypad | The case timeline: death ≈ 23:30, body found 23:47 (e.g. 17 minutes, then 23 → `1723`) |
+| 🔐 Crack the code | Tap a 4-digit code on a keypad | A note lists four times of the night as A–D (three from the victim's evening, plus the discovery of the body; one is a decoy). Its last line says how to make the code, e.g. "the minutes from A to C – then the hour of D" or "B on a twelve-hour clock". Entries, letters and rule change every game, so the code does too. |
 | 🕵️ Rub to reveal | Rub the dust (finger or mouse) off a find: a note, a printout, a phone screen or a photo | Just rubbing: 55 % of it |
 | 🧩 Reassemble the still | Tap two pieces to swap them (9 or 6 pieces of the night camera's still of the place) | The picture itself; the hints say where its parts are |
 | 🧠 Decode the note | Turn a cipher wheel until the victim's shifted-letter note reads | The note is signed with the victim's name |
